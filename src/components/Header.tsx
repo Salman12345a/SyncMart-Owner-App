@@ -1,7 +1,11 @@
 import React from 'react';
 import {View, Text, StyleSheet} from 'react-native';
 
-const Header = ({title}) => (
+interface HeaderProps {
+  title: string;
+}
+
+const Header: React.FC<HeaderProps> = ({title}) => (
   <View style={styles.header}>
     <Text style={styles.headerText}>{title}</Text>
   </View>
