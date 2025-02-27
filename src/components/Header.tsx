@@ -1,13 +1,32 @@
 import React from 'react';
-import {View, Text, StyleSheet} from 'react-native';
+import {View, Text, StyleSheet, TouchableOpacity} from 'react-native';
+import {DrawerNavigationProp} from '@react-navigation/drawer';
+import Icon from 'react-native-vector-icons/MaterialIcons';
+import StoreStatusToggle from './StoreStatusToggle';
 
 interface HeaderProps {
-  title: string;
+  navigation: DrawerNavigationProp<any>;
+  showStoreStatus?: boolean;
+  socket?: any;
 }
 
-const Header: React.FC<HeaderProps> = ({title}) => (
+const Header: React.FC<HeaderProps> = ({
+  navigation,
+  showStoreStatus,
+  socket,
+}) => (
   <View style={styles.header}>
-    <Text style={styles.headerText}>{title}</Text>
+    <TouchableOpacity
+      style={styles.menuButton}
+      onPress={() => navigation.openDrawer()}>
+      <Icon name="menu" size={30} color="#fff" />
+    </TouchableOpacity>
+
+    {showStoreStatus ? (
+      <StoreStatusToggle socket={socket} />
+    ) : (
+      <Text style={styles.headerText}>SyncMart</Text>
+    )}
   </View>
 );
 
@@ -15,8 +34,13 @@ const styles = StyleSheet.create({
   header: {
     height: 60,
     backgroundColor: '#007AFF',
-    justifyContent: 'center',
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+  },
+  menuButton: {
+    position: 'absolute',
+    left: 10,
   },
   headerText: {
     color: '#fff',

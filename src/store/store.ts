@@ -3,16 +3,16 @@ import {create} from 'zustand';
 interface StoreState {
   storeStatus: 'open' | 'closed';
   deliveryServiceAvailable: boolean;
-  userId: string | null; // Add userId to track the logged-in branch
+  userId: string | null;
   setStoreStatus: (status: 'open' | 'closed') => void;
   setDeliveryServiceAvailable: (available: boolean) => void;
-  setUserId: (id: string | null) => void; // Setter for userId
+  setUserId: (id: string | null) => void;
 }
 
 export const useStore = create<StoreState>(set => ({
   storeStatus: 'open',
   deliveryServiceAvailable: false,
-  userId: null, // Initially null until login
+  userId: null,
   setStoreStatus: status => set({storeStatus: status}),
   setDeliveryServiceAvailable: available =>
     set({deliveryServiceAvailable: available}),

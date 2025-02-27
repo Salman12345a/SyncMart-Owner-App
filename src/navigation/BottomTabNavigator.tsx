@@ -1,70 +1,105 @@
-import React, {useCallback} from 'react';
+import React from 'react';
 import {View, TouchableOpacity, StyleSheet} from 'react-native';
 import {createBottomTabNavigator} from '@react-navigation/bottom-tabs';
 import {useNavigation} from '@react-navigation/native';
 import {StackNavigationProp} from '@react-navigation/stack';
 import Icon from 'react-native-vector-icons/Ionicons';
-import HomeScreen from '../screens/HomeScreen';
+import InventoryItemDisplay from '../screens/InventoryItemDisplay';
 import Financial from '../screens/FinancialSummaryScreen';
-import Inventory from '../screens/InventoryManagementScreen';
+import DeliveryService from '../screens/DeliveryService';
 import Order from '../screens/OrderManagementScreen';
 import AddProduct from '../screens/AddProduct';
 import {RootStackParamList} from '../navigation/AppNavigator';
+import HomeScreen from '../screens/HomeScreen';
 
 const Tab = createBottomTabNavigator();
 
-interface CustomTabButtonProps {
-  onPress: () => void;
-}
-
-const CustomTabButton: React.FC<CustomTabButtonProps> = ({onPress}) => (
-  <TouchableOpacity
-    style={styles.fabContainer}
-    onPress={onPress}
-    activeOpacity={0.7}>
-    <View style={styles.fabButton}>
-      <Icon name="add" size={28} color="#fff" />
-    </View>
-  </TouchableOpacity>
-);
-
-type NavigationProp = StackNavigationProp<RootStackParamList, 'AddProduct'>;
+type NavigationProp = StackNavigationProp<RootStackParamList>;
 
 const BottomTabNavigator: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
-
-  const handleAddPress = useCallback(() => {
-    navigation.navigate('AddProduct');
-  }, [navigation]);
 
   return (
     <Tab.Navigator
       screenOptions={({route}) => ({
         tabBarIcon: ({color, size}) => {
           const icons: {[key: string]: string} = {
-            Home: 'home',
-            Order: 'cart',
+            InventoryItemDisplay: 'home',
+            HomeScreen: 'cart',
             Finance: 'cash',
-            Inventory: 'layers',
+            DeliveryService: 'layers',
+            Add: 'add', // Add the missing Add tab
           };
-          return <Icon name={icons[route.name]} size={size} color={color} />;
+          return (
+            <Icon
+              name={icons[route.name]}
+              size={size || 24}
+              color={color || '#7D3CFF'}
+            />
+          );
         },
         tabBarShowLabel: false,
         tabBarStyle: styles.tabBar,
         tabBarActiveTintColor: '#7D3CFF',
         tabBarInactiveTintColor: '#666',
+        headerShown: false, // Ensure no header from tabs
       })}>
-      <Tab.Screen name="Home" component={HomeScreen} />
-      <Tab.Screen name="Order" component={Order} />
+      <Tab.Screen
+        name="InventoryItemDisplay"
+        component={InventoryItemDisplay}
+        listeners={{
+          tabPress: e => {
+            e.preventDefault(); // Prevent default tab navigation
+            navigation.navigate('Main'); // Go to Drawer Navigator
+          },
+        }}
+      />
+      <Tab.Screen
+        name="HomeScreen"
+        component={HomeScreen}
+        listeners={{
+          tabPress: e => {
+            e.preventDefault();
+            navigation.navigate('Order'); // Go to Order screen in stack
+          },
+        }}
+      />
       <Tab.Screen
         name="Add"
         component={AddProduct}
         options={{
-          tabBarButton: () => <CustomTabButton onPress={handleAddPress} />,
+          tabBarButton: () => (
+            <TouchableOpacity
+              style={styles.fabContainer}
+              onPress={() => navigation.navigate('AddProduct')}
+              activeOpacity={0.7}>
+              <View style={styles.fabButton}>
+                <Icon name="add" size={28} color="#fff" />
+              </View>
+            </TouchableOpacity>
+          ),
         }}
       />
-      <Tab.Screen name="Finance" component={Financial} />
-      <Tab.Screen name="Inventory" component={Inventory} />
+      <Tab.Screen
+        name="Finance"
+        component={Financial}
+        listeners={{
+          tabPress: e => {
+            e.preventDefault();
+            navigation.navigate('Finance');
+          },
+        }}
+      />
+      <Tab.Screen
+        name="DeliveryService"
+        component={DeliveryService}
+        listeners={{
+          tabPress: e => {
+            e.preventDefault();
+            navigation.navigate('DeliveryService');
+          },
+        }}
+      />
     </Tab.Navigator>
   );
 };

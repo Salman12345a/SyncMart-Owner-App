@@ -1,16 +1,25 @@
+// HomeScreen.tsx
 import React, {useEffect} from 'react';
 import {View, StyleSheet, Text} from 'react-native';
 import Header from '../components/Header';
-import SyncMartToggle from '../components/SyncMartToggle';
+import DeliveryServiceToggle from '../components/DeliveryServiceToggle';
 import {useStore} from '../store/store';
 import io from 'socket.io-client';
+import {DrawerNavigationProp} from '@react-navigation/drawer'; // Add this
+import {DrawerParamList} from '../navigation/Sidebar'; // Adjust path
 
 const socket = io('http://10.0.2.2:3000', {
   transports: ['websocket'],
   reconnection: true,
 });
 
-const HomeScreen: React.FC = () => {
+type HomeScreenNavigationProp = DrawerNavigationProp<DrawerParamList, 'Home'>;
+
+interface HomeScreenProps {
+  navigation: HomeScreenNavigationProp; // Add navigation prop
+}
+
+const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
   const {
     storeStatus,
     deliveryServiceAvailable,
@@ -27,7 +36,7 @@ const HomeScreen: React.FC = () => {
 
     socket.on('connect', () => {
       console.log('Socket connected:', socket.id);
-      socket.emit('joinBranch', userId); // Join branch room
+      socket.emit('joinBranch', userId);
     });
     socket.on('connect_error', err =>
       console.error('Socket connection error:', err.message),
@@ -45,7 +54,6 @@ const HomeScreen: React.FC = () => {
       socket.off('syncmart:status');
       socket.off('syncmart:delivery-service-available');
       socket.off('connect_error');
-      // Don’t disconnect here - keep it alive for SyncMartToggle
     };
   }, [userId, setStoreStatus, setDeliveryServiceAvailable]);
 
@@ -55,14 +63,17 @@ const HomeScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      <Header title="SyncMart Home" />
-      <SyncMartToggle socket={socket} /> {/* Pass socket to reuse */}
+      <Header navigation={navigation} showStoreStatus socket={socket} />
+      <View style={styles.content}>
+        <DeliveryServiceToggle socket={socket} />
+      </View>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {flex: 1},
+  content: {padding: 20},
 });
 
 export default HomeScreen;
