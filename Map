@@ -1,0 +1,35 @@
+src/
+├─ assets/
+├─ components/
+│  ├─ dashboard/
+│  │  ├─ Header.tsx
+│  │  ├─ OrderCard.tsx
+│  │  └─ StoreStatus.tsx
+│  ├─ delivery/
+│  │  └─ DeliveryService.tsx
+│  ├─ storemanage/
+│  │  ├─ FinancialSummary.tsx
+│  │  ├─ InventoryItem.tsx
+│  │  └─ SyncmartManagement.tsx
+│  └─ ui/
+├─ navigation/
+│  ├─ AppNavigator.tsx
+│  ├─ BottomTabNavigator.tsx
+│  └─ Sidebar.tsx
+├─ screens/
+│  ├─ AddProduct.tsx
+│  ├─ AuthenticationScreen.tsx
+│  ├─ DeliveryService.tsx
+│  ├─ FinancialSummary.tsx
+│  ├─ HelpScreen.tsx
+│  ├─ HomeScreen.tsx
+│  ├─ InventoryItemDisplay.tsx
+│  ├─ OrderManagement.tsx
+│  ├─ UserDetailsScreen.tsx
+│  └─ WalletScreen.tsx
+├─ services/
+│  ├─ api.ts
+│  └─ socket.ts             # New
+├─ store/
+│  └─ ordersStore.ts        # Renamed from store.ts
+└─ utils/

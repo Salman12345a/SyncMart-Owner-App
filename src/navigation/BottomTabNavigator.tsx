@@ -92,7 +92,7 @@ const BottomTabNavigator: React.FC = () => {
       />
       <Tab.Screen
         name="DeliveryService"
-        component={DeliveryService}
+        component={DeliveryService} // Updated from () => <DeliveryService socket />
         listeners={{
           tabPress: e => {
             e.preventDefault();

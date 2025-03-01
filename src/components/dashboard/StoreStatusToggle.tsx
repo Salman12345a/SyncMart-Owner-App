@@ -2,8 +2,8 @@
 import React, {useCallback} from 'react';
 import {View, StyleSheet} from 'react-native';
 import SwitchSelector from 'react-native-switch-selector';
-import {useStore} from '../store/store';
-import api from '../services/api';
+import {useStore} from '../../store/ordersStore';
+import api from '../../services/api';
 
 interface StoreStatusToggleProps {
   socket: any;

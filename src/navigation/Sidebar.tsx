@@ -2,7 +2,7 @@ import React from 'react';
 import {createDrawerNavigator} from '@react-navigation/drawer';
 import HomeScreen from '../screens/HomeScreen';
 import WalletScreen from '../screens/WalletScreen';
-import StoreManagement from '../components/SyncmartManagement';
+import StoreManagement from '../components/storemanage/SyncmartManagement';
 import HelpScreen from '../screens/HelpScreen';
 
 export type DrawerParamList = {

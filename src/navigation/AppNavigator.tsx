@@ -4,9 +4,10 @@ import AuthenticationScreen from '../screens/AuthenticationScreen';
 import Sidebar from './Sidebar';
 import AddProduct from '../screens/AddProduct';
 import UserDetailsScreen from '../screens/UserDetailsScreen';
-import Financial from '../screens/FinancialSummaryScreen';
+import Financial from '../screens/FinancialSummaryScreen'; // Corrected import name
 import DeliveryService from '../screens/DeliveryService';
-import Order from '../screens/OrderManagementScreen';
+import Order from '../screens/OrderManagementScreen'; // Corrected import name
+import OrderDetail from '../screens/OrderDetail';
 
 export type RootStackParamList = {
   Authentication: undefined;
@@ -16,7 +17,16 @@ export type RootStackParamList = {
   Order: undefined;
   Finance: undefined;
   DeliveryService: undefined;
+  OrderDetail: {order: Order};
 };
+
+interface Order {
+  _id: string;
+  orderId: string;
+  status: string;
+  totalPrice: number;
+  items: {_id: string; item: {name: string; price: number}; count: number}[];
+}
 
 const Stack = createStackNavigator<RootStackParamList>();
 
@@ -29,6 +39,7 @@ const AppNavigator: React.FC = () => (
     <Stack.Screen name="Order" component={Order} />
     <Stack.Screen name="Finance" component={Financial} />
     <Stack.Screen name="DeliveryService" component={DeliveryService} />
+    <Stack.Screen name="OrderDetail" component={OrderDetail} />
   </Stack.Navigator>
 );
 

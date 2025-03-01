@@ -1,9 +1,8 @@
-// components/DeliveryServiceToggle.tsx
 import React, {useCallback} from 'react';
 import {View, Text, StyleSheet} from 'react-native';
 import SwitchSelector from 'react-native-switch-selector';
-import {useStore} from '../store/store';
-import api from '../services/api';
+import {useStore} from '../../store/ordersStore';
+import api from '../../services/api';
 
 interface DeliveryServiceToggleProps {
   socket: any;

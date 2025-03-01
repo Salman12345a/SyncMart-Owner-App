@@ -1,15 +1,15 @@
 import React from 'react';
 import {View, Text, TouchableOpacity, StyleSheet} from 'react-native';
-import api from '../services/api';
+import api from '../../services/api';
 
-const OrderCard = ({order, onAccept, onReject, onCancelItem}) => {
+const OrderCard = ({order, onAccept, onReject, onCancelItem, navigation}) => {
   const handleAccept = async () => {
     await api.patch(`/orders/${order._id}/accept`);
     onAccept(order._id);
   };
 
   const handleReject = async () => {
-    await api.patch(`/orders/${order._id}/reject`, {
+    await api.patch(`/orders/${order._id}/cancel`, {
       reason: 'item unavailable',
     });
     onReject(order._id);
@@ -20,8 +20,10 @@ const OrderCard = ({order, onAccept, onReject, onCancelItem}) => {
     onCancelItem(order._id, itemId);
   };
 
+  const handlePress = () => navigation.navigate('OrderDetail', {order});
+
   return (
-    <View style={styles.card}>
+    <TouchableOpacity onPress={handlePress} style={styles.card}>
       <Text>Order ID: {order.orderId}</Text>
       <Text>Status: {order.status}</Text>
       <Text>Total: ₹{order.totalPrice}</Text>
@@ -30,12 +32,12 @@ const OrderCard = ({order, onAccept, onReject, onCancelItem}) => {
           <Text>
             {item.item.name} x {item.count}
           </Text>
-          <TouchableOpacity onPress={() => handleCancelItem(item.id)}>
+          <TouchableOpacity onPress={() => handleCancelItem(item._id)}>
             <Text style={styles.cancel}>Cancel Item</Text>
           </TouchableOpacity>
         </View>
       ))}
-      {order.status === 'pending' && (
+      {order.status === 'placed' && (
         <>
           <TouchableOpacity onPress={handleAccept} style={styles.button}>
             <Text>Accept</Text>
@@ -45,7 +47,7 @@ const OrderCard = ({order, onAccept, onReject, onCancelItem}) => {
           </TouchableOpacity>
         </>
       )}
-    </View>
+    </TouchableOpacity>
   );
 };
 

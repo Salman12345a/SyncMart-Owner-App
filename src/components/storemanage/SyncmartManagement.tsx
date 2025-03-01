@@ -1,9 +1,9 @@
 import React from 'react';
 import {View, Text, StyleSheet} from 'react-native';
 import {DrawerNavigationProp} from '@react-navigation/drawer';
-import {DrawerParamList} from '../navigation/Sidebar';
+import {DrawerParamList} from '../../navigation/Sidebar';
 
-import BottomTabNavigator from '../navigation/BottomTabNavigator';
+import BottomTabNavigator from '../../navigation/BottomTabNavigator';
 
 type InventoryScreenNavigationProp = DrawerNavigationProp<DrawerParamList>;
 

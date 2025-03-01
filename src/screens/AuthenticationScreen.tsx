@@ -1,3 +1,4 @@
+// src/screens/AuthenticationScreen.tsx
 import React, {useState, useEffect} from 'react';
 import {
   View,
@@ -10,32 +11,43 @@ import {
 import api from '../services/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {useNavigation} from '@react-navigation/native';
-import {useStore} from '../store/store';
-import {jwtDecode} from 'jwt-decode'; // Add this dependency
+import {useStore} from '../store/ordersStore';
+import {jwtDecode} from 'jwt-decode';
 
 const AuthenticationScreen: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const navigation = useNavigation<any>();
-  const {setUserId} = useStore();
+  const {setUserId, sessionExpiredMessage, setSessionExpiredMessage} =
+    useStore();
 
-  // Check for existing token on mount
+  // Check token and show expiration message on mount
   useEffect(() => {
-    const checkToken = async () => {
+    const checkTokenAndMessage = async () => {
       const token = await AsyncStorage.getItem('accessToken');
       if (token) {
         try {
           const decoded: {userId: string} = jwtDecode(token);
-          setUserId(decoded.userId); // Set userId in store
-          navigation.replace('Main'); // Skip login if token exists
+          setUserId(decoded.userId);
+          navigation.replace('Main');
         } catch (err) {
           console.error('Token decode error:', err);
-          await AsyncStorage.removeItem('accessToken'); // Clear invalid token
+          await AsyncStorage.removeItem('accessToken');
         }
       }
+
+      // Show expiration message if it exists
+      if (sessionExpiredMessage) {
+        Alert.alert('Session Expired', sessionExpiredMessage, [
+          {
+            text: 'OK',
+            onPress: () => setSessionExpiredMessage(null), // Clear message after display
+          },
+        ]);
+      }
     };
-    checkToken();
-  }, [navigation, setUserId]);
+    checkTokenAndMessage();
+  }, [navigation, setUserId, sessionExpiredMessage, setSessionExpiredMessage]);
 
   const handleLogin = async () => {
     console.log('Attempting login with:', {email, password});
@@ -44,10 +56,9 @@ const AuthenticationScreen: React.FC = () => {
       console.log('Login response:', response.data);
       const {accessToken} = response.data;
 
-      // Decode token to get userId
       const decoded: {userId: string} = jwtDecode(accessToken);
       await AsyncStorage.setItem('accessToken', accessToken);
-      setUserId(decoded.userId); // Store userId
+      setUserId(decoded.userId);
 
       navigation.replace('Main');
     } catch (err) {
