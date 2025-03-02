@@ -1,4 +1,4 @@
-import React, {useState} from 'react';
+import React, {useState, useEffect} from 'react';
 import {
   View,
   Text,
@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import {StackScreenProps} from '@react-navigation/stack';
 import {RootStackParamList} from '../navigation/AppNavigator';
-import UniversalAdd from '../components/ui/UniversalAdd'; // Adjusted import path
+import UniversalAdd from '../components/ui/UniversalAdd'; // Adjusted path
 import api from '../services/api';
 import {useStore} from '../store/ordersStore';
 
@@ -19,6 +19,30 @@ const OrderDetail: React.FC<OrderDetailProps> = ({route, navigation}) => {
   const {order} = route.params;
   const {updateOrder} = useStore();
   const [updatedItems, setUpdatedItems] = useState(order.items);
+  const [hasModified, setHasModified] = useState(false);
+  const [totalAmountState, setTotalAmountState] = useState(
+    order.items.reduce(
+      (sum, item) =>
+        sum + Number(item.item.price || 0) * Number(item.count || 0),
+      0,
+    ),
+  );
+
+  // Log initial items for debugging
+  useEffect(() => {
+    console.log('Initial order.items:', order.items);
+  }, []);
+
+  // Update total amount whenever updatedItems changes
+  useEffect(() => {
+    console.log('Updated items:', updatedItems);
+    const newTotal = updatedItems.reduce(
+      (sum, item) =>
+        sum + Number(item.item.price || 0) * Number(item.count || 0),
+      0,
+    );
+    setTotalAmountState(newTotal);
+  }, [updatedItems]);
 
   const getItemCount = (itemId: string) =>
     updatedItems.find(i => i._id === itemId)?.count || 0;
@@ -47,25 +71,103 @@ const OrderDetail: React.FC<OrderDetailProps> = ({route, navigation}) => {
     );
   };
 
-  const handlePackedOrder = async () => {
+  // Check for modifications whenever updatedItems changes
+  useEffect(() => {
+    const isModified = updatedItems.some((updatedItem, index) => {
+      const originalItem = order.items[index];
+      return updatedItem.count !== originalItem.count;
+    });
+    setHasModified(isModified);
+  }, [updatedItems, order.items]);
+
+  const handleCancelOrder = async () => {
     try {
-      const modifiedItems = updatedItems.map(item => ({
-        item: item._id,
-        count: item.count,
-      }));
-      await api.patch(`/orders/${order._id}/modify`, {modifiedItems});
-      const response = await api.patch(`/orders/${order._id}/pack`);
-      updateOrder(order._id, response.data); // Assuming pack returns updated order
+      const response = await api.patch(`/orders/${order._id}/cancel`);
+      updateOrder(order._id, response.data);
       navigation.goBack();
     } catch (error) {
-      console.error('Packed Order Error:', error);
-      Alert.alert('Error', 'Failed to pack order');
+      console.error('Cancel Order Error:', error);
+      Alert.alert('Error', 'Failed to cancel order');
+    }
+  };
+
+  const handleAccept = async () => {
+    try {
+      await api.patch(`/orders/${order._id}/accept`);
+      const updatedOrder = {...order, status: 'accepted'};
+      updateOrder(order._id, updatedOrder);
+    } catch (error) {
+      console.error('Accept Order Error:', error);
+      Alert.alert('Error', 'Failed to accept order');
+    }
+  };
+
+  const handleModifyOrder = async () => {
+    try {
+      if (order.status !== 'accepted') {
+        console.log('Accepting order before modifying:', order._id);
+        await handleAccept();
+      }
+      const modifiedItems = updatedItems.map(item => ({
+        item: item.item, // Product ObjectId
+        count: item.count,
+      }));
+      console.log('Sending modify request:', {
+        orderId: order._id,
+        modifiedItems,
+      });
+      await api.patch(`/orders/${order._id}/modify`, {modifiedItems});
+      setHasModified(false);
+      updateOrder(order._id, {...order, items: updatedItems});
+    } catch (error) {
+      console.error(
+        'Modify Order Error:',
+        error.response?.data || error.message,
+      );
+      Alert.alert(
+        'Error',
+        `Failed to modify order: ${
+          error.response?.data?.message || error.message
+        }`,
+      );
+    }
+  };
+
+  const handlePackedOrder = async () => {
+    try {
+      if (order.status !== 'accepted') {
+        console.log('Accepting order before packing:', order._id);
+        await handleAccept();
+      }
+      console.log('Sending pack request:', {orderId: order._id});
+      const response = await api.patch(`/orders/${order._id}/pack`);
+      console.log('Pack successful:', response.data);
+      updateOrder(order._id, response.data);
+      navigation.goBack();
+    } catch (error) {
+      console.error(
+        'Packed Order Error:',
+        error.response?.data || error.message,
+      );
+      Alert.alert(
+        'Error',
+        `Failed to pack order: ${
+          error.response?.data?.message || error.message
+        }`,
+      );
     }
   };
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Order {order.orderId}</Text>
+      <View style={styles.header}>
+        <Text style={styles.title}>Order #{order.orderId}</Text>
+        <TouchableOpacity
+          onPress={handleCancelOrder}
+          style={styles.cancelButton}>
+          <Text style={styles.cancelButtonText}>Cancel Order</Text>
+        </TouchableOpacity>
+      </View>
       <FlatList
         data={updatedItems}
         renderItem={({item}) => (
@@ -87,26 +189,67 @@ const OrderDetail: React.FC<OrderDetailProps> = ({route, navigation}) => {
         keyExtractor={item => item._id}
         contentContainerStyle={styles.list}
       />
-      <TouchableOpacity onPress={handlePackedOrder} style={styles.packButton}>
-        <Text style={styles.packButtonText}>Packed Order</Text>
+      <Text style={styles.total}>Total Amount: ₹{totalAmountState}</Text>
+      <TouchableOpacity
+        onPress={hasModified ? handleModifyOrder : handlePackedOrder}
+        style={[
+          styles.packButton,
+          {backgroundColor: hasModified ? '#007AFF' : '#28a745'},
+        ]}>
+        <Text style={styles.packButtonText}>
+          {hasModified ? 'Modify Order' : 'Packed Order'}
+        </Text>
       </TouchableOpacity>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {flex: 1, padding: 20},
-  title: {fontSize: 20, fontWeight: 'bold', marginBottom: 15},
+  container: {flex: 1, padding: 20, backgroundColor: '#f5f5f5'},
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 15,
+    paddingHorizontal: 20,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+    borderRadius: 8,
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: {width: 0, height: 2},
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  title: {fontSize: 24, fontWeight: '700', color: '#333'},
+  cancelButton: {
+    backgroundColor: '#ff4d4d',
+    paddingVertical: 8,
+    paddingHorizontal: 15,
+    borderRadius: 6,
+  },
+  cancelButtonText: {color: '#fff', fontSize: 14, fontWeight: '600'},
   itemRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginVertical: 5,
+    borderBottomWidth: 1,
+    borderBottomColor: '#ddd',
+    paddingBottom: 5,
   },
   itemDetails: {flex: 1},
   list: {paddingBottom: 20},
+  total: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginVertical: 10,
+    textAlign: 'right',
+    color: '#333',
+  },
   packButton: {
-    backgroundColor: '#28a745',
     padding: 15,
     borderRadius: 5,
     alignItems: 'center',
