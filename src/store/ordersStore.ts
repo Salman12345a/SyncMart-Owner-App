@@ -6,6 +6,9 @@ interface Order {
   status: string;
   totalPrice: number;
   items: {_id: string; item: {name: string; price: number}; count: number}[];
+  deliveryServiceAvailable?: boolean; // Added for per-order delivery status
+  modificationHistory?: {changes: string[]}[]; // Added for modification changes
+  customer?: string; // Added for customerId
 }
 
 interface StoreState {
@@ -20,12 +23,12 @@ interface StoreState {
   setSessionExpiredMessage: (message: string | null) => void;
   addOrder: (order: Order) => void;
   updateOrder: (orderId: string, updatedOrder: Order) => void;
-  setOrders: (orders: Order[]) => void; // New: Set orders from fetch
+  setOrders: (orders: Order[]) => void;
 }
 
 export const useStore = create<StoreState>(set => ({
   storeStatus: 'open',
-  deliveryServiceAvailable: false,
+  deliveryServiceAvailable: false, // Global branch-level flag
   userId: null,
   sessionExpiredMessage: null,
   orders: [],
@@ -39,5 +42,5 @@ export const useStore = create<StoreState>(set => ({
     set(state => ({
       orders: state.orders.map(o => (o._id === orderId ? updatedOrder : o)),
     })),
-  setOrders: orders => set({orders}), // New: Replace orders array
+  setOrders: orders => set({orders}),
 }));

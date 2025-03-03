@@ -4,10 +4,13 @@ import AuthenticationScreen from '../screens/AuthenticationScreen';
 import Sidebar from './Sidebar';
 import AddProduct from '../screens/AddProduct';
 import UserDetailsScreen from '../screens/UserDetailsScreen';
-import Financial from '../screens/FinancialSummaryScreen'; // Corrected import name
+import Financial from '../screens/FinancialSummaryScreen';
 import DeliveryService from '../screens/DeliveryService';
-import Order from '../screens/OrderManagementScreen'; // Corrected import name
+import Order from '../screens/OrderManagementScreen';
 import OrderDetail from '../screens/OrderDetail';
+import AssignDeliveryPartner from '../screens/AssignDeliveryPartner';
+import OrderHasPacked from '../screens/OrderHasPacked';
+import OrderPackedScreen from '../screens/OrderPackedScreen'; // New
 
 export type RootStackParamList = {
   Authentication: undefined;
@@ -17,7 +20,10 @@ export type RootStackParamList = {
   Order: undefined;
   Finance: undefined;
   DeliveryService: undefined;
-  OrderDetail: {order: Order};
+  OrderDetail: {order: Order; fromPackedTab?: boolean}; // Updated
+  AssignDeliveryPartner: {order: Order};
+  OrderHasPacked: {order: Order};
+  OrderPackedScreen: undefined; // New
 };
 
 interface Order {
@@ -26,6 +32,9 @@ interface Order {
   status: string;
   totalPrice: number;
   items: {_id: string; item: {name: string; price: number}; count: number}[];
+  deliveryServiceAvailable?: boolean;
+  modificationHistory?: {changes: string[]}[];
+  customer?: string;
 }
 
 const Stack = createStackNavigator<RootStackParamList>();
@@ -40,6 +49,12 @@ const AppNavigator: React.FC = () => (
     <Stack.Screen name="Finance" component={Financial} />
     <Stack.Screen name="DeliveryService" component={DeliveryService} />
     <Stack.Screen name="OrderDetail" component={OrderDetail} />
+    <Stack.Screen
+      name="AssignDeliveryPartner"
+      component={AssignDeliveryPartner}
+    />
+    <Stack.Screen name="OrderHasPacked" component={OrderHasPacked} />
+    <Stack.Screen name="OrderPackedScreen" component={OrderPackedScreen} />
   </Stack.Navigator>
 );
 

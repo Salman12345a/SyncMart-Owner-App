@@ -9,40 +9,48 @@ import {
 } from 'react-native';
 import {StackScreenProps} from '@react-navigation/stack';
 import {RootStackParamList} from '../navigation/AppNavigator';
-import UniversalAdd from '../components/ui/UniversalAdd'; // Adjusted path
+import UniversalAdd from '../components/ui/UniversalAdd';
 import api from '../services/api';
 import {useStore} from '../store/ordersStore';
+import socketService from '../services/socket';
 
 type OrderDetailProps = StackScreenProps<RootStackParamList, 'OrderDetail'>;
 
 const OrderDetail: React.FC<OrderDetailProps> = ({route, navigation}) => {
-  const {order} = route.params;
-  const {updateOrder} = useStore();
-  const [updatedItems, setUpdatedItems] = useState(order.items);
+  const {order: initialOrder, fromPackedTab} = route.params || {}; // Added fromPackedTab
+  const {updateOrder, orders} = useStore();
+  const currentOrder =
+    orders.find(o => o._id === initialOrder._id) || initialOrder;
+  const [updatedItems, setUpdatedItems] = useState(currentOrder.items);
   const [hasModified, setHasModified] = useState(false);
   const [totalAmountState, setTotalAmountState] = useState(
-    order.items.reduce(
+    currentOrder.items.reduce(
       (sum, item) =>
         sum + Number(item.item.price || 0) * Number(item.count || 0),
       0,
     ),
   );
 
-  // Log initial items for debugging
   useEffect(() => {
-    console.log('Initial order.items:', order.items);
+    const customerId = currentOrder.customer || '67b4dd5abe2479aa2cfe45a0'; // Replace with dynamic source
+    socketService.connectCustomer(customerId);
+    return () => socketService.disconnect();
+  }, [currentOrder.customer]);
+
+  useEffect(() => {
+    console.log('Initial order.items:', currentOrder.items);
   }, []);
 
-  // Update total amount whenever updatedItems changes
   useEffect(() => {
-    console.log('Updated items:', updatedItems);
-    const newTotal = updatedItems.reduce(
+    console.log('Updated currentOrder:', currentOrder);
+    setUpdatedItems(currentOrder.items);
+    const newTotal = currentOrder.items.reduce(
       (sum, item) =>
         sum + Number(item.item.price || 0) * Number(item.count || 0),
       0,
     );
     setTotalAmountState(newTotal);
-  }, [updatedItems]);
+  }, [currentOrder]);
 
   const getItemCount = (itemId: string) =>
     updatedItems.find(i => i._id === itemId)?.count || 0;
@@ -55,7 +63,7 @@ const OrderDetail: React.FC<OrderDetailProps> = ({route, navigation}) => {
               ...i,
               count: Math.min(
                 i.count + 1,
-                order.items.find(o => o._id === i._id)?.count || i.count,
+                initialOrder.items.find(o => o._id === i._id)?.count || i.count,
               ),
             }
           : i,
@@ -71,19 +79,18 @@ const OrderDetail: React.FC<OrderDetailProps> = ({route, navigation}) => {
     );
   };
 
-  // Check for modifications whenever updatedItems changes
   useEffect(() => {
     const isModified = updatedItems.some((updatedItem, index) => {
-      const originalItem = order.items[index];
+      const originalItem = initialOrder.items[index];
       return updatedItem.count !== originalItem.count;
     });
     setHasModified(isModified);
-  }, [updatedItems, order.items]);
+  }, [updatedItems, initialOrder.items]);
 
   const handleCancelOrder = async () => {
     try {
-      const response = await api.patch(`/orders/${order._id}/cancel`);
-      updateOrder(order._id, response.data);
+      const response = await api.patch(`/orders/${currentOrder._id}/cancel`);
+      updateOrder(currentOrder._id, response.data);
       navigation.goBack();
     } catch (error) {
       console.error('Cancel Order Error:', error);
@@ -93,9 +100,9 @@ const OrderDetail: React.FC<OrderDetailProps> = ({route, navigation}) => {
 
   const handleAccept = async () => {
     try {
-      await api.patch(`/orders/${order._id}/accept`);
-      const updatedOrder = {...order, status: 'accepted'};
-      updateOrder(order._id, updatedOrder);
+      await api.patch(`/orders/${currentOrder._id}/accept`);
+      const updatedOrder = {...currentOrder, status: 'accepted'};
+      updateOrder(currentOrder._id, updatedOrder);
     } catch (error) {
       console.error('Accept Order Error:', error);
       Alert.alert('Error', 'Failed to accept order');
@@ -104,21 +111,21 @@ const OrderDetail: React.FC<OrderDetailProps> = ({route, navigation}) => {
 
   const handleModifyOrder = async () => {
     try {
-      if (order.status !== 'accepted') {
-        console.log('Accepting order before modifying:', order._id);
+      if (currentOrder.status !== 'accepted') {
+        console.log('Accepting order before modifying:', currentOrder._id);
         await handleAccept();
       }
       const modifiedItems = updatedItems.map(item => ({
-        item: item.item, // Product ObjectId
+        item: item.item._id || item.item,
         count: item.count,
       }));
       console.log('Sending modify request:', {
-        orderId: order._id,
+        orderId: currentOrder._id,
         modifiedItems,
       });
-      await api.patch(`/orders/${order._id}/modify`, {modifiedItems});
+      await api.patch(`/orders/${currentOrder._id}/modify`, {modifiedItems});
       setHasModified(false);
-      updateOrder(order._id, {...order, items: updatedItems});
+      updateOrder(currentOrder._id, {...currentOrder, items: updatedItems});
     } catch (error) {
       console.error(
         'Modify Order Error:',
@@ -135,15 +142,14 @@ const OrderDetail: React.FC<OrderDetailProps> = ({route, navigation}) => {
 
   const handlePackedOrder = async () => {
     try {
-      if (order.status !== 'accepted') {
-        console.log('Accepting order before packing:', order._id);
+      if (currentOrder.status !== 'accepted') {
+        console.log('Accepting order before packing:', currentOrder._id);
         await handleAccept();
       }
-      console.log('Sending pack request:', {orderId: order._id});
-      const response = await api.patch(`/orders/${order._id}/pack`);
+      console.log('Sending pack request:', {orderId: currentOrder._id});
+      const response = await api.patch(`/orders/${currentOrder._id}/pack`);
       console.log('Pack successful:', response.data);
-      updateOrder(order._id, response.data);
-      navigation.goBack();
+      updateOrder(currentOrder._id, response.data);
     } catch (error) {
       console.error(
         'Packed Order Error:',
@@ -158,10 +164,48 @@ const OrderDetail: React.FC<OrderDetailProps> = ({route, navigation}) => {
     }
   };
 
+  const handleCollectCash = async () => {
+    try {
+      const response = await api.patch(
+        `/orders/${currentOrder._id}/collect-cash`,
+      );
+      console.log('Cash collected:', response.data);
+      updateOrder(currentOrder._id, {...currentOrder, status: 'completed'}); // Assume completed status
+      Alert.alert('Success', 'Cash collected successfully');
+      navigation.goBack();
+    } catch (error) {
+      console.error(
+        'Collect Cash Error:',
+        error.response?.data || error.message,
+      );
+      Alert.alert(
+        'Error',
+        `Failed to collect cash: ${
+          error.response?.data?.message || error.message
+        }`,
+      );
+    }
+  };
+
+  useEffect(() => {
+    if (
+      currentOrder.status === 'packed' &&
+      !currentOrder.deliveryServiceAvailable &&
+      !fromPackedTab
+    ) {
+      navigation.navigate('OrderHasPacked', {order: currentOrder});
+    }
+  }, [
+    currentOrder.status,
+    currentOrder.deliveryServiceAvailable,
+    navigation,
+    fromPackedTab,
+  ]);
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Order #{order.orderId}</Text>
+        <Text style={styles.title}>Order #{currentOrder.orderId}</Text>
         <TouchableOpacity
           onPress={handleCancelOrder}
           style={styles.cancelButton}>
@@ -178,28 +222,61 @@ const OrderDetail: React.FC<OrderDetailProps> = ({route, navigation}) => {
                 ₹{item.item.price} x {getItemCount(item._id)}
               </Text>
             </View>
-            <UniversalAdd
-              item={item}
-              count={getItemCount}
-              addItem={addItem}
-              removeItem={removeItem}
-            />
+            {currentOrder.status !== 'packed' && (
+              <UniversalAdd
+                item={item}
+                count={getItemCount}
+                addItem={addItem}
+                removeItem={removeItem}
+              />
+            )}
           </View>
         )}
         keyExtractor={item => item._id}
         contentContainerStyle={styles.list}
       />
+      {currentOrder.modificationHistory?.length > 0 && (
+        <View style={styles.changesContainer}>
+          <Text style={styles.changesTitle}>Changes:</Text>
+          {currentOrder.modificationHistory[0].changes.map((change, index) => (
+            <Text key={index} style={styles.changeText}>
+              {change}
+            </Text>
+          ))}
+        </View>
+      )}
       <Text style={styles.total}>Total Amount: ₹{totalAmountState}</Text>
-      <TouchableOpacity
-        onPress={hasModified ? handleModifyOrder : handlePackedOrder}
-        style={[
-          styles.packButton,
-          {backgroundColor: hasModified ? '#007AFF' : '#28a745'},
-        ]}>
-        <Text style={styles.packButtonText}>
-          {hasModified ? 'Modify Order' : 'Packed Order'}
-        </Text>
-      </TouchableOpacity>
+      {currentOrder.status === 'packed' &&
+      currentOrder.deliveryServiceAvailable &&
+      !fromPackedTab ? (
+        <TouchableOpacity
+          onPress={() =>
+            navigation.navigate('AssignDeliveryPartner', {order: currentOrder})
+          }
+          style={styles.deliveryButton}>
+          <Text style={styles.deliveryButtonText}>Delivery Assign</Text>
+        </TouchableOpacity>
+      ) : (
+        currentOrder.status !== 'packed' && (
+          <TouchableOpacity
+            onPress={hasModified ? handleModifyOrder : handlePackedOrder}
+            style={[
+              styles.packButton,
+              {backgroundColor: hasModified ? '#007AFF' : '#28a745'},
+            ]}>
+            <Text style={styles.packButtonText}>
+              {hasModified ? 'Modify Order' : 'Packed Order'}
+            </Text>
+          </TouchableOpacity>
+        )
+      )}
+      {currentOrder.status === 'packed' && fromPackedTab && (
+        <TouchableOpacity
+          onPress={handleCollectCash}
+          style={styles.collectCashButton}>
+          <Text style={styles.collectCashButtonText}>Collect Cash</Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 };
@@ -256,6 +333,25 @@ const styles = StyleSheet.create({
     marginTop: 20,
   },
   packButtonText: {color: '#fff', fontSize: 16, fontWeight: 'bold'},
+  changesContainer: {marginVertical: 10},
+  changesTitle: {fontSize: 16, fontWeight: 'bold', color: '#333'},
+  changeText: {fontSize: 14, color: '#555'},
+  deliveryButton: {
+    backgroundColor: '#007AFF',
+    padding: 15,
+    borderRadius: 5,
+    alignItems: 'center',
+    marginTop: 20,
+  },
+  deliveryButtonText: {color: '#fff', fontSize: 16, fontWeight: 'bold'},
+  collectCashButton: {
+    backgroundColor: '#28a745',
+    padding: 15,
+    borderRadius: 5,
+    alignItems: 'center',
+    marginTop: 20,
+  },
+  collectCashButtonText: {color: '#fff', fontSize: 16, fontWeight: 'bold'},
 });
 
 export default OrderDetail;

@@ -2,7 +2,14 @@ import React from 'react';
 import {View, Text, TouchableOpacity, StyleSheet} from 'react-native';
 import api from '../../services/api';
 
-const OrderCard = ({order, onAccept, onReject, onCancelItem, navigation}) => {
+const OrderCard = ({
+  order,
+  onAccept,
+  onReject,
+  onCancelItem,
+  onAssignDeliveryPartner, // New prop for packed delivery orders
+  navigation,
+}) => {
   const handleAccept = async () => {
     await api.patch(`/orders/${order._id}/accept`);
     onAccept(order._id);
@@ -22,7 +29,6 @@ const OrderCard = ({order, onAccept, onReject, onCancelItem, navigation}) => {
 
   const handlePress = () => navigation.navigate('OrderDetail', {order});
 
-  // Determine status background color based on value
   const getStatusStyle = (status: string) => {
     switch (status) {
       case 'placed':
@@ -58,6 +64,15 @@ const OrderCard = ({order, onAccept, onReject, onCancelItem, navigation}) => {
           </TouchableOpacity>
         </View>
       )}
+      {order.status === 'packed' &&
+        onAssignDeliveryPartner &&
+        order.deliveryServiceAvailable && (
+          <TouchableOpacity
+            onPress={onAssignDeliveryPartner}
+            style={styles.assignButton}>
+            <Text style={styles.assignButtonText}>Assign Delivery Partner</Text>
+          </TouchableOpacity>
+        )}
       <View style={styles.statusContainer}>
         <Text style={[styles.status, getStatusStyle(order.status)]}>
           {order.status}
@@ -79,7 +94,7 @@ const styles = StyleSheet.create({
     shadowOffset: {width: 0, height: 2},
     shadowOpacity: 0.1,
     shadowRadius: 4,
-    elevation: 3, // Subtle shadow for professionalism
+    elevation: 3,
   },
   orderId: {
     fontSize: 16,
@@ -115,8 +130,21 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
+  assignButton: {
+    backgroundColor: '#007AFF',
+    paddingVertical: 8,
+    paddingHorizontal: 15,
+    borderRadius: 5,
+    alignItems: 'center',
+    marginTop: 10,
+  },
+  assignButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
   statusContainer: {
-    alignItems: 'flex-end', // Right-align the status
+    alignItems: 'flex-end',
     marginTop: 10,
   },
   status: {
@@ -125,15 +153,15 @@ const styles = StyleSheet.create({
     color: '#fff',
     paddingVertical: 4,
     paddingHorizontal: 10,
-    borderRadius: 12, // Pill shape
-    textTransform: 'capitalize', // e.g., "Placed" instead of "placed"
-    overflow: 'hidden', // Ensures clean edges
+    borderRadius: 12,
+    textTransform: 'capitalize',
+    overflow: 'hidden',
   },
-  statusPlaced: {backgroundColor: '#28a745'}, // Green for "placed"
-  statusAccepted: {backgroundColor: '#007AFF'}, // Blue for "accepted"
-  statusPacked: {backgroundColor: '#17a2b8'}, // Teal for "packed"
-  statusCancelled: {backgroundColor: '#6c757d'}, // Gray for "cancelled"
-  statusDefault: {backgroundColor: '#6c757d'}, // Default gray
+  statusPlaced: {backgroundColor: '#28a745'},
+  statusAccepted: {backgroundColor: '#007AFF'},
+  statusPacked: {backgroundColor: '#17a2b8'},
+  statusCancelled: {backgroundColor: '#6c757d'},
+  statusDefault: {backgroundColor: '#6c757d'},
 });
 
 export default OrderCard;

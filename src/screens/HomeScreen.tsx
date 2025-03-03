@@ -1,5 +1,12 @@
 import React, {useEffect} from 'react';
-import {View, StyleSheet, Text, Alert, FlatList} from 'react-native';
+import {
+  View,
+  StyleSheet,
+  Text,
+  Alert,
+  FlatList,
+  TouchableOpacity,
+} from 'react-native';
 import Header from '../components/dashboard/Header';
 import OrderCard from '../components/dashboard/OrderCard';
 import {useStore} from '../store/ordersStore';
@@ -22,7 +29,6 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
       return;
     }
 
-    // Fetch existing orders on mount
     const fetchOrders = async () => {
       try {
         const response = await api.get('/orders/', {
@@ -75,7 +81,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
       <View style={styles.content}>
         <Text style={styles.title}>Welcome to the Dashboard!</Text>
         <FlatList
-          data={orders}
+          data={orders.filter(o => o.status !== 'packed')} // Filter out packed orders
           renderItem={({item}) => (
             <OrderCard
               order={item}
@@ -86,10 +92,15 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
             />
           )}
           keyExtractor={item => item._id}
-          ListEmptyComponent={<Text>No orders yet</Text>}
+          ListEmptyComponent={<Text>No pending orders</Text>}
           contentContainerStyle={styles.orderList}
         />
       </View>
+      <TouchableOpacity
+        onPress={() => navigation.navigate('OrderPackedScreen')}
+        style={styles.packedOrderButton}>
+        <Text style={styles.packedOrderButtonText}>Packed Order</Text>
+      </TouchableOpacity>
     </View>
   );
 };
@@ -97,8 +108,20 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
 const styles = StyleSheet.create({
   container: {flex: 1},
   content: {padding: 20, flex: 1},
-  title: {fontSize: 20, marginBottom: 10},
+  title: {fontSize: 20, marginBottom: 10, color: '#333'},
   orderList: {paddingBottom: 20},
+  packedOrderButton: {
+    backgroundColor: '#28a745',
+    padding: 15,
+    alignItems: 'center',
+    borderTopWidth: 1,
+    borderTopColor: '#e0e0e0',
+  },
+  packedOrderButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
 });
 
 export default HomeScreen;
