@@ -17,7 +17,7 @@ import socketService from '../services/socket';
 type OrderDetailProps = StackScreenProps<RootStackParamList, 'OrderDetail'>;
 
 const OrderDetail: React.FC<OrderDetailProps> = ({route, navigation}) => {
-  const {order: initialOrder, fromPackedTab} = route.params || {}; // Added fromPackedTab
+  const {order: initialOrder, fromPackedTab} = route.params || {};
   const {updateOrder, orders} = useStore();
   const currentOrder =
     orders.find(o => o._id === initialOrder._id) || initialOrder;
@@ -150,6 +150,12 @@ const OrderDetail: React.FC<OrderDetailProps> = ({route, navigation}) => {
       const response = await api.patch(`/orders/${currentOrder._id}/pack`);
       console.log('Pack successful:', response.data);
       updateOrder(currentOrder._id, response.data);
+      // Navigate based on deliveryServiceAvailable
+      if (response.data.deliveryServiceAvailable) {
+        navigation.replace('OrderPackedScreen'); // Delivery orders replace OrderDetail with OrderPackedScreen
+      } else {
+        navigation.replace('OrderHasPacked', {order: response.data}); // Pickup orders replace OrderDetail with OrderHasPacked
+      }
     } catch (error) {
       console.error(
         'Packed Order Error:',
@@ -170,9 +176,9 @@ const OrderDetail: React.FC<OrderDetailProps> = ({route, navigation}) => {
         `/orders/${currentOrder._id}/collect-cash`,
       );
       console.log('Cash collected:', response.data);
-      updateOrder(currentOrder._id, {...currentOrder, status: 'completed'}); // Assume completed status
+      updateOrder(currentOrder._id, {...currentOrder, status: 'completed'});
       Alert.alert('Success', 'Cash collected successfully');
-      navigation.goBack();
+      navigation.goBack(); // Goes back to OrderPackedScreen
     } catch (error) {
       console.error(
         'Collect Cash Error:',
@@ -187,13 +193,14 @@ const OrderDetail: React.FC<OrderDetailProps> = ({route, navigation}) => {
     }
   };
 
+  // Navigate to OrderHasPacked for pickup orders on status update
   useEffect(() => {
     if (
       currentOrder.status === 'packed' &&
       !currentOrder.deliveryServiceAvailable &&
       !fromPackedTab
     ) {
-      navigation.navigate('OrderHasPacked', {order: currentOrder});
+      navigation.replace('OrderHasPacked', {order: currentOrder}); // Replace OrderDetail with OrderHasPacked
     }
   }, [
     currentOrder.status,
