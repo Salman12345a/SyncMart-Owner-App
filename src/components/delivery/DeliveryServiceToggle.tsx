@@ -11,10 +11,23 @@ interface DeliveryServiceToggleProps {
 const DeliveryServiceToggle: React.FC<DeliveryServiceToggleProps> = ({
   socket,
 }) => {
-  const {deliveryServiceAvailable, setDeliveryServiceAvailable} = useStore();
+  const {
+    deliveryServiceAvailable,
+    setDeliveryServiceAvailable,
+    hasApprovedDeliveryPartner,
+  } = useStore();
 
   const toggleDelivery = useCallback(async () => {
     const newEnabled = !deliveryServiceAvailable;
+
+    // Prevent enabling unless there's an approved delivery partner
+    if (newEnabled && !hasApprovedDeliveryPartner()) {
+      console.log(
+        'Cannot enable delivery service: No approved delivery partner',
+      );
+      return;
+    }
+
     setDeliveryServiceAvailable(newEnabled);
     try {
       await api.patch('/syncmarts/delivery', {enable: newEnabled});
@@ -23,9 +36,14 @@ const DeliveryServiceToggle: React.FC<DeliveryServiceToggleProps> = ({
       });
     } catch (err) {
       console.error('Toggle Delivery Error:', err);
-      setDeliveryServiceAvailable(deliveryServiceAvailable);
+      setDeliveryServiceAvailable(deliveryServiceAvailable); // Revert on error
     }
-  }, [deliveryServiceAvailable, setDeliveryServiceAvailable, socket]);
+  }, [
+    deliveryServiceAvailable,
+    setDeliveryServiceAvailable,
+    socket,
+    hasApprovedDeliveryPartner,
+  ]);
 
   return (
     <View style={styles.container}>
@@ -41,6 +59,7 @@ const DeliveryServiceToggle: React.FC<DeliveryServiceToggleProps> = ({
         onPress={toggleDelivery}
         buttonColor="#007AFF"
         backgroundColor="#fff"
+        disabled={!deliveryServiceAvailable && !hasApprovedDeliveryPartner()} // Disable when off and no approved partner
       />
     </View>
   );

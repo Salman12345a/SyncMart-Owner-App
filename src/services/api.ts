@@ -36,7 +36,7 @@ api.interceptors.response.use(
 
 export const fetchDeliveryPartners = async (branchId?: string) => {
   try {
-    const response = await api.get('/delivery-partners', {
+    const response = await api.get('/delivery-partner', {
       params: branchId ? {branchId} : undefined,
     });
     return response.data;
@@ -49,13 +49,48 @@ export const fetchDeliveryPartners = async (branchId?: string) => {
   }
 };
 
-// New method for Collect Cash
 export const collectCash = async (orderId: string) => {
   try {
     const response = await api.patch(`/orders/${orderId}/collect-cash`);
     return response.data;
   } catch (error) {
     console.error('Collect Cash Error:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+export const registerDeliveryPartner = async (data: {
+  name?: string;
+  age: number;
+  gender: 'male' | 'female' | 'other';
+  licenseNumber: string;
+  rcNumber: string;
+  phone: number;
+  licenseImage: any;
+  rcImage: any;
+  pancard: any;
+}) => {
+  try {
+    const formData = new FormData();
+    formData.append('name', data.name || '');
+    formData.append('age', data.age.toString());
+    formData.append('gender', data.gender);
+    formData.append('licenseNumber', data.licenseNumber);
+    formData.append('rcNumber', data.rcNumber);
+    formData.append('phone', data.phone.toString());
+    formData.append('licenseImage', data.licenseImage);
+    formData.append('rcImage', data.rcImage);
+    formData.append('pancard', data.pancard);
+
+    const response = await api.post('/delivery-partner/register', formData, {
+      headers: {'Content-Type': 'multipart/form-data'},
+    });
+    return response.data; // { message: "Delivery partner registered", id: "<id>" }
+  } catch (error) {
+    console.error(
+      'Register Delivery Partner Error:',
+      error.response?.data || error.message,
+    );
     throw error;
   }
 };

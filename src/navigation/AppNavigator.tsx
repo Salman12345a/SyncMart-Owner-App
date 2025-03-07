@@ -10,7 +10,10 @@ import Order from '../screens/OrderManagementScreen';
 import OrderDetail from '../screens/OrderDetail';
 import AssignDeliveryPartner from '../screens/AssignDeliveryPartner';
 import OrderHasPacked from '../screens/OrderHasPacked';
-import OrderPackedScreen from '../screens/OrderPackedScreen'; // New
+import OrderPackedScreen from '../screens/OrderPackedScreen';
+import DeliveryPartnerAuth from '../screens/DeliveryPartnerAuth';
+import UploadDocuments from '../screens/UploadDocuments';
+import SuccessScreen from '../screens/SuccessScreen';
 
 export type RootStackParamList = {
   Authentication: undefined;
@@ -20,10 +23,13 @@ export type RootStackParamList = {
   Order: undefined;
   Finance: undefined;
   DeliveryService: undefined;
-  OrderDetail: {order: Order; fromPackedTab?: boolean}; // Updated
+  OrderDetail: {order: Order; fromPackedTab?: boolean};
   AssignDeliveryPartner: {order: Order};
   OrderHasPacked: {order: Order};
-  OrderPackedScreen: undefined; // New
+  OrderPackedScreen: undefined;
+  DeliveryPartnerAuth: undefined;
+  UploadDocuments: {formData: Partial<DeliveryPartnerForm>};
+  SuccessScreen: {partnerId: string};
 };
 
 interface Order {
@@ -35,6 +41,15 @@ interface Order {
   deliveryServiceAvailable?: boolean;
   modificationHistory?: {changes: string[]}[];
   customer?: string;
+}
+
+interface DeliveryPartnerForm {
+  name?: string;
+  age: number;
+  gender: 'male' | 'female' | 'other';
+  licenseNumber: string;
+  rcNumber: string;
+  phone: number;
 }
 
 const Stack = createStackNavigator<RootStackParamList>();
@@ -55,6 +70,9 @@ const AppNavigator: React.FC = () => (
     />
     <Stack.Screen name="OrderHasPacked" component={OrderHasPacked} />
     <Stack.Screen name="OrderPackedScreen" component={OrderPackedScreen} />
+    <Stack.Screen name="DeliveryPartnerAuth" component={DeliveryPartnerAuth} />
+    <Stack.Screen name="UploadDocuments" component={UploadDocuments} />
+    <Stack.Screen name="SuccessScreen" component={SuccessScreen} />
   </Stack.Navigator>
 );
 

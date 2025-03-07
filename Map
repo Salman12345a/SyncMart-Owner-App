@@ -1,35 +1,40 @@
 src/
-├─ assets/
-├─ components/
-│  ├─ dashboard/
-│  │  ├─ Header.tsx
-│  │  ├─ OrderCard.tsx
-│  │  └─ StoreStatus.tsx
-│  ├─ delivery/
-│  │  └─ DeliveryService.tsx
-│  ├─ storemanage/
-│  │  ├─ FinancialSummary.tsx
-│  │  ├─ InventoryItem.tsx
-│  │  └─ SyncmartManagement.tsx
-│  └─ ui/
-├─ navigation/
-│  ├─ AppNavigator.tsx
-│  ├─ BottomTabNavigator.tsx
-│  └─ Sidebar.tsx
-├─ screens/
-│  ├─ AddProduct.tsx
-│  ├─ AuthenticationScreen.tsx
-│  ├─ DeliveryService.tsx
-│  ├─ FinancialSummary.tsx
-│  ├─ HelpScreen.tsx
-│  ├─ HomeScreen.tsx
-│  ├─ InventoryItemDisplay.tsx
-│  ├─ OrderManagement.tsx
-│  ├─ UserDetailsScreen.tsx
-│  └─ WalletScreen.tsx
-├─ services/
-│  ├─ api.ts
-│  └─ socket.ts             # New
-├─ store/
-│  └─ ordersStore.ts        # Renamed from store.ts
-└─ utils/
+├── assets/                    # Static assets (images, etc.) - unchanged
+├── components/                # Reusable UI components
+│   ├── dashboard/            # Dashboard-related components
+│   │   ├── Header.tsx        # Header for screens (unchanged)
+│   │   ├── OrderCard.tsx     # Updated: Displays individual orders with navigation tweaks
+│   │   └── StoreStatus.tsx   # Shows store status (unchanged)
+│   ├── delivery/             # Delivery-related components
+│   │   └── DeliveryService.tsx  # Toggle for delivery service (unchanged)
+│   ├── storemanage/          # Store management components - unchanged
+│   │   ├── FinancialSummary.tsx
+│   │   ├── InventoryItem.tsx
+│   │   └── SyncmartManagement.tsx
+│   └── ui/                   # Generic UI components
+│       └── UniversalAdd.tsx  # Quantity adjustment component (unchanged)
+├── navigation/               # Navigation setup
+│   ├── AppNavigator.tsx      # Updated: Main stack navigator with new screens
+│   ├── BottomTabNavigator.tsx  # Unchanged (assumed for Sidebar)
+│   └── Sidebar.tsx           # Drawer navigation (unchanged)
+├── screens/                  # Full-screen components
+│   ├── AddProduct.tsx        # Unchanged
+│   ├── AuthenticationScreen.tsx  # Unchanged
+│   ├── DeliveryService.tsx   # Unchanged
+│   ├── FinancialSummary.tsx  # Unchanged
+│   ├── HelpScreen.tsx        # Unchanged
+│   ├── HomeScreen.tsx        # Updated: Added bottom tab for Packed Order
+│   ├── InventoryItemDisplay.tsx  # Unchanged
+│   ├── OrderManagement.tsx   # Unchanged (assumed unused since HomeScreen handles orders)
+│   ├── UserDetailsScreen.tsx  # Unchanged
+│   ├── WalletScreen.tsx      # Unchanged
+│   ├── OrderDetail.tsx       # Updated: Enhanced with packing and navigation logic
+│   ├── AssignDeliveryPartner.tsx  # New: Assigns delivery partners
+│   ├── OrderHasPacked.tsx    # Updated: Pickup order screen with back navigation fix
+│   └── OrderPackedScreen.tsx # New: Manages packed orders with tabs
+├── services/                 # API and utility services
+│   ├── api.ts                # Updated: Added fetchDeliveryPartners and collectCash
+│   └── socket.ts             # Updated: Added customer-specific Socket.IO logic
+├── store/                    # State management
+│   └── ordersStore.ts        # Updated: Enhanced Order interface
+└── utils/                    # Utility functions - unchanged

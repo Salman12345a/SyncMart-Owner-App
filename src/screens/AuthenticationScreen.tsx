@@ -15,8 +15,7 @@ import {useStore} from '../store/ordersStore';
 import {jwtDecode} from 'jwt-decode';
 
 const AuthenticationScreen: React.FC = () => {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [phone, setPhone] = useState(''); // Changed from email/password to phone
   const navigation = useNavigation<any>();
   const {setUserId, sessionExpiredMessage, setSessionExpiredMessage} =
     useStore();
@@ -50,9 +49,9 @@ const AuthenticationScreen: React.FC = () => {
   }, [navigation, setUserId, sessionExpiredMessage, setSessionExpiredMessage]);
 
   const handleLogin = async () => {
-    console.log('Attempting login with:', {email, password});
+    console.log('Attempting login with:', {phone});
     try {
-      const response = await api.post('/auth/branch/login', {email, password});
+      const response = await api.post('/auth/branch/login', {phone});
       console.log('Login response:', response.data);
       const {accessToken} = response.data;
 
@@ -64,7 +63,7 @@ const AuthenticationScreen: React.FC = () => {
     } catch (err) {
       console.error('Login Error:', err);
       const errorMessage =
-        (err as any).response?.data?.message || 'Invalid credentials';
+        (err as any).response?.data?.message || 'Invalid phone number';
       Alert.alert('Login Failed', errorMessage);
     }
   };
@@ -74,18 +73,11 @@ const AuthenticationScreen: React.FC = () => {
       <Text style={styles.title}>SyncMart Branch Login</Text>
       <TextInput
         style={styles.input}
-        value={email}
-        onChangeText={setEmail}
-        placeholder="Email"
-        keyboardType="email-address"
+        value={phone}
+        onChangeText={setPhone}
+        placeholder="Phone Number"
+        keyboardType="phone-pad" // Updated for phone input
         autoCapitalize="none"
-      />
-      <TextInput
-        style={styles.input}
-        value={password}
-        onChangeText={setPassword}
-        placeholder="Password"
-        secureTextEntry
       />
       <TouchableOpacity style={styles.button} onPress={handleLogin}>
         <Text style={styles.buttonText}>Login</Text>
