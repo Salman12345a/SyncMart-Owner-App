@@ -68,7 +68,9 @@ export const registerDeliveryPartner = async (data: {
   phone: number;
   licenseImage: any;
   rcImage: any;
-  pancard: any;
+  aadhaarFront: any;
+  aadhaarBack: any;
+  deliveryPartnerPhoto: any;
 }) => {
   try {
     const formData = new FormData();
@@ -80,7 +82,9 @@ export const registerDeliveryPartner = async (data: {
     formData.append('phone', data.phone.toString());
     formData.append('licenseImage', data.licenseImage);
     formData.append('rcImage', data.rcImage);
-    formData.append('pancard', data.pancard);
+    formData.append('aadhaarFront', data.aadhaarFront);
+    formData.append('aadhaarBack', data.aadhaarBack);
+    formData.append('deliveryPartnerPhoto', data.deliveryPartnerPhoto);
 
     const response = await api.post('/delivery-partner/register', formData, {
       headers: {'Content-Type': 'multipart/form-data'},

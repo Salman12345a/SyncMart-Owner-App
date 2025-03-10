@@ -1,8 +1,9 @@
 import React from 'react';
-import {View, Text, FlatList, StyleSheet} from 'react-native';
+import {View, Text, FlatList, StyleSheet, ScrollView} from 'react-native';
 import {StackScreenProps} from '@react-navigation/stack';
 import {RootStackParamList} from '../navigation/AppNavigator';
 import {useStore} from '../store/ordersStore';
+import Icon from 'react-native-vector-icons/MaterialIcons';
 
 type OrderHasPackedProps = StackScreenProps<
   RootStackParamList,
@@ -16,56 +17,197 @@ const OrderHasPacked: React.FC<OrderHasPackedProps> = ({route}) => {
     initialOrder;
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>
-        Order #{orderState.orderId} - Ready for Pickup
-      </Text>
-      <FlatList
-        data={orderState.items}
-        renderItem={({item}) => (
-          <View style={styles.item}>
-            <Text>
-              {item.item.name} x {item.count} - ₹{item.item.price}
-            </Text>
+    <ScrollView contentContainerStyle={styles.container}>
+      <View style={styles.header}>
+        <Icon name="check-circle" size={32} color="#2ecc71" />
+        <Text style={styles.title}>Order Ready for Pickup</Text>
+        <Text style={styles.orderId}>#{orderState.orderId}</Text>
+      </View>
+
+      <View style={styles.card}>
+        <Text style={styles.sectionTitle}>Order Items</Text>
+        <FlatList
+          data={orderState.items}
+          renderItem={({item}) => (
+            <View style={styles.item}>
+              <Icon
+                name="inventory"
+                size={20}
+                color="#3498db"
+                style={styles.itemIcon}
+              />
+              <View style={styles.itemDetails}>
+                <Text style={styles.itemName}>{item.item.name}</Text>
+                <Text style={styles.itemMeta}>
+                  {item.count} x ₹{item.item.price}
+                </Text>
+              </View>
+              <Text style={styles.itemTotal}>
+                ₹{item.count * item.item.price}
+              </Text>
+            </View>
+          )}
+          keyExtractor={item => item._id}
+          scrollEnabled={false}
+        />
+      </View>
+
+      <View style={styles.summaryCard}>
+        <Text style={styles.total}>Total: ₹{orderState.totalPrice}</Text>
+        {orderState.modificationHistory?.length > 0 && (
+          <View style={styles.changes}>
+            <Text style={styles.changesTitle}>Modification History:</Text>
+            {orderState.modificationHistory[0].changes.map((change, index) => (
+              <View key={index} style={styles.changeItem}>
+                <Icon name="edit" size={14} color="#95a5a6" />
+                <Text style={styles.changeText}>{change}</Text>
+              </View>
+            ))}
           </View>
         )}
-        keyExtractor={item => item._id}
-        contentContainerStyle={styles.list}
-      />
-      <Text style={styles.total}>Total: ₹{orderState.totalPrice}</Text>
-      {orderState.modificationHistory?.length > 0 && (
-        <View style={styles.changes}>
-          <Text style={styles.changesTitle}>Changes:</Text>
-          {orderState.modificationHistory[0].changes.map((change, index) => (
-            <Text key={index} style={styles.changeText}>
-              {change}
-            </Text>
-          ))}
-        </View>
-      )}
-      <Text style={styles.message}>
-        Please visit the store to collect your order.
-      </Text>
-    </View>
+      </View>
+
+      <View style={styles.notice}>
+        <Icon name="info" size={24} color="#3498db" />
+        <Text style={styles.message}>
+          Your order is packed and ready! Please visit the store to collect your
+          items.
+        </Text>
+      </View>
+    </ScrollView>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {flex: 1, padding: 20, backgroundColor: '#f5f5f5'},
-  title: {fontSize: 24, fontWeight: 'bold', marginBottom: 10, color: '#333'},
-  item: {marginVertical: 5},
-  list: {paddingBottom: 20},
-  total: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginVertical: 10,
-    textAlign: 'right',
-    color: '#333',
+  container: {
+    flexGrow: 1,
+    padding: 20,
+    backgroundColor: '#f8f9fa',
   },
-  changes: {marginVertical: 10},
-  changesTitle: {fontSize: 16, fontWeight: 'bold', color: '#333'},
-  changeText: {fontSize: 14, color: '#555'},
-  message: {fontSize: 16, color: '#555', marginTop: 20, textAlign: 'center'},
+  header: {
+    alignItems: 'center',
+    marginBottom: 25,
+    padding: 20,
+    backgroundColor: 'white',
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: {width: 0, height: 2},
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  title: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: '#2c3e50',
+    marginTop: 10,
+  },
+  orderId: {
+    fontSize: 16,
+    color: '#7f8c8d',
+    marginTop: 5,
+  },
+  card: {
+    backgroundColor: 'white',
+    borderRadius: 12,
+    padding: 20,
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: {width: 0, height: 2},
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#34495e',
+    marginBottom: 15,
+    paddingBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#ecf0f1',
+  },
+  item: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f5f6fa',
+  },
+  itemIcon: {
+    marginRight: 15,
+  },
+  itemDetails: {
+    flex: 1,
+  },
+  itemName: {
+    fontSize: 16,
+    color: '#2c3e50',
+    marginBottom: 4,
+  },
+  itemMeta: {
+    fontSize: 14,
+    color: '#7f8c8d',
+  },
+  itemTotal: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#2ecc71',
+  },
+  summaryCard: {
+    backgroundColor: 'white',
+    borderRadius: 12,
+    padding: 20,
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: {width: 0, height: 2},
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  total: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#2c3e50',
+    textAlign: 'right',
+    marginBottom: 15,
+  },
+  changes: {
+    paddingTop: 15,
+    borderTopWidth: 1,
+    borderTopColor: '#ecf0f1',
+  },
+  changesTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#e67e22',
+    marginBottom: 10,
+  },
+  changeItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 8,
+  },
+  changeText: {
+    fontSize: 14,
+    color: '#95a5a6',
+    marginLeft: 8,
+    flex: 1,
+  },
+  notice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#e3f2fd',
+    borderRadius: 12,
+    padding: 20,
+    marginBottom: 20,
+  },
+  message: {
+    fontSize: 16,
+    color: '#3498db',
+    marginLeft: 15,
+    flex: 1,
+  },
 });
 
 export default OrderHasPacked;

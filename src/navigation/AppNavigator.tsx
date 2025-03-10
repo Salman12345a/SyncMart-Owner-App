@@ -13,6 +13,7 @@ import OrderHasPacked from '../screens/OrderHasPacked';
 import OrderPackedScreen from '../screens/OrderPackedScreen';
 import DeliveryPartnerAuth from '../screens/DeliveryPartnerAuth';
 import UploadDocuments from '../screens/UploadDocuments';
+import UploadPartnerPhoto from '../screens/UploadPartnerPhoto'; // New import
 import SuccessScreen from '../screens/SuccessScreen';
 
 export type RootStackParamList = {
@@ -29,6 +30,10 @@ export type RootStackParamList = {
   OrderPackedScreen: undefined;
   DeliveryPartnerAuth: undefined;
   UploadDocuments: {formData: Partial<DeliveryPartnerForm>};
+  UploadPartnerPhoto: {
+    formData: Partial<DeliveryPartnerForm>;
+    initialFiles: any;
+  };
   SuccessScreen: {partnerId: string};
 };
 
@@ -72,6 +77,7 @@ const AppNavigator: React.FC = () => (
     <Stack.Screen name="OrderPackedScreen" component={OrderPackedScreen} />
     <Stack.Screen name="DeliveryPartnerAuth" component={DeliveryPartnerAuth} />
     <Stack.Screen name="UploadDocuments" component={UploadDocuments} />
+    <Stack.Screen name="UploadPartnerPhoto" component={UploadPartnerPhoto} />
     <Stack.Screen name="SuccessScreen" component={SuccessScreen} />
   </Stack.Navigator>
 );
