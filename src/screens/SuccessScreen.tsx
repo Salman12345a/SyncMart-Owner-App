@@ -3,7 +3,7 @@ import {View, Text} from 'react-native';
 import LottieView from 'lottie-react-native';
 
 const SuccessScreen: React.FC = ({navigation, route}) => {
-  const {partnerId} = route.params;
+  const {partnerId, message = 'Delivery Partner Registered!'} = route.params;
 
   useEffect(() => {
     const timer = setTimeout(
@@ -21,7 +21,9 @@ const SuccessScreen: React.FC = ({navigation, route}) => {
         loop={false}
         style={{width: 200, height: 200}}
       />
-      <Text>Delivery Partner Registered! ID: {partnerId}</Text>
+      <Text>
+        {message} ID: {partnerId}
+      </Text>
     </View>
   );
 };

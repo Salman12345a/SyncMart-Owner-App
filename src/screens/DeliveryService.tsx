@@ -39,7 +39,18 @@ const DeliveryService: React.FC = ({navigation}) => {
     const syncDeliveryPartners = async () => {
       try {
         const partners = await fetchDeliveryPartners(userId);
-        setDeliveryPartners(partners.map(p => ({id: p._id, status: p.status})));
+        console.log('Fetched partners:', partners); // Debug log
+        setDeliveryPartners(
+          partners.map(p => ({
+            id: p._id,
+            status: p.status,
+            name: p.name || 'Unnamed Partner', // Fallback for missing name
+            photo:
+              p.documents && Array.isArray(p.documents)
+                ? p.documents.find(doc => doc.type === 'photo')?.url || ''
+                : '', // Fallback if documents is undefined or not an array
+          })),
+        );
       } catch (error) {
         console.error('Failed to fetch delivery partners:', error);
       }
@@ -118,20 +129,30 @@ const DeliveryService: React.FC = ({navigation}) => {
             {MAX_DELIVERY_PARTNERS})
           </Text>
           {deliveryPartners.map(partner => (
-            <View key={partner.id} style={styles.partnerCard}>
+            <TouchableOpacity
+              key={partner.id}
+              style={styles.partnerCard}
+              onPress={() =>
+                navigation.navigate('StatusScreen', {
+                  id: partner.id,
+                  status: partner.status,
+                  name: partner.name,
+                  photo: partner.photo,
+                })
+              }>
               <Text style={styles.partnerId}>ID: {partner.id}</Text>
               <View style={styles.statusContainer}>
                 <View
                   style={[
                     styles.statusIndicator,
-                    partner.status === 'active' && styles.activeIndicator,
+                    partner.status === 'approved' && styles.activeIndicator,
                     partner.status === 'pending' && styles.pendingIndicator,
-                    partner.status === 'inactive' && styles.inactiveIndicator,
+                    partner.status === 'rejected' && styles.inactiveIndicator,
                   ]}
                 />
                 <Text style={styles.partnerStatus}>{partner.status}</Text>
               </View>
-            </View>
+            </TouchableOpacity>
           ))}
         </View>
       ) : (
@@ -141,7 +162,6 @@ const DeliveryService: React.FC = ({navigation}) => {
         </View>
       )}
 
-      {/* Moved Disclaimer to Bottom */}
       <Text style={styles.disclaimer}>
         You can only add 5 Delivery Partners with your store. If you need to add
         more delivery partners, please contact customer care.
@@ -201,7 +221,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 25, // Restored original margin
+    marginBottom: 25,
     gap: 10,
   },
   registerButtonText: {
@@ -216,8 +236,8 @@ const styles = StyleSheet.create({
   disclaimer: {
     color: '#ff0000',
     fontSize: 12,
-    marginTop: 20, // Added margin top for spacing from content above
-    marginBottom: 10, // Added margin bottom for padding at the end
+    marginTop: 20,
+    marginBottom: 10,
     textAlign: 'center',
     fontStyle: 'italic',
   },

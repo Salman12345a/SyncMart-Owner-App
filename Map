@@ -6,16 +6,21 @@ src/
 │   │   ├── OrderCard.tsx     # Updated: Displays individual orders with navigation tweaks
 │   │   └── StoreStatus.tsx   # Shows store status (unchanged)
 │   ├── delivery/             # Delivery-related components
-│   │   └── DeliveryService.tsx  # Toggle for delivery service (unchanged)
+│   │   ├── DeliveryService.tsx  # Toggle for delivery service (unchanged)
+│   │   ├── AssignDeliveryPartnerCard.tsx  # New: Card for assigning delivery partners
+│   │   ├── DeliveryPartnerStatusCard.tsx  # New: Displays delivery partner status
+│   │   └── DocumentUploadField.tsx  # New: Reusable field for document uploads
 │   ├── storemanage/          # Store management components - unchanged
 │   │   ├── FinancialSummary.tsx
 │   │   ├── InventoryItem.tsx
 │   │   └── SyncmartManagement.tsx
 │   └── ui/                   # Generic UI components
-│       └── UniversalAdd.tsx  # Quantity adjustment component (unchanged)
+│       ├── UniversalAdd.tsx  # Quantity adjustment component (unchanged)
+│       ├── TabButton.tsx     # New: Reusable tab button for order tabs
+│       └── SuccessMessage.tsx  # New: Reusable success message component
 ├── navigation/               # Navigation setup
 │   ├── AppNavigator.tsx      # Updated: Main stack navigator with new screens
-│   ├── BottomTabNavigator.tsx  # Unchanged (assumed for Sidebar)
+│   ├── BottomTabNavigator.tsx  # Updated: Added Packed Order tab
 │   └── Sidebar.tsx           # Drawer navigation (unchanged)
 ├── screens/                  # Full-screen components
 │   ├── AddProduct.tsx        # Unchanged
@@ -31,10 +36,23 @@ src/
 │   ├── OrderDetail.tsx       # Updated: Enhanced with packing and navigation logic
 │   ├── AssignDeliveryPartner.tsx  # New: Assigns delivery partners
 │   ├── OrderHasPacked.tsx    # Updated: Pickup order screen with back navigation fix
-│   └── OrderPackedScreen.tsx # New: Manages packed orders with tabs
+│   ├── OrderPackedScreen.tsx # New: Manages packed orders with tabs
+│   ├── DeliveryPartnerAuth.tsx  # New: Delivery partner authentication screen
+│   ├── DeliveryReregister.tsx  # New: Re-registration process for delivery partners
+│   ├── ReUploadDocument.tsx  # New: Screen for re-uploading documents
+│   ├── ReUploadPartnerPhoto.tsx  # New: Screen for re-uploading partner photos
+│   ├── StatusScreen.tsx      # New: Displays status updates for delivery partners
+│   ├── SuccessScreen.tsx     # New: Shows success messages for various actions
+│   ├── UploadDocuments.tsx   # New: Upload documents screen for delivery partners
+│   ├── UploadPartnerPhoto.tsx  # New: Upload partner photos screen
+│   ├── BranchRegistrationStep1.tsx  # New: Step 1 of branch registration (e.g., basic info)
+│   ├── BranchRegistrationStep2.tsx  # New: Step 2 of branch registration (e.g., owner info)
+│   ├── BranchRegistrationStep3.tsx  # New: Step 3 of branch registration (e.g., upload images)
+│   ├── BranchRegistrationStep4.tsx  # New: Step 4 of branch registration (e.g., phone number)
+│   └── BranchStatusScreen.tsx  # New: Displays branch registration status
 ├── services/                 # API and utility services
-│   ├── api.ts                # Updated: Added fetchDeliveryPartners and collectCash
+│   ├── api.ts                # Updated: Added fetchDeliveryPartners, collectCash, and branch registration endpoints
 │   └── socket.ts             # Updated: Added customer-specific Socket.IO logic
 ├── store/                    # State management
-│   └── ordersStore.ts        # Updated: Enhanced Order interface
+│   └── ordersStore.ts        # Updated: Enhanced Order interface and added branch-related state
 └── utils/                    # Utility functions - unchanged
