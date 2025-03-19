@@ -1,21 +1,24 @@
 import {create} from 'zustand';
+import {storage} from '../utils/storage';
 
 interface Order {
   _id: string;
   orderId: string;
-  status: string;
+  items: Array<{
+    _id: string;
+    item: {name: string; price: number};
+    count: number;
+  }>;
   totalPrice: number;
-  items: {_id: string; item: {name: string; price: number}; count: number}[];
-  deliveryServiceAvailable?: boolean;
-  modificationHistory?: {changes: string[]}[];
-  customer?: string;
+  status: string;
+  deliveryServiceAvailable: boolean;
+  modificationHistory: Array<{changes: string}>;
+  customer: string;
 }
 
 interface DeliveryPartner {
-  id: string;
-  status: 'pending' | 'approved' | 'rejected';
-  name: string;
-  photo: string;
+  _id: string;
+  status: string;
 }
 
 interface Branch {
@@ -36,7 +39,7 @@ interface Branch {
   branchfrontImage: string;
   ownerIdProof: string;
   ownerPhoto: string;
-  accessToken?: string; // Added for future authenticated requests
+  accessToken?: string;
 }
 
 interface RegistrationForm {
@@ -88,6 +91,7 @@ interface StoreState {
   setBranch: (branch: Branch | null) => void;
   setRegistrationFormStep: (step: keyof RegistrationForm, data: any) => void;
   clearRegistrationForm: () => void;
+  initializeStore: () => void;
 }
 
 export const useStore = create<StoreState>((set, get) => ({
@@ -99,35 +103,99 @@ export const useStore = create<StoreState>((set, get) => ({
   deliveryPartners: [],
   branch: null,
   registrationForm: {},
+
   setStoreStatus: status => {
     if (status !== 'open' && status !== 'closed') return;
     set({storeStatus: status});
   },
+
   setDeliveryServiceAvailable: available => {
     if (typeof available !== 'boolean') return;
     set({deliveryServiceAvailable: available});
   },
+
   setUserId: id => set({userId: id}),
+
   setSessionExpiredMessage: message => set({sessionExpiredMessage: message}),
+
   addOrder: order => set(state => ({orders: [...state.orders, order]})),
+
   updateOrder: (orderId, updatedOrder) =>
     set(state => ({
       orders: state.orders.map(o => (o._id === orderId ? updatedOrder : o)),
     })),
+
   setOrders: orders => set({orders}),
+
   setDeliveryPartners: partners => set({deliveryPartners: partners}),
+
   addDeliveryPartner: partner =>
     set(state => ({deliveryPartners: [...state.deliveryPartners, partner]})),
+
   hasApprovedDeliveryPartner: () =>
     get().deliveryPartners.some(dp => dp.status === 'approved'),
-  setBranch: branch =>
-    set({
-      branch,
-      userId: branch ? branch._id : null,
-    }),
+
+  setBranch: branch => {
+    set(state => {
+      const updatedBranch = branch
+        ? {
+            ...state.branch, // Preserve existing fields
+            ...branch, // Update with new data
+            _id: branch._id || state.branch?._id || '',
+            phone: branch.phone || state.branch?.phone || '',
+            accessToken: branch.accessToken || state.branch?.accessToken, // Explicitly preserve accessToken
+          }
+        : null;
+      if (updatedBranch) {
+        console.log(
+          'setBranch received branch with accessToken:',
+          branch?.accessToken,
+        );
+        console.log(
+          'Persisting branch with accessToken:',
+          updatedBranch.accessToken,
+        );
+        storage.set('branchData', JSON.stringify(updatedBranch));
+        console.log('Persisted branch to storage:', updatedBranch);
+      } else {
+        storage.remove('branchData');
+        console.log('Cleared branch data from storage');
+      }
+      return {
+        branch: updatedBranch,
+        userId: updatedBranch ? updatedBranch._id : null,
+      };
+    });
+  },
+
   setRegistrationFormStep: (step, data) =>
     set(state => ({
       registrationForm: {...state.registrationForm, [step]: data},
     })),
+
   clearRegistrationForm: () => set({registrationForm: {}}),
+
+  initializeStore: () => {
+    const storedBranch = storage.getString('branchData');
+    if (storedBranch) {
+      try {
+        const parsedBranch: Branch = JSON.parse(storedBranch);
+        console.log(
+          'Restoring branch with accessToken:',
+          parsedBranch.accessToken,
+        );
+        set({
+          branch: parsedBranch,
+          userId: parsedBranch._id,
+        });
+        console.log('Restored branch from storage:', parsedBranch);
+      } catch (error) {
+        console.error('Failed to parse stored branch data:', error);
+      }
+    } else {
+      console.log('No branch data found in storage');
+    }
+  },
 }));
+
+useStore.getState().initializeStore();

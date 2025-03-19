@@ -10,7 +10,7 @@ import {
 import Header from '../components/dashboard/Header';
 import OrderCard from '../components/dashboard/OrderCard';
 import {useStore} from '../store/ordersStore';
-import api from '../services/api'; // Added API import
+import api from '../services/api';
 import {DrawerNavigationProp} from '@react-navigation/drawer';
 import {DrawerParamList} from '../navigation/Sidebar';
 
@@ -21,12 +21,19 @@ interface HomeScreenProps {
 }
 
 const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
-  const {userId, orders, setStoreStatus, setOrders} = useStore();
+  const {userId, branch, orders, setStoreStatus, setOrders} = useStore();
 
   useEffect(() => {
-    console.log('HomeScreen mounted with userId:', userId);
-    if (!userId) {
-      console.error('No userId available - redirecting to login');
+    console.log(
+      'HomeScreen mounted with userId:',
+      userId,
+      'accessToken:',
+      branch?.accessToken,
+    );
+    if (!userId || !branch?.accessToken) {
+      console.error(
+        'No userId or accessToken available - redirecting to login',
+      );
       navigation.navigate('Authentication');
       return;
     }
@@ -34,9 +41,13 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
     const fetchOrders = async () => {
       try {
         const response = await api.get('/orders/', {
-          params: {branchId: userId}, // Filter by branch
+          params: {branchId: userId},
+          headers: {
+            Authorization: `Bearer ${branch.accessToken}`,
+          },
         });
-        setOrders(response.data); // Update store with fetched orders
+        console.log('Orders fetched successfully:', response.data);
+        setOrders(response.data); // Adjust if response.data.orders
       } catch (error) {
         console.error('Fetch Orders Error:', error);
         Alert.alert('Error', 'Failed to load orders');
@@ -44,12 +55,13 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
     };
 
     fetchOrders();
-  }, [userId, navigation, setOrders]); // Added setOrders to dependencies
+  }, [userId, branch, navigation, setOrders]);
 
   const handleAccept = async (orderId: string) => {
     try {
-      await api.patch(`/orders/${orderId}/accept`);
-      // Optionally update orders state after successful accept
+      await api.patch(`/orders/${orderId}/accept`, null, {
+        headers: {Authorization: `Bearer ${branch?.accessToken}`},
+      });
       setOrders(
         orders.map(order =>
           order._id === orderId ? {...order, status: 'accepted'} : order,
@@ -63,8 +75,9 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
 
   const handleReject = async (orderId: string) => {
     try {
-      await api.patch(`/orders/${orderId}/cancel`);
-      // Optionally update orders state after successful reject
+      await api.patch(`/orders/${orderId}/cancel`, null, {
+        headers: {Authorization: `Bearer ${branch?.accessToken}`},
+      });
       setOrders(
         orders.map(order =>
           order._id === orderId ? {...order, status: 'cancelled'} : order,
@@ -78,8 +91,9 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
 
   const handleCancelItem = async (orderId: string, itemId: string) => {
     try {
-      await api.patch(`/orders/${orderId}/cancel-item/${itemId}`);
-      // Optionally update orders state after successful item cancel
+      await api.patch(`/orders/${orderId}/cancel-item/${itemId}`, null, {
+        headers: {Authorization: `Bearer ${branch?.accessToken}`},
+      });
       setOrders(
         orders.map(order =>
           order._id === orderId
@@ -93,7 +107,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
     }
   };
 
-  if (!userId) {
+  if (!userId || !branch?.accessToken) {
     return <Text>Please log in to continue.</Text>;
   }
 
