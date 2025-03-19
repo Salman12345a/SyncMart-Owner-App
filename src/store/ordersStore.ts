@@ -1,5 +1,5 @@
 import {create} from 'zustand';
-import {storage} from '../utils/storage';
+import {storage} from '../utils/storage'; // MMKV storage
 
 interface Order {
   _id: string;
@@ -92,6 +92,7 @@ interface StoreState {
   setRegistrationFormStep: (step: keyof RegistrationForm, data: any) => void;
   clearRegistrationForm: () => void;
   initializeStore: () => void;
+  resetBranch: () => void;
 }
 
 export const useStore = create<StoreState>((set, get) => ({
@@ -139,11 +140,11 @@ export const useStore = create<StoreState>((set, get) => ({
     set(state => {
       const updatedBranch = branch
         ? {
-            ...state.branch, // Preserve existing fields
-            ...branch, // Update with new data
+            ...state.branch,
+            ...branch,
             _id: branch._id || state.branch?._id || '',
             phone: branch.phone || state.branch?.phone || '',
-            accessToken: branch.accessToken || state.branch?.accessToken, // Explicitly preserve accessToken
+            accessToken: branch.accessToken || state.branch?.accessToken,
           }
         : null;
       if (updatedBranch) {
@@ -155,10 +156,10 @@ export const useStore = create<StoreState>((set, get) => ({
           'Persisting branch with accessToken:',
           updatedBranch.accessToken,
         );
-        storage.set('branchData', JSON.stringify(updatedBranch));
+        storage.set('branchData', JSON.stringify(updatedBranch)); // MMKV set
         console.log('Persisted branch to storage:', updatedBranch);
       } else {
-        storage.remove('branchData');
+        storage.delete('branchData'); // MMKV delete
         console.log('Cleared branch data from storage');
       }
       return {
@@ -176,7 +177,7 @@ export const useStore = create<StoreState>((set, get) => ({
   clearRegistrationForm: () => set({registrationForm: {}}),
 
   initializeStore: () => {
-    const storedBranch = storage.getString('branchData');
+    const storedBranch = storage.getString('branchData'); // MMKV getString
     if (storedBranch) {
       try {
         const parsedBranch: Branch = JSON.parse(storedBranch);
@@ -196,6 +197,14 @@ export const useStore = create<StoreState>((set, get) => ({
       console.log('No branch data found in storage');
     }
   },
+
+  resetBranch: () => {
+    set({branch: null, userId: null});
+    storage.delete('branchData'); // MMKV delete
+    console.log('Reset branch state and cleared storage');
+  },
 }));
 
+// Temporary: Reset branch before initialization (remove after testing)
+useStore.getState().resetBranch();
 useStore.getState().initializeStore();

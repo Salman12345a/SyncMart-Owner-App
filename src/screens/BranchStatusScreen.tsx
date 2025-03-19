@@ -1,4 +1,4 @@
-import React, {useEffect, useState} from 'react';
+import React, {useEffect, useState, useRef} from 'react';
 import {View, Text, StyleSheet, ActivityIndicator} from 'react-native';
 import {useNavigation} from '@react-navigation/native';
 import {StackNavigationProp} from '@react-navigation/stack';
@@ -22,6 +22,7 @@ const BranchStatusScreen: React.FC = ({route}) => {
   const {branch, setBranch} = useStore();
   const [loading, setLoading] = useState(true);
   const [socketError, setSocketError] = useState<string | null>(null);
+  const isMounted = useRef(true);
 
   const phone =
     phoneFromParams ||
@@ -38,7 +39,10 @@ const BranchStatusScreen: React.FC = ({route}) => {
   );
 
   useEffect(() => {
-    console.log('useEffect triggered with phone:', phone, 'status:', status);
+    storage.delete('branchData');
+    console.log('Cleared branchData from storage to ensure fresh token');
+
+    isMounted.current = true;
 
     if (!phone) {
       console.error('Phone number unavailable');
@@ -56,8 +60,7 @@ const BranchStatusScreen: React.FC = ({route}) => {
     }
 
     console.log(`Connecting socket with phone: ${phone}`);
-    socketService.connectBranchRegistration(phone);
-    const socket = socketService.getSocket();
+    const socket = socketService.connectBranchRegistration(phone);
 
     if (!socket) {
       console.error('Socket not initialized');
@@ -68,31 +71,37 @@ const BranchStatusScreen: React.FC = ({route}) => {
 
     socket.on('connect', () => {
       console.log('Socket connected successfully');
-      setLoading(false);
+      if (isMounted.current) setLoading(false);
     });
 
     socket.on('connect_error', err => {
       console.error('Socket connection error:', err.message);
-      setSocketError('Failed to connect to server. Please try again later.');
-      setLoading(false);
+      if (isMounted.current) {
+        setSocketError('Failed to connect to server. Please try again later.');
+        setLoading(false);
+      }
     });
 
-    socket.on(
-      'branchStatusUpdated',
-      (data: {
-        branchId: string;
-        phone: string;
-        status: string;
-        accessToken?: string;
-      }) => {
-        console.log('Received branchStatusUpdated event:', data);
+    socket.on('branchStatusUpdated', data => {
+      console.log('Received branchStatusUpdated event:', data);
+      try {
+        if (data.accessToken) {
+          const payload = JSON.parse(atob(data.accessToken.split('.')[1]));
+          console.log('New Token Payload:', payload);
+        }
+        console.log(
+          'Comparing data.branchId:',
+          data.branchId,
+          'with route id:',
+          id,
+        );
         if (data.branchId === id) {
-          console.log('Updating branch with branchStatusUpdated data:', data);
+          console.log('Branch ID matches, updating branch with data:', data);
           const updatedBranch = {
             _id: data.branchId,
             phone: data.phone,
             status: data.status,
-            accessToken: data.accessToken, // Ensure token is included
+            accessToken: data.accessToken,
             name: branch?.name || '',
             storeStatus: branch?.storeStatus || 'open',
             deliveryServiceAvailable: branch?.deliveryServiceAvailable || false,
@@ -113,30 +122,36 @@ const BranchStatusScreen: React.FC = ({route}) => {
             ownerPhoto: branch?.ownerPhoto || '',
           };
           console.log('Calling setBranch with updatedBranch:', updatedBranch);
-          setBranch(updatedBranch);
-          console.log(
-            'setBranch called with accessToken:',
-            updatedBranch.accessToken,
-          );
-          // Force persistence to ensure accessToken is saved
-          storage.set('branchData', JSON.stringify(updatedBranch));
-          console.log(
-            'Forced branch persistence with accessToken:',
-            updatedBranch.accessToken,
-          );
-          storage.set('branchStatus', data.status);
-          if (data.status === 'approved') {
+          if (isMounted.current) {
+            setBranch(updatedBranch);
+            storage.set('branchData', JSON.stringify(updatedBranch));
+            storage.set('branchStatus', data.status);
             console.log(
-              'branchStatusUpdated status is approved, navigating to HomeScreen',
+              'Forced branch persistence with accessToken:',
+              updatedBranch.accessToken,
             );
-            navigation.replace('HomeScreen');
+            if (data.status === 'approved') {
+              console.log(
+                'branchStatusUpdated status is approved, navigating to HomeScreen',
+              );
+              navigation.replace('HomeScreen');
+            } else {
+              console.log(
+                'Status is not approved, staying on BranchStatusScreen',
+              );
+            }
           }
+        } else {
+          console.log('Branch ID does not match route id, skipping update');
         }
-      },
-    );
+      } catch (error) {
+        console.error('Error processing branchStatusUpdated:', error);
+      }
+    });
 
     return () => {
       console.log('Cleaning up socket listeners');
+      isMounted.current = false;
       socket.off('connect');
       socket.off('connect_error');
       socket.off('branchStatusUpdated');

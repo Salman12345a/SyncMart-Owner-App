@@ -30,6 +30,12 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
       'accessToken:',
       branch?.accessToken,
     );
+    if (branch?.accessToken) {
+      console.log(
+        'Token Payload before fetch:',
+        JSON.parse(atob(branch.accessToken.split('.')[1])),
+      );
+    }
     if (!userId || !branch?.accessToken) {
       console.error(
         'No userId or accessToken available - redirecting to login',
@@ -42,9 +48,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
       try {
         const response = await api.get('/orders/', {
           params: {branchId: userId},
-          headers: {
-            Authorization: `Bearer ${branch.accessToken}`,
-          },
+          // Remove redundant header since api.ts interceptor handles it
         });
         console.log('Orders fetched successfully:', response.data);
         setOrders(response.data); // Adjust if response.data.orders
@@ -59,9 +63,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
 
   const handleAccept = async (orderId: string) => {
     try {
-      await api.patch(`/orders/${orderId}/accept`, null, {
-        headers: {Authorization: `Bearer ${branch?.accessToken}`},
-      });
+      await api.patch(`/orders/${orderId}/accept`, null);
       setOrders(
         orders.map(order =>
           order._id === orderId ? {...order, status: 'accepted'} : order,
@@ -75,9 +77,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
 
   const handleReject = async (orderId: string) => {
     try {
-      await api.patch(`/orders/${orderId}/cancel`, null, {
-        headers: {Authorization: `Bearer ${branch?.accessToken}`},
-      });
+      await api.patch(`/orders/${orderId}/cancel`, null);
       setOrders(
         orders.map(order =>
           order._id === orderId ? {...order, status: 'cancelled'} : order,
@@ -91,9 +91,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
 
   const handleCancelItem = async (orderId: string, itemId: string) => {
     try {
-      await api.patch(`/orders/${orderId}/cancel-item/${itemId}`, null, {
-        headers: {Authorization: `Bearer ${branch?.accessToken}`},
-      });
+      await api.patch(`/orders/${orderId}/cancel-item/${itemId}`, null);
       setOrders(
         orders.map(order =>
           order._id === orderId
