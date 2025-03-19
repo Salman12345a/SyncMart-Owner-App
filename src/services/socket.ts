@@ -44,16 +44,11 @@ class SocketService {
     });
   }
 
-  connectBranchRegistration(branchId: string) {
+  connectBranchRegistration(phone: string) {
     if (this.socket?.connected) return;
-    this.connectSocket(branchId, () => {
-      this.socket?.emit('joinBranchRegistration', branchId);
-      this.socket?.on(
-        'branchStatusUpdate',
-        (data: {id: string; status: string}) => {
-          console.log('Branch status update received:', data);
-        },
-      );
+    this.connectSocket(`syncmart_${phone}`, () => {
+      this.socket?.emit('joinSyncmartRoom', phone);
+      console.log(`Joined room syncmart_${phone}`);
     });
   }
 

@@ -1,30 +1,45 @@
 import React, {useEffect} from 'react';
 import {View, ActivityIndicator, StyleSheet} from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import {useNavigation} from '@react-navigation/native';
 import {jwtDecode} from 'jwt-decode';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import {storage} from '../utils/storage'; // Import MMKV
 
 const SplashScreen: React.FC = () => {
   const navigation = useNavigation<any>();
 
   useEffect(() => {
-    const checkToken = async () => {
+    const checkStatus = async () => {
       try {
-        const token = await AsyncStorage.getItem('accessToken');
-        if (token) {
+        const branchStatus = storage.getString('branchStatus');
+        const branchId = storage.getString('branchId');
+        const token = await AsyncStorage.getItem('accessToken'); // Fallback for login flow
+
+        if (branchStatus) {
+          if (branchStatus === 'pending' || branchStatus === 'rejected') {
+            navigation.replace('BranchStatusScreen', {
+              id: branchId,
+              status: branchStatus,
+            });
+          } else if (branchStatus === 'approved') {
+            navigation.replace('HomeScreen');
+          }
+        } else if (token) {
           const decoded: {userId: string} = jwtDecode(token);
           if (decoded.userId) {
             navigation.replace('HomeScreen');
-            return;
+          } else {
+            navigation.replace('EntryScreen');
           }
+        } else {
+          navigation.replace('EntryScreen');
         }
-        navigation.replace('EntryScreen');
       } catch (err) {
-        console.error('Token check error:', err);
+        console.error('Status check error:', err);
         navigation.replace('EntryScreen');
       }
     };
-    checkToken();
+    checkStatus();
   }, [navigation]);
 
   return (

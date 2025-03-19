@@ -10,7 +10,7 @@ import {
 import Header from '../components/dashboard/Header';
 import OrderCard from '../components/dashboard/OrderCard';
 import {useStore} from '../store/ordersStore';
-import api from '../services/api';
+import api from '../services/api'; // Added API import
 import {DrawerNavigationProp} from '@react-navigation/drawer';
 import {DrawerParamList} from '../navigation/Sidebar';
 
@@ -24,8 +24,10 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
   const {userId, orders, setStoreStatus, setOrders} = useStore();
 
   useEffect(() => {
+    console.log('HomeScreen mounted with userId:', userId);
     if (!userId) {
       console.error('No userId available - redirecting to login');
+      navigation.navigate('Authentication');
       return;
     }
 
@@ -34,7 +36,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
         const response = await api.get('/orders/', {
           params: {branchId: userId}, // Filter by branch
         });
-        setOrders(response.data); // Assuming response.data is an array of orders
+        setOrders(response.data); // Update store with fetched orders
       } catch (error) {
         console.error('Fetch Orders Error:', error);
         Alert.alert('Error', 'Failed to load orders');
@@ -42,11 +44,17 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
     };
 
     fetchOrders();
-  }, [userId, setStoreStatus, setOrders]);
+  }, [userId, navigation, setOrders]); // Added setOrders to dependencies
 
   const handleAccept = async (orderId: string) => {
     try {
       await api.patch(`/orders/${orderId}/accept`);
+      // Optionally update orders state after successful accept
+      setOrders(
+        orders.map(order =>
+          order._id === orderId ? {...order, status: 'accepted'} : order,
+        ),
+      );
     } catch (error) {
       console.error('Accept Order Error:', error);
       Alert.alert('Error', 'Failed to accept order');
@@ -56,6 +64,12 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
   const handleReject = async (orderId: string) => {
     try {
       await api.patch(`/orders/${orderId}/cancel`);
+      // Optionally update orders state after successful reject
+      setOrders(
+        orders.map(order =>
+          order._id === orderId ? {...order, status: 'cancelled'} : order,
+        ),
+      );
     } catch (error) {
       console.error('Reject Order Error:', error);
       Alert.alert('Error', 'Failed to reject order');
@@ -65,6 +79,14 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
   const handleCancelItem = async (orderId: string, itemId: string) => {
     try {
       await api.patch(`/orders/${orderId}/cancel-item/${itemId}`);
+      // Optionally update orders state after successful item cancel
+      setOrders(
+        orders.map(order =>
+          order._id === orderId
+            ? {...order, items: order.items.filter(item => item._id !== itemId)}
+            : order,
+        ),
+      );
     } catch (error) {
       console.error('Cancel Item Error:', error);
       Alert.alert('Error', 'Failed to cancel item');
@@ -81,7 +103,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
       <View style={styles.content}>
         <Text style={styles.title}>Welcome to the Dashboard!</Text>
         <FlatList
-          data={orders.filter(o => o.status !== 'packed')} // Filter out packed orders
+          data={orders.filter(o => o.status !== 'packed')}
           renderItem={({item}) => (
             <OrderCard
               order={item}

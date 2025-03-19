@@ -36,6 +36,7 @@ interface Branch {
   branchfrontImage: string;
   ownerIdProof: string;
   ownerPhoto: string;
+  accessToken?: string; // Added for future authenticated requests
 }
 
 interface RegistrationForm {
@@ -119,7 +120,11 @@ export const useStore = create<StoreState>((set, get) => ({
     set(state => ({deliveryPartners: [...state.deliveryPartners, partner]})),
   hasApprovedDeliveryPartner: () =>
     get().deliveryPartners.some(dp => dp.status === 'approved'),
-  setBranch: branch => set({branch}),
+  setBranch: branch =>
+    set({
+      branch,
+      userId: branch ? branch._id : null,
+    }),
   setRegistrationFormStep: (step, data) =>
     set(state => ({
       registrationForm: {...state.registrationForm, [step]: data},

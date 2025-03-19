@@ -13,6 +13,8 @@ import {RootStackParamList} from '../navigation/AppNavigator';
 import {registerBranch} from '../services/api';
 import {useStore} from '../store/ordersStore';
 import RNFS from 'react-native-fs';
+import {storage} from '../utils/storage';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 type NavigationProp = StackNavigationProp<
   RootStackParamList,
@@ -106,62 +108,34 @@ const BranchRegistrationStep4: React.FC = () => {
           uri: data.uri,
           type: data.type || 'image/webp',
           name: data.name || `${key}.webp`,
-          filename: data.name || `${key}.webp`, // Explicitly add filename
+          filename: data.name || `${key}.webp`,
         });
       }
       formData.append('phone', phone);
 
-      console.log('Submitting FormData:', {
-        branchName: registrationForm.step1Data!.name,
-        branchLocation: {latitude, longitude},
-        branchAddress: {
-          street: registrationForm.step1Data!.street,
-          area: registrationForm.step1Data!.area,
-          city: registrationForm.step1Data!.city,
-          pincode: registrationForm.step1Data!.pincode,
-        },
-        branchEmail: registrationForm.step1Data!.branchEmail || '',
-        openingTime: registrationForm.step1Data!.openingTime,
-        closingTime: registrationForm.step1Data!.closingTime,
-        ownerName: registrationForm.step2Data!.ownerName,
-        govid: registrationForm.step2Data!.govId,
-        homeDelivery:
-          registrationForm.step2Data!.deliveryServiceAvailable.toString(),
-        selfPickup: registrationForm.step2Data!.selfPickup.toString(),
-        branchfrontImage: {
-          uri: registrationForm.step3Data!.branchfrontImage!.uri,
-          type:
-            registrationForm.step3Data!.branchfrontImage!.type || 'image/webp',
-          name:
-            registrationForm.step3Data!.branchfrontImage!.name ||
-            'branchfrontImage.webp',
-        },
-        ownerIdProof: {
-          uri: registrationForm.step3Data!.ownerIdProof!.uri,
-          type: registrationForm.step3Data!.ownerIdProof!.type || 'image/webp',
-          name:
-            registrationForm.step3Data!.ownerIdProof!.name ||
-            'ownerIdProof.webp',
-        },
-        ownerPhoto: {
-          uri: registrationForm.step3Data!.ownerPhoto!.uri,
-          type: registrationForm.step3Data!.ownerPhoto!.type || 'image/webp',
-          name:
-            registrationForm.step3Data!.ownerPhoto!.name || 'ownerPhoto.webp',
-        },
-        phone,
-      });
-
       const response = await registerBranch(formData);
       if (!response.branch) throw new Error('Invalid response from server');
 
+      // Store accessToken for future use
+      await AsyncStorage.setItem('accessToken', response.accessToken);
+      storage.set('accessToken', response.accessToken);
+
+      // Persist branch data
+      await AsyncStorage.setItem('branchId', response.branch._id);
+      storage.set('branchId', response.branch._id);
+      storage.set('branchStatus', response.branch.status);
+      storage.set('branchPhone', response.branch.phone);
+
       setStoreStatus(response.branch.storeStatus);
       setDeliveryServiceAvailable(response.branch.deliveryServiceAvailable);
-      setBranch(response.branch);
+      setBranch({...response.branch, accessToken: response.accessToken});
       clearRegistrationForm();
+
+      // Navigate to BranchStatusScreen regardless of initial status
       navigation.navigate('BranchStatusScreen', {
         id: response.branch._id,
         status: response.branch.status,
+        phone: response.branch.phone,
       });
     } catch (error) {
       console.error('Registration failed:', error.message, error);
