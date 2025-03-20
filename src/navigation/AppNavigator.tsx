@@ -1,5 +1,7 @@
 import React from 'react';
 import {createStackNavigator} from '@react-navigation/stack';
+import SplashScreen from '../screens/SplashScreen';
+import EntryScreen from '../screens/EntryScreen';
 import AuthenticationScreen from '../screens/AuthenticationScreen';
 import Sidebar from './Sidebar';
 import AddProduct from '../screens/AddProduct';
@@ -14,10 +16,17 @@ import OrderPackedScreen from '../screens/OrderPackedScreen';
 import DeliveryPartnerAuth from '../screens/DeliveryPartnerAuth';
 import UploadDocuments from '../screens/UploadDocuments';
 import SuccessScreen from '../screens/SuccessScreen';
+import BranchAuth from '../screens/BranchAuth';
+import PhoneNumberScreen from '../screens/PhoneNumberScreen';
+import UploadBranchDocs from '../screens/UploadBranchDocs';
+import StatusScreen from '../screens/StatusScreen';
 
 export type RootStackParamList = {
+  SplashScreen: undefined;
+  EntryScreen: undefined;
   Authentication: undefined;
   Main: undefined;
+  HomeScreen: undefined;
   AddProduct: undefined;
   UserDetails: undefined;
   Order: undefined;
@@ -30,6 +39,10 @@ export type RootStackParamList = {
   DeliveryPartnerAuth: undefined;
   UploadDocuments: {formData: Partial<DeliveryPartnerForm>};
   SuccessScreen: {partnerId: string};
+  BranchAuth: undefined;
+  PhoneNumberScreen: {formData: Partial<BranchForm>};
+  UploadBranchDocs: {formData: Partial<BranchForm>};
+  StatusScreen: {branchId: string};
 };
 
 interface Order {
@@ -52,12 +65,31 @@ interface DeliveryPartnerForm {
   phone: number;
 }
 
+interface BranchForm {
+  branchName: string;
+  branchLocation: string; // JSON string: {"latitude": number, "longitude": number}
+  branchAddress: string; // JSON string: {"street": string, "area": string, "city": string, "pincode": string}
+  branchEmail: string;
+  openingTime: string;
+  closingTime: string;
+  ownerName: string;
+  govId: string;
+  phone: string;
+  homeDelivery: 'yes' | 'no';
+  selfPickup: 'yes' | 'no';
+}
+
 const Stack = createStackNavigator<RootStackParamList>();
 
 const AppNavigator: React.FC = () => (
-  <Stack.Navigator screenOptions={{headerShown: false}}>
+  <Stack.Navigator
+    screenOptions={{headerShown: false}}
+    initialRouteName="SplashScreen">
+    <Stack.Screen name="SplashScreen" component={SplashScreen} />
+    <Stack.Screen name="EntryScreen" component={EntryScreen} />
     <Stack.Screen name="Authentication" component={AuthenticationScreen} />
     <Stack.Screen name="Main" component={Sidebar} />
+    <Stack.Screen name="HomeScreen" component={Sidebar} />
     <Stack.Screen name="AddProduct" component={AddProduct} />
     <Stack.Screen name="UserDetails" component={UserDetailsScreen} />
     <Stack.Screen name="Order" component={Order} />
@@ -73,6 +105,10 @@ const AppNavigator: React.FC = () => (
     <Stack.Screen name="DeliveryPartnerAuth" component={DeliveryPartnerAuth} />
     <Stack.Screen name="UploadDocuments" component={UploadDocuments} />
     <Stack.Screen name="SuccessScreen" component={SuccessScreen} />
+    <Stack.Screen name="BranchAuth" component={BranchAuth} />
+    <Stack.Screen name="PhoneNumberScreen" component={PhoneNumberScreen} />
+    <Stack.Screen name="UploadBranchDocs" component={UploadBranchDocs} />
+    <Stack.Screen name="StatusScreen" component={StatusScreen} />
   </Stack.Navigator>
 );
 

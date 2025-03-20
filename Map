@@ -2,39 +2,48 @@ src/
 ├── assets/                    # Static assets (images, etc.) - unchanged
 ├── components/                # Reusable UI components
 │   ├── dashboard/            # Dashboard-related components
-│   │   ├── Header.tsx        # Header for screens (unchanged)
-│   │   ├── OrderCard.tsx     # Updated: Displays individual orders with navigation tweaks
-│   │   └── StoreStatus.tsx   # Shows store status (unchanged)
+│   │   ├── Header.tsx        # Header for screens - unchanged
+│   │   ├── OrderCard.tsx     # Updated: Displays individual orders with navigation tweaks for OrderDetail
+│   │   └── StoreStatus.tsx   # Shows store status - unchanged
 │   ├── delivery/             # Delivery-related components
-│   │   └── DeliveryService.tsx  # Toggle for delivery service (unchanged)
+│   │   └── DeliveryService.tsx  # Toggle for delivery service - unchanged
 │   ├── storemanage/          # Store management components - unchanged
 │   │   ├── FinancialSummary.tsx
 │   │   ├── InventoryItem.tsx
 │   │   └── SyncmartManagement.tsx
 │   └── ui/                   # Generic UI components
-│       └── UniversalAdd.tsx  # Quantity adjustment component (unchanged)
+│       └── UniversalAdd.tsx  # Quantity adjustment component - unchanged
 ├── navigation/               # Navigation setup
-│   ├── AppNavigator.tsx      # Updated: Main stack navigator with new screens
-│   ├── BottomTabNavigator.tsx  # Unchanged (assumed for Sidebar)
-│   └── Sidebar.tsx           # Drawer navigation (unchanged)
+│   ├── AppNavigator.tsx      # Updated: Main stack navigator with new screens (AssignDeliveryPartner, OrderPackedScreen)
+│   ├── BottomTabNavigator.tsx  # Unchanged: Assumed for Sidebar (drawer navigation)
+│   └── Sidebar.tsx           # Drawer navigation - unchanged
 ├── screens/                  # Full-screen components
 │   ├── AddProduct.tsx        # Unchanged
 │   ├── AuthenticationScreen.tsx  # Unchanged
+│   ├── BranchAuth.tsx        # Updated: Removed validation for branchLocation and branchAddress
 │   ├── DeliveryService.tsx   # Unchanged
-│   ├── FinancialSummary.tsx  # Unchanged
+│   ├── EntryScreen.tsx       # Unchanged: Entry screen for registration/login
+│   ├── FinancialSummaryScreen.tsx  # Unchanged
 │   ├── HelpScreen.tsx        # Unchanged
-│   ├── HomeScreen.tsx        # Updated: Added bottom tab for Packed Order
+│   ├── HomeScreen.tsx        # Updated: Added bottom tab for Active Orders and Packed Orders
 │   ├── InventoryItemDisplay.tsx  # Unchanged
-│   ├── OrderManagement.tsx   # Unchanged (assumed unused since HomeScreen handles orders)
+│   ├── OrderDetail.tsx       # Updated: Enhanced with packing and navigation logic
+│   ├── OrderManagement.tsx   # Unchanged: Assumed unused since HomeScreen handles orders
+│   ├── PhoneNumberScreen.tsx  # Unchanged: Collects phone number for branch registration
+│   ├── SplashScreen.tsx      # Unchanged: Splash screen for app loading
+│   ├── StatusScreen.tsx      # Unchanged: Displays branch registration status
+│   ├── UploadBranchDocs.tsx  # Unchanged: Handles file uploads for branch registration
 │   ├── UserDetailsScreen.tsx  # Unchanged
 │   ├── WalletScreen.tsx      # Unchanged
-│   ├── OrderDetail.tsx       # Updated: Enhanced with packing and navigation logic
-│   ├── AssignDeliveryPartner.tsx  # New: Assigns delivery partners
+│   ├── AssignDeliveryPartner.tsx  # New: Screen for assigning delivery partners to orders
+│   ├── DeliveryPartnerAuth.tsx  # Unchanged: Delivery partner registration screen
 │   ├── OrderHasPacked.tsx    # Updated: Pickup order screen with back navigation fix
-│   └── OrderPackedScreen.tsx # New: Manages packed orders with tabs
+│   ├── OrderPackedScreen.tsx # New: Manages packed orders with tabs (Active/Packed)
+│   ├── SuccessScreen.tsx     # Unchanged: Success screen for delivery partner registration
+│   └── UploadDocuments.tsx   # Unchanged: File upload screen for delivery partner registration
 ├── services/                 # API and utility services
-│   ├── api.ts                # Updated: Added fetchDeliveryPartners and collectCash
-│   └── socket.ts             # Updated: Added customer-specific Socket.IO logic
+│   ├── api.ts                # Updated: Includes fetchDeliveryPartners and collectCash for order management
+│   └── socket.ts             # Updated: Added customer-specific Socket.IO logic for real-time updates
 ├── store/                    # State management
-│   └── ordersStore.ts        # Updated: Enhanced Order interface
+│   └── ordersStore.ts        # Updated: Enhanced Order interface with deliveryPartner field
 └── utils/                    # Utility functions - unchanged

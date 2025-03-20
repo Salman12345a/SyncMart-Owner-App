@@ -16,6 +16,25 @@ interface DeliveryPartner {
   status: 'pending' | 'approved' | 'rejected';
 }
 
+interface Branch {
+  id: string;
+  status: 'pending' | 'approved' | 'rejected';
+  name: string;
+  phone: string;
+  address: {street: string; area: string; city: string; pincode: string};
+  location: {type: string; coordinates: [number, number]};
+  branchEmail?: string;
+  openingTime: string;
+  closingTime: string;
+  ownerName: string;
+  govId: string;
+  deliveryServiceAvailable: boolean;
+  selfPickup: boolean;
+  branchfrontImage: string;
+  ownerIdProof: string;
+  ownerPhoto: string;
+}
+
 interface StoreState {
   storeStatus: 'open' | 'closed';
   deliveryServiceAvailable: boolean;
@@ -23,6 +42,7 @@ interface StoreState {
   sessionExpiredMessage: string | null;
   orders: Order[];
   deliveryPartners: DeliveryPartner[];
+  branches: Branch[];
   setStoreStatus: (status: 'open' | 'closed') => void;
   setDeliveryServiceAvailable: (available: boolean) => void;
   setUserId: (id: string | null) => void;
@@ -33,6 +53,11 @@ interface StoreState {
   setDeliveryPartners: (partners: DeliveryPartner[]) => void;
   addDeliveryPartner: (partner: DeliveryPartner) => void;
   hasApprovedDeliveryPartner: () => boolean;
+  addBranch: (branch: Branch) => void;
+  updateBranchStatus: (
+    branchId: string,
+    status: 'pending' | 'approved' | 'rejected',
+  ) => void;
 }
 
 export const useStore = create<StoreState>((set, get) => ({
@@ -42,6 +67,7 @@ export const useStore = create<StoreState>((set, get) => ({
   sessionExpiredMessage: null,
   orders: [],
   deliveryPartners: [],
+  branches: [],
   setStoreStatus: status => set({storeStatus: status}),
   setDeliveryServiceAvailable: available =>
     set({deliveryServiceAvailable: available}),
@@ -58,4 +84,17 @@ export const useStore = create<StoreState>((set, get) => ({
     set(state => ({deliveryPartners: [...state.deliveryPartners, partner]})),
   hasApprovedDeliveryPartner: () =>
     get().deliveryPartners.some(dp => dp.status === 'approved'),
+  addBranch: branch =>
+    set(state => ({
+      branches: [
+        ...state.branches.filter(b => b.id !== branch.id), // Remove if exists
+        branch, // Add new/updated branch
+      ],
+    })),
+  updateBranchStatus: (branchId, status) =>
+    set(state => ({
+      branches: state.branches.map(b =>
+        b.id === branchId ? {...b, status} : b,
+      ),
+    })),
 }));
