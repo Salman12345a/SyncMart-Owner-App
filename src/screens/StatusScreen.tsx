@@ -1,92 +1,112 @@
-import React from 'react';
-import {View, Text, Image, TouchableOpacity, StyleSheet} from 'react-native';
-import Icon from 'react-native-vector-icons/MaterialIcons';
+import React, {useEffect, useCallback, useState, useRef} from 'react';
+import {View, Text, Button, StyleSheet} from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import {useStore} from '../store/ordersStore';
+import {fetchBranchStatus} from '../services/api';
+import socketService from '../services/socket'; // Import socket service
 
 const StatusScreen: React.FC = ({route, navigation}) => {
-  const {id, status, name, photo} = route.params;
+  const {branchId} = route.params;
+  const {branches, updateBranchStatus} = useStore();
+  const branch = branches.find(b => b.id === branchId);
+  const lastStatusRef = useRef<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const syncBranchStatus = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response = await fetchBranchStatus(branchId);
+      const newStatus = response.status;
+      updateBranchStatus(branchId, newStatus);
+      if (lastStatusRef.current !== newStatus) {
+        await AsyncStorage.setItem('branchStatus', newStatus);
+        lastStatusRef.current = newStatus;
+      }
+    } catch (error) {
+      setError('Failed to load status. Please try again.');
+      console.error('Failed to fetch branch status:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [branchId, updateBranchStatus]);
+
+  useEffect(() => {
+    if (!branch || !branch.status) {
+      syncBranchStatus();
+    } else {
+      lastStatusRef.current = branch.status;
+    }
+    // Setup socket for branch phone (assuming stored in AsyncStorage)
+    AsyncStorage.getItem('branchPhone').then(phone => {
+      if (phone) socketService.connectBranchRegistration(phone);
+    });
+  }, [syncBranchStatus, branch]);
+
+  const handleWelcomeClick = useCallback(async () => {
+    try {
+      await AsyncStorage.setItem('isOnboarded', 'true');
+      navigation.replace('HomeScreen');
+    } catch (error) {
+      console.error('Error setting onboarded status:', error);
+      navigation.replace('HomeScreen');
+    }
+  }, [navigation]);
+
+  const handleRetry = useCallback(() => {
+    syncBranchStatus();
+  }, [syncBranchStatus]);
+
+  const handleResubmit = useCallback(() => {
+    navigation.navigate('BranchAuth', {branchId, isResubmit: true});
+  }, [navigation, branchId]);
+
+  if (!branch && !isLoading) {
+    return <Text style={styles.text}>Loading branch data...</Text>;
+  }
 
   return (
     <View style={styles.container}>
-      <Image
-        source={{uri: photo || 'https://via.placeholder.com/150'}}
-        style={styles.photo}
-      />
-      <Text style={styles.name}>{name}</Text>
-      <Text style={styles.orderId}>Order ID: N/A</Text>
-      <Text
-        style={[
-          styles.status,
-          status === 'approved' && styles.approvedStatus,
-          status === 'pending' && styles.pendingStatus,
-          status === 'rejected' && styles.rejectedStatus,
-        ]}>
-        Status: {status}
-      </Text>
-      {status === 'rejected' && (
-        <TouchableOpacity
-          style={styles.resubmitButton}
-          onPress={() => navigation.navigate('DeliveryReRegister', {id})}>
-          <Icon name="refresh" size={20} color="#fff" />
-          <Text style={styles.resubmitButtonText}>Resubmit</Text>
-        </TouchableOpacity>
+      {isLoading && <Text style={styles.text}>Checking status...</Text>}
+      {error && (
+        <>
+          <Text style={styles.errorText}>{error}</Text>
+          <Button title="Retry" onPress={handleRetry} />
+        </>
+      )}
+      {!isLoading && !error && branch && (
+        <>
+          <Text style={styles.text}>
+            {branch.status === 'pending'
+              ? 'Your branch is pending approval...'
+              : `Branch Registration Status: ${branch.status}`}
+          </Text>
+          <Button title="Refresh" onPress={syncBranchStatus} />
+          {branch.status === 'approved' && (
+            <View style={styles.buttonSpacing}>
+              <Button
+                title="Welcome to SyncMart"
+                onPress={handleWelcomeClick}
+              />
+            </View>
+          )}
+          {branch.status === 'rejected' && (
+            <View style={styles.buttonSpacing}>
+              <Button title="Resubmit" onPress={handleResubmit} />
+            </View>
+          )}
+        </>
       )}
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    alignItems: 'center',
-    padding: 20,
-    backgroundColor: '#f8f9fa',
-  },
-  photo: {
-    width: 150,
-    height: 150,
-    borderRadius: 75,
-    marginBottom: 20,
-    backgroundColor: '#ecf0f1', // Placeholder background
-  },
-  name: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#2c3e50',
-    marginBottom: 10,
-  },
-  orderId: {
-    fontSize: 16,
-    color: '#7f8c8d',
-    marginBottom: 10,
-  },
-  status: {
-    fontSize: 18,
-    fontWeight: '500',
-  },
-  approvedStatus: {
-    color: '#2ecc71',
-  },
-  pendingStatus: {
-    color: '#f1c40f',
-  },
-  rejectedStatus: {
-    color: '#e74c3c',
-  },
-  resubmitButton: {
-    flexDirection: 'row',
-    backgroundColor: '#3498db',
-    padding: 16,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 20,
-    gap: 10,
-  },
-  resubmitButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '600',
-  },
+  container: {padding: 20, alignItems: 'center', backgroundColor: '#f5f5f5'},
+  text: {fontSize: 16, marginBottom: 20},
+  errorText: {fontSize: 16, color: 'red', marginBottom: 10},
+  buttonSpacing: {marginTop: 10},
 });
 
 export default StatusScreen;

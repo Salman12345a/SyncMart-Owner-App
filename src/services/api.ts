@@ -2,63 +2,34 @@ import axios, {AxiosInstance} from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {navigationRef} from '../../App';
 
-interface DeliveryPartnerForm {
-  name?: string;
-  age: number;
-  gender: 'male' | 'female' | 'other';
-  licenseNumber: string;
-  rcNumber: string;
-  phone: number;
-  licenseImage: {uri: string; type: string; name: string};
-  rcImage: {uri: string; type: string; name: string};
-  aadhaarFront: {uri: string; type: string; name: string};
-  aadhaarBack: {uri: string; type: string; name: string};
-  deliveryPartnerPhoto: {uri: string; type: string; name: string};
-}
-
-interface BranchRegistrationData {
-  branchName: string;
-  branchLocation: string;
-  branchAddress: string;
-  branchEmail?: string;
-  openingTime: string;
-  closingTime: string;
-  ownerName: string;
-  govid: string;
-  homeDelivery: string;
-  selfPickup: string;
-  branchfrontImage: {uri: string; type: string; name: string};
-  ownerIdProof: {uri: string; type: string; name: string};
-  ownerPhoto: {uri: string; type: string; name: string};
-  phone: string;
-}
-
 const api: AxiosInstance = axios.create({
   baseURL: 'http://10.0.2.2:3000/api',
-  timeout: 10000,
 });
 
 api.interceptors.request.use(async config => {
   const token = await AsyncStorage.getItem('accessToken');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
+    console.log('Request Authorization Header:', `Bearer ${token}`);
   }
+  console.log('Request Config:', config);
   return config;
 });
 
 api.interceptors.response.use(
-  response => response,
+  response => {
+    console.log('Response Data:', response.data);
+    return response;
+  },
   async error => {
-    console.error('API Error:', {
-      message: error.message,
-      code: error.code,
-      config: error.config,
-      response: error.response?.data,
-    });
+    console.error('API Error:', error.response?.data || error.message);
     if (
       error.response?.status === 401 &&
       error.config.url !== '/auth/branch/login'
     ) {
+      console.log(
+        'Unauthorized: Clearing token and redirecting to Authentication',
+      );
       await AsyncStorage.removeItem('accessToken');
       if (navigationRef.current) {
         navigationRef.current.reset({
@@ -72,84 +43,238 @@ api.interceptors.response.use(
 );
 
 export const fetchDeliveryPartners = async (branchId?: string) => {
-  const response = await api.get('/delivery-partner', {
-    params: branchId ? {branchId} : undefined,
-  });
-  return response.data;
+  try {
+    console.log('Fetching delivery partners for branchId:', branchId);
+    const response = await api.get('/delivery-partner', {
+      params: branchId ? {branchId} : undefined,
+    });
+    console.log('Fetch Delivery Partners Success:', response.data);
+    return response.data;
+  } catch (error) {
+    console.error(
+      'Fetch Delivery Partners Error:',
+      error.response?.data || error.message,
+    );
+    throw error;
+  }
 };
 
 export const collectCash = async (orderId: string) => {
-  const response = await api.patch(`/orders/${orderId}/collect-cash`);
-  return response.data;
-};
-
-export const registerDeliveryPartner = async (data: DeliveryPartnerForm) => {
-  const formData = new FormData();
-  formData.append('name', data.name || '');
-  formData.append('age', data.age.toString());
-  formData.append('gender', data.gender);
-  formData.append('licenseNumber', data.licenseNumber);
-  formData.append('rcNumber', data.rcNumber);
-  formData.append('phone', data.phone.toString());
-  formData.append('licenseImage', data.licenseImage as any);
-  formData.append('rcImage', data.rcImage as any);
-  formData.append('aadhaarFront', data.aadhaarFront as any);
-  formData.append('aadhaarBack', data.aadhaarBack as any);
-  formData.append('deliveryPartnerPhoto', data.deliveryPartnerPhoto as any);
-
-  const response = await api.post('/delivery-partner/register', formData, {
-    headers: {'Content-Type': 'multipart/form-data'},
-  });
-  return response.data;
-};
-
-export const modifyDeliveryPartner = async (
-  id: string,
-  data: DeliveryPartnerForm,
-) => {
-  const formData = new FormData();
-  formData.append('name', data.name || '');
-  formData.append('age', data.age.toString());
-  formData.append('gender', data.gender);
-  formData.append('licenseNumber', data.licenseNumber);
-  formData.append('rcNumber', data.rcNumber);
-  formData.append('phone', data.phone.toString());
-  formData.append('licenseImage', data.licenseImage as any);
-  formData.append('rcImage', data.rcImage as any);
-  formData.append('aadhaarFront', data.aadhaarFront as any);
-  formData.append('aadhaarBack', data.aadhaarBack as any);
-  formData.append('deliveryPartnerPhoto', data.deliveryPartnerPhoto as any);
-
-  const response = await api.patch(`/delivery-partner/${id}`, formData, {
-    headers: {'Content-Type': 'multipart/form-data'},
-  });
-  return response.data;
-};
-
-export const registerBranch = async (data: FormData) => {
   try {
-    console.log('Register Branch FormData: (Multipart data prepared)', data);
-    const token = await AsyncStorage.getItem('accessToken');
-    const response = await fetch('http://10.0.2.2:3000/api/register/branch', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'multipart/form-data',
-        ...(token ? {Authorization: `Bearer ${token}`} : {}),
-      },
-      body: data,
-    });
-    const result = await response.json();
-    console.log('Register Branch Response:', result);
-    if (!response.ok) {
-      throw new Error(
-        `Request failed with status ${response.status}: ${JSON.stringify(
-          result,
-        )}`,
-      );
-    }
-    return result;
+    console.log('Collecting cash for orderId:', orderId);
+    const response = await api.patch(`/orders/${orderId}/collect-cash`);
+    console.log('Collect Cash Success:', response.data);
+    return response.data;
   } catch (error) {
-    console.error('Register Branch Error:', error.message, error);
+    console.error('Collect Cash Error:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+export const registerDeliveryPartner = async (data: {
+  name?: string;
+  age: number;
+  gender: 'male' | 'female' | 'other';
+  licenseNumber: string;
+  rcNumber: string;
+  phone: number;
+  licenseImage: any;
+  rcImage: any;
+  pancard: any;
+}) => {
+  try {
+    console.log('Registering delivery partner with data:', data);
+    const formData = new FormData();
+    formData.append('name', data.name || '');
+    formData.append('age', data.age.toString());
+    formData.append('gender', data.gender);
+    formData.append('licenseNumber', data.licenseNumber);
+    formData.append('rcNumber', data.rcNumber);
+    formData.append('phone', data.phone.toString());
+    formData.append('licenseImage', data.licenseImage);
+    formData.append('rcImage', data.rcImage);
+    formData.append('pancard', data.pancard);
+
+    console.log('Delivery Partner FormData prepared:', formData);
+    const response = await api.post('/delivery-partner/register', formData, {
+      headers: {'Content-Type': 'multipart/form-data'},
+    });
+    console.log('Register Delivery Partner Success:', response.data);
+    return response.data;
+  } catch (error) {
+    console.error(
+      'Register Delivery Partner Error:',
+      error.response?.data || error.message,
+    );
+    throw error;
+  }
+};
+
+export const registerBranch = async (data: {
+  name: string;
+  location: {type: 'Point'; coordinates: [number, number]};
+  address: {street: string; area: string; city: string; pincode: string};
+  branchEmail?: string;
+  openingTime: string;
+  closingTime: string;
+  ownerName: string;
+  govId: string;
+  phone: string;
+  deliveryServiceAvailable: boolean;
+  selfPickup: boolean;
+  branchfrontImage: {uri: string; type: string; name: string};
+  ownerIdProof: {uri: string; type: string; name: string};
+  ownerPhoto: {uri: string; type: string; name: string};
+}) => {
+  try {
+    console.log('Registering branch with data:', JSON.stringify(data, null, 2));
+
+    const formData = new FormData();
+
+    formData.append('branchName', data.name);
+    formData.append(
+      'branchLocation',
+      JSON.stringify({
+        latitude: data.location.coordinates[1],
+        longitude: data.location.coordinates[0],
+      }),
+    );
+    formData.append('branchAddress', JSON.stringify(data.address));
+    formData.append('branchEmail', data.branchEmail || '');
+    formData.append('openingTime', data.openingTime);
+    formData.append('closingTime', data.closingTime);
+    formData.append('ownerName', data.ownerName);
+    formData.append('govId', data.govId);
+    formData.append('phone', data.phone);
+    formData.append('homeDelivery', data.deliveryServiceAvailable.toString());
+    formData.append('selfPickup', data.selfPickup.toString());
+
+    formData.append('branchfrontImage', {
+      uri: data.branchfrontImage.uri,
+      type: data.branchfrontImage.type,
+      name: data.branchfrontImage.name || 'branchfrontImage.jpg',
+    } as any);
+    formData.append('ownerIdProof', {
+      uri: data.ownerIdProof.uri,
+      type: data.ownerIdProof.type,
+      name: data.ownerIdProof.name || 'ownerIdProof.jpg',
+    } as any);
+    formData.append('ownerPhoto', {
+      uri: data.ownerPhoto.uri,
+      type: data.ownerPhoto.type,
+      name: data.ownerPhoto.name || 'ownerPhoto.jpg',
+    } as any);
+
+    console.log('FormData prepared for branch registration');
+    const response = await api.post('/register/branch', formData, {
+      headers: {'Content-Type': 'multipart/form-data'},
+    });
+
+    console.log('Register Branch Success:', response.data);
+
+    if (response.data.accessToken) {
+      await AsyncStorage.setItem('accessToken', response.data.accessToken);
+      await AsyncStorage.setItem('branchPhone', data.phone);
+      console.log('Access Token stored:', response.data.accessToken);
+      console.log('Branch Phone stored:', data.phone);
+    }
+
+    return response.data;
+  } catch (error) {
+    console.error(
+      'Register Branch Error:',
+      error.response?.data || error.message,
+    );
+    throw error.response?.data || error;
+  }
+};
+
+export const fetchBranchStatus = async (branchId: string) => {
+  try {
+    console.log('Fetching branch status for branchId:', branchId);
+    const response = await api.get(`/branch/status/${branchId}`);
+    console.log('Fetch Branch Status Success:', response.data);
+    return response.data;
+  } catch (error) {
+    console.error(
+      'Fetch Branch Status Error:',
+      error.response?.data || error.message,
+    );
+    throw error;
+  }
+};
+
+export const resubmitBranch = async (
+  branchId: string,
+  data: {
+    name: string;
+    branchLocation: string;
+    branchAddress: string;
+    branchEmail?: string;
+    openingTime: string;
+    closingTime: string;
+    ownerName: string;
+    govId: string;
+    phone: string;
+    deliveryServiceAvailable: boolean;
+    selfPickup: boolean;
+    branchfrontImage: {uri: string; type: string; name: string};
+    ownerIdProof: {uri: string; type: string; name: string};
+    ownerPhoto: {uri: string; type: string; name: string};
+  },
+) => {
+  try {
+    console.log(
+      'Resubmitting branch with data:',
+      JSON.stringify(data, null, 2),
+    );
+
+    // Parse and structure the data as JSON
+    const location = JSON.parse(data.branchLocation); // { latitude, longitude }
+    const address = JSON.parse(data.branchAddress); // { street, area, city, pincode }
+
+    const requestBody = {
+      branchName: data.name,
+      location: {
+        type: 'Point',
+        coordinates: [location.longitude, location.latitude],
+      },
+      address: address,
+      branchEmail: data.branchEmail || '',
+      openingTime: data.openingTime,
+      closingTime: data.closingTime,
+      ownerName: data.ownerName,
+      govId: data.govId,
+      phone: data.phone,
+      homeDelivery: data.deliveryServiceAvailable,
+      selfPickup: data.selfPickup,
+      branchfrontImage: data.branchfrontImage.uri, // Send URI; backend can handle storage
+      ownerIdProof: data.ownerIdProof.uri,
+      ownerPhoto: data.ownerPhoto.uri,
+    };
+
+    const token = await AsyncStorage.getItem('accessToken');
+    const url = `http://10.0.2.2:3000/api/modify/branch/${branchId}`;
+    const response = await fetch(url, {
+      method: 'PATCH',
+      headers: {
+        Authorization: token ? `Bearer ${token}` : '',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(requestBody),
+    });
+
+    const responseData = await response.json();
+
+    if (!response.ok) {
+      console.error('API Error:', responseData);
+      throw new Error(responseData.error || 'Failed to resubmit branch');
+    }
+
+    console.log('Resubmit Branch Success:', responseData);
+    return responseData;
+  } catch (error) {
+    console.error('Resubmit Branch Error:', error.message || error);
     throw error;
   }
 };
