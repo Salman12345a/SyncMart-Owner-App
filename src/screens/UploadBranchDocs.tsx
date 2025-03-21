@@ -1,19 +1,34 @@
-import React, {useState, useCallback} from 'react';
+import React, {useState, useCallback, useEffect} from 'react';
 import {View, Button, Text, StyleSheet, Alert} from 'react-native';
 import {launchImageLibrary} from 'react-native-image-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import {registerBranch} from '../services/api';
+import {registerBranch, modifyBranch} from '../services/api';
 import {useStore} from '../store/ordersStore';
 
 const UploadBranchDocs: React.FC = ({route, navigation}) => {
-  const {formData} = route.params;
+  const {formData, branchId, isReRegister} = route.params || {};
+  const {branches, addBranch, setUserId} = useStore();
+  const branch = isReRegister ? branches.find(b => b.id === branchId) : null;
+
+  const [form] = useState(formData || {});
   const [files, setFiles] = useState({
     branchfrontImage: null,
     ownerIdProof: null,
     ownerPhoto: null,
   });
   const [isLoading, setIsLoading] = useState(false);
-  const {addBranch, setUserId} = useStore(); // Added setUserId
+
+  useEffect(() => {
+    if (isReRegister && branch) {
+      setFiles({
+        branchfrontImage: branch.branchfrontImage
+          ? {uri: branch.branchfrontImage}
+          : null,
+        ownerIdProof: branch.ownerIdProof ? {uri: branch.ownerIdProof} : null,
+        ownerPhoto: branch.ownerPhoto ? {uri: branch.ownerPhoto} : null,
+      });
+    }
+  }, [isReRegister, branch]);
 
   const pickFile = useCallback(async (type: string) => {
     try {
@@ -38,18 +53,55 @@ const UploadBranchDocs: React.FC = ({route, navigation}) => {
 
     setIsLoading(true);
 
+    console.log('form:', form);
+    console.log('form.branchLocation:', form.branchLocation);
+
+    let latitude, longitude;
+    try {
+      if (!form.branchLocation || typeof form.branchLocation !== 'string') {
+        throw new Error('Branch location is missing or not a string');
+      }
+
+      const location = JSON.parse(form.branchLocation);
+      console.log('Parsed location:', location);
+
+      if (
+        !location ||
+        !location.type ||
+        location.type !== 'Point' ||
+        !Array.isArray(location.coordinates) ||
+        location.coordinates.length !== 2
+      ) {
+        throw new Error(
+          'Invalid branchLocation format: expected { type: "Point", coordinates: [longitude, latitude] }',
+        );
+      }
+
+      longitude = location.coordinates[0];
+      latitude = location.coordinates[1];
+
+      if (isNaN(longitude) || isNaN(latitude)) {
+        throw new Error('Coordinates must be valid numbers');
+      }
+    } catch (error) {
+      setIsLoading(false);
+      Alert.alert('Error', error.message || 'Failed to parse branch location');
+      console.error('Branch location parsing error:', error);
+      return;
+    }
+
     const data = {
-      name: formData.name,
-      location: JSON.parse(formData.branchLocation),
-      address: JSON.parse(formData.branchAddress),
-      branchEmail: formData.branchEmail,
-      openingTime: formData.openingTime,
-      closingTime: formData.closingTime,
-      ownerName: formData.ownerName,
-      govId: formData.govId,
-      phone: formData.phone,
-      deliveryServiceAvailable: formData.deliveryServiceAvailable,
-      selfPickup: formData.selfPickup,
+      name: form.name,
+      location: {type: 'Point', coordinates: [longitude, latitude]}, // Pass as object
+      address: JSON.parse(form.branchAddress),
+      branchEmail: form.branchEmail,
+      openingTime: form.openingTime,
+      closingTime: form.closingTime,
+      ownerName: form.ownerName,
+      govId: form.govId,
+      phone: form.phone,
+      deliveryServiceAvailable: form.deliveryServiceAvailable,
+      selfPickup: form.selfPickup,
       branchfrontImage: {
         uri: files.branchfrontImage.uri,
         type: files.branchfrontImage.type || 'image/jpeg',
@@ -67,16 +119,23 @@ const UploadBranchDocs: React.FC = ({route, navigation}) => {
       },
     };
 
-    console.log('Data sent to registerBranch:', JSON.stringify(data, null, 2));
+    console.log('Data sent:', JSON.stringify(data, null, 2));
 
     try {
-      const response = await registerBranch(data);
-      // Populate the store with the full branch object
+      let response;
+      if (isReRegister) {
+        response = await modifyBranch(branchId, data); // Pass object directly
+      } else {
+        response = await registerBranch(data);
+        setUserId(response.branch._id);
+        await AsyncStorage.setItem('branchId', response.branch._id);
+      }
+
       addBranch({
         id: response.branch._id,
         status: response.branch.status,
         name: response.branch.name,
-        phone: response.branch.phone,
+        phone: form.phone,
         address: response.branch.address,
         location: response.branch.location,
         branchEmail: response.branch.branchEmail,
@@ -91,20 +150,21 @@ const UploadBranchDocs: React.FC = ({route, navigation}) => {
         ownerPhoto: response.branch.ownerPhoto,
       });
 
-      // Set userId to branchId
-      setUserId(response.branch._id);
-      console.log('UserId set to:', response.branch._id);
-
-      await AsyncStorage.setItem('branchId', response.branch._id);
       await AsyncStorage.setItem('branchStatus', response.branch.status);
       navigation.navigate('StatusScreen', {branchId: response.branch._id});
     } catch (error) {
-      Alert.alert('Error', error.error || 'Upload failed');
-      console.error('Upload failed:', error);
+      const errorMessage =
+        error.message ||
+        (isReRegister ? 'Re-registration failed' : 'Upload failed');
+      Alert.alert('Error', errorMessage);
+      console.error(
+        isReRegister ? 'Re-registration failed:' : 'Upload failed:',
+        error,
+      );
     } finally {
       setIsLoading(false);
     }
-  }, [files, formData, addBranch, setUserId, navigation]);
+  }, [files, form, isReRegister, branchId, addBranch, setUserId, navigation]);
 
   return (
     <View style={styles.container}>
@@ -139,7 +199,11 @@ const UploadBranchDocs: React.FC = ({route, navigation}) => {
           : 'No Owner Photo Uploaded'}
       </Text>
       <Button title="Submit" onPress={handleSubmit} disabled={isLoading} />
-      {isLoading && <Text style={styles.text}>Uploading...</Text>}
+      {isLoading && (
+        <Text style={styles.text}>
+          {isReRegister ? 'Re-registering...' : 'Uploading...'}
+        </Text>
+      )}
     </View>
   );
 };

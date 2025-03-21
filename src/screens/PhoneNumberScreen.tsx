@@ -1,10 +1,22 @@
-import React, {useState, useCallback} from 'react';
+import React, {useState, useCallback, useEffect} from 'react';
 import {View, TextInput, Button, StyleSheet, Alert, Text} from 'react-native';
+import {useStore} from '../store/ordersStore';
 
 const PhoneNumberScreen: React.FC = ({route, navigation}) => {
-  const {formData} = route.params;
+  const {formData, branchId, isReRegister} = route.params || {};
+  const {branches} = useStore();
+  const branch = isReRegister ? branches.find(b => b.id === branchId) : null;
+
   const [phone, setPhone] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    if (isReRegister && branch) {
+      setPhone(branch.phone);
+    } else if (formData?.phone) {
+      setPhone(formData.phone);
+    }
+  }, [isReRegister, branch, formData]);
 
   const handleNext = useCallback(() => {
     // Validate phone number
@@ -24,10 +36,12 @@ const PhoneNumberScreen: React.FC = ({route, navigation}) => {
     // Navigate to the next screen
     navigation.navigate('UploadBranchDocs', {
       formData: updatedFormData,
+      branchId: isReRegister ? branchId : undefined,
+      isReRegister: !!isReRegister,
     });
 
     setIsLoading(false);
-  }, [phone, formData, navigation]);
+  }, [phone, formData, branchId, isReRegister, navigation]);
 
   return (
     <View style={styles.container}>
