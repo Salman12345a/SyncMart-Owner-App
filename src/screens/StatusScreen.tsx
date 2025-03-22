@@ -1,102 +1,123 @@
-import React, {useEffect, useCallback, useState, useRef} from 'react';
+import React, {useEffect, useCallback, useRef} from 'react';
 import {View, Text, Button, StyleSheet} from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {useStore} from '../store/ordersStore';
 import {fetchBranchStatus} from '../services/api';
-import socketService from '../services/socket'; // Import socket service
+import socketService from '../services/socket';
+import {storage} from '../utils/storage'; // MMKV
+import {shallow} from 'zustand/shallow';
 
 const StatusScreen: React.FC = ({route, navigation}) => {
-  const {branchId} = route.params;
-  const {branches, updateBranchStatus} = useStore();
+  console.log('StatusScreen mounted with route.params:', route?.params);
+
+  const {branchId} = route?.params || {};
+  if (!branchId) {
+    console.error('No branchId provided in route params');
+    return <Text style={styles.text}>Error: No branch ID provided</Text>;
+  }
+
+  const branches = useStore(state => state.branches, shallow);
+  const addBranch = useStore(state => state.addBranch, shallow);
+  const updateBranchStatus = useStore(
+    state => state.updateBranchStatus,
+    shallow,
+  );
   const branch = branches.find(b => b.id === branchId);
-  const lastStatusRef = useRef<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+
+  console.log('Render - Branch from store:', branch);
+
+  const hasFetched = useRef(false);
 
   const syncBranchStatus = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
+    if (hasFetched.current) return;
+    console.log('syncBranchStatus called with branchId:', branchId);
     try {
       const response = await fetchBranchStatus(branchId);
-      const newStatus = response.status;
-      updateBranchStatus(branchId, newStatus);
-      if (lastStatusRef.current !== newStatus) {
-        await AsyncStorage.setItem('branchStatus', newStatus);
-        lastStatusRef.current = newStatus;
+      console.log('Fetched status:', response.status);
+      const existingBranch = branches.find(b => b.id === branchId);
+      if (!existingBranch) {
+        console.log('Adding new branch to store:', response);
+        addBranch({
+          id: response.branchId,
+          status: response.status,
+          name: response.name,
+          phone: response.phone,
+          address: {street: '', area: '', city: '', pincode: ''},
+          location: {type: 'Point', coordinates: [0, 0]},
+          openingTime: '',
+          closingTime: '',
+          ownerName: '',
+          govId: '',
+          deliveryServiceAvailable: false,
+          selfPickup: false,
+          branchfrontImage: '',
+          ownerIdProof: '',
+          ownerPhoto: '',
+        });
+      } else {
+        console.log('Updating branch status:', response.status);
+        updateBranchStatus(branchId, response.status);
+      }
+      hasFetched.current = true;
+      if (response.status === 'approved') {
+        storage.set('isApproved', true);
       }
     } catch (error) {
-      setError('Failed to load status. Please try again.');
-      console.error('Failed to fetch branch status:', error);
-    } finally {
-      setIsLoading(false);
+      console.error('Fetch error:', error);
     }
-  }, [branchId, updateBranchStatus]);
+  }, [branchId, addBranch, updateBranchStatus]); // Removed 'branches' dependency
 
   useEffect(() => {
-    if (!branch || !branch.status) {
-      syncBranchStatus();
-    } else {
-      lastStatusRef.current = branch.status;
-    }
-    // Setup socket for branch phone (assuming stored in AsyncStorage)
+    console.log('useEffect running for branchId:', branchId);
+    syncBranchStatus();
     AsyncStorage.getItem('branchPhone').then(phone => {
-      if (phone) socketService.connectBranchRegistration(phone);
+      if (phone) {
+        console.log('Connecting socket with phone:', phone);
+        socketService.connectBranchRegistration(phone);
+      }
     });
-  }, [syncBranchStatus, branch]);
+  }, [syncBranchStatus]);
 
-  const handleWelcomeClick = useCallback(async () => {
-    try {
-      await AsyncStorage.setItem('isOnboarded', 'true');
-      navigation.replace('HomeScreen');
-    } catch (error) {
-      console.error('Error setting onboarded status:', error);
-      navigation.replace('HomeScreen');
-    }
+  const handleWelcomeClick = useCallback(() => {
+    console.log('Welcome clicked');
+    storage.set('isApproved', true);
+    const userId = useStore.getState().userId; // Get current userId from store
+    console.log('Navigating to HomeScreen with userId:', userId);
+    navigation.replace('HomeScreen', {userId}); // Pass userId explicitly
   }, [navigation]);
 
   const handleRetry = useCallback(() => {
+    console.log('Retry clicked');
+    hasFetched.current = false;
     syncBranchStatus();
   }, [syncBranchStatus]);
 
   const handleResubmit = useCallback(() => {
+    console.log('Resubmit clicked');
     navigation.navigate('BranchAuth', {branchId, isResubmit: true});
   }, [navigation, branchId]);
 
-  if (!branch && !isLoading) {
+  if (!branch) {
     return <Text style={styles.text}>Loading branch data...</Text>;
   }
 
   return (
     <View style={styles.container}>
-      {isLoading && <Text style={styles.text}>Checking status...</Text>}
-      {error && (
-        <>
-          <Text style={styles.errorText}>{error}</Text>
-          <Button title="Retry" onPress={handleRetry} />
-        </>
+      <Text style={styles.text}>
+        {branch.status === 'pending'
+          ? 'Your branch is pending approval...'
+          : `Branch Registration Status: ${branch.status}`}
+      </Text>
+      <Button title="Refresh" onPress={handleRetry} />
+      {branch.status === 'approved' && (
+        <View style={styles.buttonSpacing}>
+          <Button title="Welcome to SyncMart" onPress={handleWelcomeClick} />
+        </View>
       )}
-      {!isLoading && !error && branch && (
-        <>
-          <Text style={styles.text}>
-            {branch.status === 'pending'
-              ? 'Your branch is pending approval...'
-              : `Branch Registration Status: ${branch.status}`}
-          </Text>
-          <Button title="Refresh" onPress={syncBranchStatus} />
-          {branch.status === 'approved' && (
-            <View style={styles.buttonSpacing}>
-              <Button
-                title="Welcome to SyncMart"
-                onPress={handleWelcomeClick}
-              />
-            </View>
-          )}
-          {branch.status === 'rejected' && (
-            <View style={styles.buttonSpacing}>
-              <Button title="Resubmit" onPress={handleResubmit} />
-            </View>
-          )}
-        </>
+      {branch.status === 'rejected' && (
+        <View style={styles.buttonSpacing}>
+          <Button title="Resubmit" onPress={handleResubmit} />
+        </View>
       )}
     </View>
   );
@@ -105,7 +126,6 @@ const StatusScreen: React.FC = ({route, navigation}) => {
 const styles = StyleSheet.create({
   container: {padding: 20, alignItems: 'center', backgroundColor: '#f5f5f5'},
   text: {fontSize: 16, marginBottom: 20},
-  errorText: {fontSize: 16, color: 'red', marginBottom: 10},
   buttonSpacing: {marginTop: 10},
 });
 

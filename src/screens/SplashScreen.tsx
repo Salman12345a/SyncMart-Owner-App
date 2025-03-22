@@ -1,50 +1,37 @@
 import React, {useEffect} from 'react';
-import {View, ActivityIndicator, StyleSheet} from 'react-native';
+import {View, Text, StyleSheet} from 'react-native';
 import {useNavigation} from '@react-navigation/native';
-import {jwtDecode} from 'jwt-decode';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import {storage} from '../utils/storage'; // Import MMKV
+import {storage} from '../utils/storage'; // MMKV
 
 const SplashScreen: React.FC = () => {
   const navigation = useNavigation<any>();
 
   useEffect(() => {
     const checkStatus = async () => {
-      try {
-        const branchStatus = storage.getString('branchStatus');
-        const branchId = storage.getString('branchId');
-        const token = await AsyncStorage.getItem('accessToken'); // Fallback for login flow
+      await new Promise(resolve => setTimeout(resolve, 2000)); // 2-second delay
 
-        if (branchStatus) {
-          if (branchStatus === 'pending' || branchStatus === 'rejected') {
-            navigation.replace('BranchStatusScreen', {
-              id: branchId,
-              status: branchStatus,
-            });
-          } else if (branchStatus === 'approved') {
-            navigation.replace('HomeScreen');
-          }
-        } else if (token) {
-          const decoded: {userId: string} = jwtDecode(token);
-          if (decoded.userId) {
-            navigation.replace('HomeScreen');
-          } else {
-            navigation.replace('EntryScreen');
-          }
-        } else {
-          navigation.replace('EntryScreen');
-        }
-      } catch (err) {
-        console.error('Status check error:', err);
+      const isApproved = storage.getBoolean('isApproved') || false;
+      const isRegistered = storage.getBoolean('isRegistered') || false;
+      const branchId = storage.getString('branchId');
+
+      if (isApproved) {
+        navigation.replace('HomeScreen');
+      } else if (isRegistered && branchId) {
+        navigation.replace('StatusScreen', {branchId});
+      } else {
         navigation.replace('EntryScreen');
       }
     };
-    checkStatus();
+
+    checkStatus().catch(err => {
+      console.error('Status check error:', err);
+      navigation.replace('EntryScreen');
+    });
   }, [navigation]);
 
   return (
     <View style={styles.container}>
-      <ActivityIndicator size="large" color="#007AFF" />
+      <Text style={styles.title}>DK Mart</Text>
     </View>
   );
 };
@@ -55,6 +42,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: '#fff',
+  },
+  title: {
+    fontSize: 32,
+    fontWeight: 'bold',
+    color: '#007AFF',
   },
 });
 

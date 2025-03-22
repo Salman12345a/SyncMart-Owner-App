@@ -1,4 +1,4 @@
-import React, {useEffect} from 'react';
+import React, {useEffect, useCallback, useState} from 'react';
 import {
   View,
   StyleSheet,
@@ -7,6 +7,7 @@ import {
   FlatList,
   TouchableOpacity,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import Header from '../components/dashboard/Header';
 import OrderCard from '../components/dashboard/OrderCard';
 import {useStore} from '../store/ordersStore';
@@ -21,34 +22,16 @@ interface HomeScreenProps {
 }
 
 const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
-  const {userId, branch, orders, setStoreStatus, setOrders} = useStore();
+  const {branch, orders, setStoreStatus, setOrders, setUserId} = useStore();
+  const [userId, setLocalUserId] = useState<string | null>(null);
+  const [accessToken, setAccessToken] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    console.log(
-      'HomeScreen mounted with userId:',
-      userId,
-      'accessToken:',
-      branch?.accessToken,
-    );
-    if (branch?.accessToken) {
-      console.log(
-        'Token Payload before fetch:',
-        JSON.parse(atob(branch.accessToken.split('.')[1])),
-      );
-    }
-    if (!userId || !branch?.accessToken) {
-      console.error(
-        'No userId or accessToken available - redirecting to login',
-      );
-      navigation.navigate('Authentication');
-      return;
-    }
-
-    const fetchOrders = async () => {
+  const fetchOrders = useCallback(
+    async (branchId: string) => {
       try {
         const response = await api.get('/orders/', {
-          params: {branchId: userId},
-          // Remove redundant header since api.ts interceptor handles it
+          params: {branchId},
         });
         console.log('Orders fetched successfully:', response.data);
         setOrders(response.data); // Adjust if response.data.orders
@@ -56,57 +39,131 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
         console.error('Fetch Orders Error:', error);
         Alert.alert('Error', 'Failed to load orders');
       }
+    },
+    [setOrders],
+  );
+
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const storedUserId = await AsyncStorage.getItem('userId');
+        const storedAccessToken = await AsyncStorage.getItem('accessToken');
+        console.log(
+          'HomeScreen mounted with userId:',
+          storedUserId,
+          'accessToken:',
+          storedAccessToken,
+        );
+
+        if (!storedAccessToken) {
+          console.error('No accessToken available - redirecting to login');
+          navigation.reset({index: 0, routes: [{name: 'Authentication'}]});
+          return;
+        }
+
+        let finalUserId = storedUserId;
+        if (storedAccessToken) {
+          try {
+            const tokenPayload = JSON.parse(
+              atob(storedAccessToken.split('.')[1]),
+            );
+            console.log('Token Payload:', tokenPayload);
+            if (!storedUserId || storedUserId !== tokenPayload.branchId) {
+              console.warn('Mismatch between stored userId and token branchId');
+              finalUserId = tokenPayload.branchId;
+              await AsyncStorage.setItem('userId', finalUserId);
+              console.log('Updated AsyncStorage userId to:', finalUserId);
+            }
+          } catch (e) {
+            console.warn('Failed to decode token:', e);
+          }
+        }
+
+        if (!finalUserId) {
+          console.error('No userId available - redirecting to login');
+          navigation.reset({index: 0, routes: [{name: 'Authentication'}]});
+          return;
+        }
+
+        setLocalUserId(finalUserId);
+        setAccessToken(storedAccessToken);
+        setUserId(finalUserId); // Sync store
+        console.log('Store state after setUserId:', useStore.getState());
+
+        fetchOrders(finalUserId);
+      } catch (error) {
+        console.error('Auth check error:', error);
+        navigation.reset({index: 0, routes: [{name: 'Authentication'}]});
+      } finally {
+        setIsLoading(false);
+      }
     };
 
-    fetchOrders();
-  }, [userId, branch, navigation, setOrders]);
+    checkAuth();
+  }, [navigation, fetchOrders, setUserId]);
 
-  const handleAccept = async (orderId: string) => {
-    try {
-      await api.patch(`/orders/${orderId}/accept`, null);
-      setOrders(
-        orders.map(order =>
-          order._id === orderId ? {...order, status: 'accepted'} : order,
-        ),
-      );
-    } catch (error) {
-      console.error('Accept Order Error:', error);
-      Alert.alert('Error', 'Failed to accept order');
-    }
-  };
+  const handleAccept = useCallback(
+    async (orderId: string) => {
+      try {
+        await api.patch(`/orders/${orderId}/accept`, null);
+        setOrders(
+          orders.map(order =>
+            order._id === orderId ? {...order, status: 'accepted'} : order,
+          ),
+        );
+      } catch (error) {
+        console.error('Accept Order Error:', error);
+        Alert.alert('Error', 'Failed to accept order');
+      }
+    },
+    [orders, setOrders],
+  );
 
-  const handleReject = async (orderId: string) => {
-    try {
-      await api.patch(`/orders/${orderId}/cancel`, null);
-      setOrders(
-        orders.map(order =>
-          order._id === orderId ? {...order, status: 'cancelled'} : order,
-        ),
-      );
-    } catch (error) {
-      console.error('Reject Order Error:', error);
-      Alert.alert('Error', 'Failed to reject order');
-    }
-  };
+  const handleReject = useCallback(
+    async (orderId: string) => {
+      try {
+        await api.patch(`/orders/${orderId}/cancel`, null);
+        setOrders(
+          orders.map(order =>
+            order._id === orderId ? {...order, status: 'cancelled'} : order,
+          ),
+        );
+      } catch (error) {
+        console.error('Reject Order Error:', error);
+        Alert.alert('Error', 'Failed to reject order');
+      }
+    },
+    [orders, setOrders],
+  );
 
-  const handleCancelItem = async (orderId: string, itemId: string) => {
-    try {
-      await api.patch(`/orders/${orderId}/cancel-item/${itemId}`, null);
-      setOrders(
-        orders.map(order =>
-          order._id === orderId
-            ? {...order, items: order.items.filter(item => item._id !== itemId)}
-            : order,
-        ),
-      );
-    } catch (error) {
-      console.error('Cancel Item Error:', error);
-      Alert.alert('Error', 'Failed to cancel item');
-    }
-  };
+  const handleCancelItem = useCallback(
+    async (orderId: string, itemId: string) => {
+      try {
+        await api.patch(`/orders/${orderId}/cancel-item/${itemId}`, null);
+        setOrders(
+          orders.map(order =>
+            order._id === orderId
+              ? {
+                  ...order,
+                  items: order.items.filter(item => item._id !== itemId),
+                }
+              : order,
+          ),
+        );
+      } catch (error) {
+        console.error('Cancel Item Error:', error);
+        Alert.alert('Error', 'Failed to cancel item');
+      }
+    },
+    [orders, setOrders],
+  );
 
-  if (!userId || !branch?.accessToken) {
-    return <Text>Please log in to continue.</Text>;
+  if (isLoading) {
+    return <Text>Loading authentication...</Text>;
+  }
+
+  if (!userId || !accessToken) {
+    return null; // Navigation.reset already handled
   }
 
   return (

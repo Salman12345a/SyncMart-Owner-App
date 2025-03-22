@@ -4,6 +4,7 @@ import {launchImageLibrary} from 'react-native-image-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {registerBranch, resubmitBranch} from '../services/api';
 import {useStore} from '../store/ordersStore';
+import {storage} from '../utils/storage'; // MMKV
 
 const UploadBranchDocs: React.FC = ({route, navigation}) => {
   const {formData, branchId, isResubmit} = route.params || {};
@@ -53,15 +54,14 @@ const UploadBranchDocs: React.FC = ({route, navigation}) => {
 
     setIsLoading(true);
 
-    // Parse JSON strings into objects
-    const location = JSON.parse(form.branchLocation); // { latitude, longitude }
-    const address = JSON.parse(form.branchAddress); // { street, area, city, pincode }
+    const location = JSON.parse(form.branchLocation);
+    const address = JSON.parse(form.branchAddress);
 
     const data = {
       name: form.name,
       location: {
         type: 'Point',
-        coordinates: [location.longitude, location.latitude], // Convert to [longitude, latitude]
+        coordinates: [location.longitude, location.latitude],
       },
       address: {
         street: address.street,
@@ -87,8 +87,8 @@ const UploadBranchDocs: React.FC = ({route, navigation}) => {
       if (isResubmit) {
         response = await resubmitBranch(branchId, {
           name: form.name,
-          branchLocation: form.branchLocation, // Keep as string for resubmitBranch
-          branchAddress: form.branchAddress, // Keep as string for resubmitBranch
+          branchLocation: form.branchLocation,
+          branchAddress: form.branchAddress,
           branchEmail: form.branchEmail,
           openingTime: form.openingTime,
           closingTime: form.closingTime,
@@ -103,9 +103,16 @@ const UploadBranchDocs: React.FC = ({route, navigation}) => {
         });
       } else {
         response = await registerBranch(data);
-        setUserId(response.branch._id);
-        await AsyncStorage.setItem('branchId', response.branch._id);
-        await AsyncStorage.setItem('branchPhone', data.phone);
+        console.log('Register response:', response); // Log full response
+        setUserId(response.branch._id); // Set userId in store
+        // Explicitly store userId and accessToken in AsyncStorage
+        await AsyncStorage.setItem('userId', response.branch._id);
+        if (response.accessToken) {
+          await AsyncStorage.setItem('accessToken', response.accessToken);
+          console.log('Stored accessToken:', response.accessToken);
+        } else {
+          console.warn('No accessToken in response');
+        }
       }
 
       addBranch({
@@ -113,7 +120,7 @@ const UploadBranchDocs: React.FC = ({route, navigation}) => {
         status: response.branch.status,
         name: response.branch.name,
         phone: data.phone,
-        address: address, // Already parsed
+        address: address,
         location: {
           type: 'Point',
           coordinates: [location.longitude, location.latitude],
@@ -130,7 +137,14 @@ const UploadBranchDocs: React.FC = ({route, navigation}) => {
         ownerPhoto: response.branch.ownerPhoto,
       });
 
-      await AsyncStorage.setItem('branchStatus', response.branch.status);
+      if (!isResubmit) {
+        storage.set('isRegistered', true);
+        storage.set('branchId', response.branch._id);
+      }
+      console.log(
+        'Navigating to StatusScreen with branchId:',
+        response.branch._id,
+      );
       navigation.navigate('StatusScreen', {branchId: response.branch._id});
     } catch (error) {
       const errorMessage =

@@ -172,11 +172,22 @@ export const registerBranch = async (data: {
 
     console.log('Register Branch Success:', response.data);
 
+    // Store accessToken and branchPhone
     if (response.data.accessToken) {
       await AsyncStorage.setItem('accessToken', response.data.accessToken);
-      await AsyncStorage.setItem('branchPhone', data.phone);
       console.log('Access Token stored:', response.data.accessToken);
-      console.log('Branch Phone stored:', data.phone);
+    } else {
+      console.warn('No accessToken returned in response');
+    }
+    await AsyncStorage.setItem('branchPhone', data.phone);
+    console.log('Branch Phone stored:', data.phone);
+
+    // Store userId as branchId for consistency
+    if (response.data.branch?._id) {
+      await AsyncStorage.setItem('userId', response.data.branch._id);
+      console.log('UserId (branchId) stored:', response.data.branch._id);
+    } else {
+      console.warn('No branch._id returned in response');
     }
 
     return response.data;
@@ -229,9 +240,8 @@ export const resubmitBranch = async (
       JSON.stringify(data, null, 2),
     );
 
-    // Parse and structure the data as JSON
-    const location = JSON.parse(data.branchLocation); // { latitude, longitude }
-    const address = JSON.parse(data.branchAddress); // { street, area, city, pincode }
+    const location = JSON.parse(data.branchLocation);
+    const address = JSON.parse(data.branchAddress);
 
     const requestBody = {
       branchName: data.name,
@@ -248,7 +258,7 @@ export const resubmitBranch = async (
       phone: data.phone,
       homeDelivery: data.deliveryServiceAvailable,
       selfPickup: data.selfPickup,
-      branchfrontImage: data.branchfrontImage.uri, // Send URI; backend can handle storage
+      branchfrontImage: data.branchfrontImage.uri,
       ownerIdProof: data.ownerIdProof.uri,
       ownerPhoto: data.ownerPhoto.uri,
     };
