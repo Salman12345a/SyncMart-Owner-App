@@ -10,7 +10,7 @@ const EntryScreen: React.FC = () => {
       <Text style={styles.title}>Welcome to SyncMart</Text>
       <TouchableOpacity
         style={styles.button}
-        onPress={() => navigation.navigate('BranchRegistrationStep1')}>
+        onPress={() => navigation.navigate('BranchAuth')}>
         <Text style={styles.buttonText}>Register</Text>
       </TouchableOpacity>
       <TouchableOpacity
