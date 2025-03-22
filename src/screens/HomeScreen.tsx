@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import socketService from '../services/socket'; // Import SocketService
 import Header from '../components/dashboard/Header';
 import OrderCard from '../components/dashboard/OrderCard';
 import {useStore} from '../store/ordersStore';
@@ -30,11 +31,9 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
   const fetchOrders = useCallback(
     async (branchId: string) => {
       try {
-        const response = await api.get('/orders/', {
-          params: {branchId},
-        });
+        const response = await api.get('/orders/', {params: {branchId}});
         console.log('Orders fetched successfully:', response.data);
-        setOrders(response.data); // Adjust if response.data.orders
+        setOrders(response.data);
       } catch (error) {
         console.error('Fetch Orders Error:', error);
         Alert.alert('Error', 'Failed to load orders');
@@ -68,29 +67,46 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
               atob(storedAccessToken.split('.')[1]),
             );
             console.log('Token Payload:', tokenPayload);
-            if (!storedUserId || storedUserId !== tokenPayload.branchId) {
-              console.warn('Mismatch between stored userId and token branchId');
-              finalUserId = tokenPayload.branchId;
+
+            if (!tokenPayload.userId) {
+              console.error('No userId in token - redirecting to login');
+              navigation.reset({index: 0, routes: [{name: 'Authentication'}]});
+              return;
+            }
+
+            if (storedUserId && storedUserId !== tokenPayload.userId) {
+              console.warn(
+                'Mismatch between stored userId and token userId, updating storage',
+              );
+              finalUserId = tokenPayload.userId;
               await AsyncStorage.setItem('userId', finalUserId);
               console.log('Updated AsyncStorage userId to:', finalUserId);
+            } else if (!storedUserId) {
+              console.log('No stored userId, setting from token');
+              finalUserId = tokenPayload.userId;
+              await AsyncStorage.setItem('userId', finalUserId);
             }
           } catch (e) {
             console.warn('Failed to decode token:', e);
+            await AsyncStorage.removeItem('userId');
+            await AsyncStorage.removeItem('accessToken');
+            navigation.reset({index: 0, routes: [{name: 'Authentication'}]});
+            return;
           }
         }
 
-        if (!finalUserId) {
-          console.error('No userId available - redirecting to login');
-          navigation.reset({index: 0, routes: [{name: 'Authentication'}]});
-          return;
-        }
+        // Connect socket using SocketService
+        socketService.connect(finalUserId);
 
         setLocalUserId(finalUserId);
         setAccessToken(storedAccessToken);
-        setUserId(finalUserId); // Sync store
-        console.log('Store state after setUserId:', useStore.getState());
-
+        setUserId(finalUserId);
         fetchOrders(finalUserId);
+
+        // Cleanup on unmount
+        return () => {
+          socketService.disconnect();
+        };
       } catch (error) {
         console.error('Auth check error:', error);
         navigation.reset({index: 0, routes: [{name: 'Authentication'}]});
@@ -168,7 +184,11 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
 
   return (
     <View style={styles.container}>
-      <Header navigation={navigation} showStoreStatus />
+      <Header
+        navigation={navigation}
+        showStoreStatus
+        socket={socketService.socket}
+      />
       <View style={styles.content}>
         <Text style={styles.title}>Welcome to the Dashboard!</Text>
         <FlatList

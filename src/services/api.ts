@@ -78,22 +78,29 @@ export const registerDeliveryPartner = async (data: {
   licenseNumber: string;
   rcNumber: string;
   phone: number;
-  licenseImage: any;
-  rcImage: any;
-  pancard: any;
+  licenseImage: {uri: string; type: string; name: string};
+  rcImage: {uri: string; type: string; name: string};
+  deliveryPartnerPhoto: {uri: string; type: string; name: string};
+  aadhaarFront: {uri: string; type: string; name: string};
+  aadhaarBack: {uri: string; type: string; name: string};
+  pancard?: {uri: string; type: string; name: string};
 }) => {
   try {
     console.log('Registering delivery partner with data:', data);
     const formData = new FormData();
     formData.append('name', data.name || '');
-    formData.append('age', data.age.toString());
+    const ageNum = isNaN(data.age) ? 0 : data.age; // Default to 0 or validate
+    formData.append('age', ageNum.toString());
     formData.append('gender', data.gender);
     formData.append('licenseNumber', data.licenseNumber);
     formData.append('rcNumber', data.rcNumber);
     formData.append('phone', data.phone.toString());
     formData.append('licenseImage', data.licenseImage);
     formData.append('rcImage', data.rcImage);
-    formData.append('pancard', data.pancard);
+    formData.append('deliveryPartnerPhoto', data.deliveryPartnerPhoto);
+    formData.append('aadhaarFront', data.aadhaarFront);
+    formData.append('aadhaarBack', data.aadhaarBack);
+    if (data.pancard) formData.append('pancard', data.pancard);
 
     console.log('Delivery Partner FormData prepared:', formData);
     const response = await api.post('/delivery-partner/register', formData, {

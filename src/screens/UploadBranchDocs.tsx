@@ -2,9 +2,10 @@ import React, {useState, useCallback, useEffect} from 'react';
 import {View, Button, Text, StyleSheet, Alert} from 'react-native';
 import {launchImageLibrary} from 'react-native-image-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import {registerBranch, resubmitBranch} from '../services/api';
+import {registerBranch} from '../services/api';
+import api from '../services/api';
 import {useStore} from '../store/ordersStore';
-import {storage} from '../utils/storage'; // MMKV
+import {storage} from '../utils/storage';
 
 const UploadBranchDocs: React.FC = ({route, navigation}) => {
   const {formData, branchId, isResubmit} = route.params || {};
@@ -85,7 +86,7 @@ const UploadBranchDocs: React.FC = ({route, navigation}) => {
     try {
       let response;
       if (isResubmit) {
-        response = await resubmitBranch(branchId, {
+        response = await api.patch(`/modify/branch/${branchId}`, {
           name: form.name,
           branchLocation: form.branchLocation,
           branchAddress: form.branchAddress,
@@ -102,17 +103,31 @@ const UploadBranchDocs: React.FC = ({route, navigation}) => {
           ownerPhoto: files.ownerPhoto,
         });
       } else {
+        // Register branch
         response = await registerBranch(data);
-        console.log('Register response:', response); // Log full response
-        setUserId(response.branch._id); // Set userId in store
-        // Explicitly store userId and accessToken in AsyncStorage
-        await AsyncStorage.setItem('userId', response.branch._id);
-        if (response.accessToken) {
-          await AsyncStorage.setItem('accessToken', response.accessToken);
-          console.log('Stored accessToken:', response.accessToken);
-        } else {
-          console.warn('No accessToken in response');
+        console.log('Register response:', response);
+
+        // Log in to get userId-based token
+        const loginResponse = await api.post('/auth/branch/login', {
+          phone: data.phone,
+        });
+        console.log('Login response:', loginResponse.data);
+
+        // Store tokens and userId
+        const branchId = response.branch?._id;
+        const accessToken = loginResponse.data.accessToken;
+
+        if (!branchId) {
+          throw new Error('Registration failed: No branch ID returned');
         }
+        if (!accessToken) {
+          throw new Error('Login failed: No access token returned');
+        }
+
+        await AsyncStorage.setItem('userId', branchId);
+        await AsyncStorage.setItem('accessToken', accessToken);
+        setUserId(branchId);
+        console.log('Stored userId:', branchId, 'accessToken:', accessToken);
       }
 
       addBranch({
@@ -120,7 +135,7 @@ const UploadBranchDocs: React.FC = ({route, navigation}) => {
         status: response.branch.status,
         name: response.branch.name,
         phone: data.phone,
-        address: address,
+        address,
         location: {
           type: 'Point',
           coordinates: [location.longitude, location.latitude],
@@ -141,10 +156,6 @@ const UploadBranchDocs: React.FC = ({route, navigation}) => {
         storage.set('isRegistered', true);
         storage.set('branchId', response.branch._id);
       }
-      console.log(
-        'Navigating to StatusScreen with branchId:',
-        response.branch._id,
-      );
       navigation.navigate('StatusScreen', {branchId: response.branch._id});
     } catch (error) {
       const errorMessage =

@@ -1,4 +1,3 @@
-// components/StoreStatusToggle.tsx
 import React, {useCallback} from 'react';
 import {View, StyleSheet} from 'react-native';
 import SwitchSelector from 'react-native-switch-selector';
@@ -6,7 +5,7 @@ import {useStore} from '../../store/ordersStore';
 import api from '../../services/api';
 
 interface StoreStatusToggleProps {
-  socket: any;
+  socket?: any;
 }
 
 const StoreStatusToggle: React.FC<StoreStatusToggleProps> = ({socket}) => {
@@ -17,7 +16,12 @@ const StoreStatusToggle: React.FC<StoreStatusToggleProps> = ({socket}) => {
     setStoreStatus(newStatus);
     try {
       await api.post('/syncmarts/status', {storeStatus: newStatus});
-      socket.emit('syncmart:status', {storeStatus: newStatus});
+      if (socket) {
+        socket.emit('syncmart:status', {storeStatus: newStatus});
+        console.log('Emitted syncmart:status with:', newStatus);
+      } else {
+        console.warn('Socket not available, skipping emit');
+      }
     } catch (err) {
       console.error('Toggle SyncMart Status Error:', err);
       setStoreStatus(storeStatus);
@@ -44,12 +48,8 @@ const StoreStatusToggle: React.FC<StoreStatusToggleProps> = ({socket}) => {
 };
 
 const styles = StyleSheet.create({
-  container: {
-    width: 150,
-  },
-  switch: {
-    paddingVertical: 5,
-  },
+  container: {width: 150},
+  switch: {paddingVertical: 5},
 });
 
 export default StoreStatusToggle;

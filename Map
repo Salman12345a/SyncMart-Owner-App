@@ -40,7 +40,11 @@ src/
 │   ├── OrderHasPacked.tsx    # Updated: Pickup order screen with back navigation fix
 │   ├── OrderPackedScreen.tsx # New: Manages packed orders with tabs (Active/Packed)
 │   ├── SuccessScreen.tsx     # Unchanged: Success screen for delivery partner registration
-│   └── UploadDocuments.tsx   # Unchanged: File upload screen for delivery partner registration
+│   ├── UploadDocuments.tsx   # Unchanged: File upload screen for delivery partner registration
+│   ├── DeliveryReRegister.tsx  # New: Screen for re-registering delivery partners
+│   ├── ReUploadDocuments.tsx  # New: Screen for re-uploading registration documents
+│   ├── ReUploadPartnerPhoto.tsx  # New: Screen for re-uploading partner photos
+│   ├── UploadPartnerPhoto.tsx  # New: Screen for uploading partner photos
 ├── services/                 # API and utility services
 │   ├── api.ts                # Updated: Includes fetchDeliveryPartners and collectCash for order management
 │   └── socket.ts             # Updated: Added customer-specific Socket.IO logic for real-time updates

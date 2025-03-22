@@ -15,6 +15,7 @@ import OrderHasPacked from '../screens/OrderHasPacked';
 import OrderPackedScreen from '../screens/OrderPackedScreen';
 import DeliveryPartnerAuth from '../screens/DeliveryPartnerAuth';
 import UploadDocuments from '../screens/UploadDocuments';
+import UploadPartnerPhoto from '../screens/UploadPartnerPhoto'; // Added import
 import SuccessScreen from '../screens/SuccessScreen';
 import BranchAuth from '../screens/BranchAuth';
 import PhoneNumberScreen from '../screens/PhoneNumberScreen';
@@ -38,6 +39,10 @@ export type RootStackParamList = {
   OrderPackedScreen: undefined;
   DeliveryPartnerAuth: undefined;
   UploadDocuments: {formData: Partial<DeliveryPartnerForm>};
+  UploadPartnerPhoto: {
+    formData: Partial<DeliveryPartnerForm>;
+    initialFiles: any;
+  };
   SuccessScreen: {partnerId: string};
   BranchAuth: undefined;
   PhoneNumberScreen: {formData: Partial<BranchForm>};
@@ -67,8 +72,8 @@ interface DeliveryPartnerForm {
 
 interface BranchForm {
   branchName: string;
-  branchLocation: string; // JSON string: {"latitude": number, "longitude": number}
-  branchAddress: string; // JSON string: {"street": string, "area": string, "city": string, "pincode": string}
+  branchLocation: string;
+  branchAddress: string;
   branchEmail: string;
   openingTime: string;
   closingTime: string;
@@ -104,6 +109,7 @@ const AppNavigator: React.FC = () => (
     <Stack.Screen name="OrderPackedScreen" component={OrderPackedScreen} />
     <Stack.Screen name="DeliveryPartnerAuth" component={DeliveryPartnerAuth} />
     <Stack.Screen name="UploadDocuments" component={UploadDocuments} />
+    <Stack.Screen name="UploadPartnerPhoto" component={UploadPartnerPhoto} />
     <Stack.Screen name="SuccessScreen" component={SuccessScreen} />
     <Stack.Screen name="BranchAuth" component={BranchAuth} />
     <Stack.Screen name="PhoneNumberScreen" component={PhoneNumberScreen} />
