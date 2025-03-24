@@ -296,4 +296,59 @@ export const resubmitBranch = async (
   }
 };
 
+// New function: Modify an existing delivery partner's details
+export const modifyDeliveryPartner = async (
+  id: string,
+  data: {
+    name?: string;
+    age: number;
+    gender: 'male' | 'female' | 'other';
+    licenseNumber: string;
+    rcNumber: string;
+    phone: number;
+    licenseImage: {uri: string; type: string; name: string};
+    rcImage: {uri: string; type: string; name: string};
+    deliveryPartnerPhoto: {uri: string; type: string; name: string};
+    aadhaarFront: {uri: string; type: string; name: string};
+    aadhaarBack: {uri: string; type: string; name: string};
+  },
+) => {
+  try {
+    console.log('Modifying delivery partner with id:', id, 'data:', data);
+
+    const formData = new FormData();
+
+    // Append optional text fields
+    if (data.name) formData.append('name', data.name);
+    const ageNum = isNaN(data.age) ? 0 : data.age; // Default to 0 if invalid
+    formData.append('age', ageNum.toString());
+    formData.append('gender', data.gender);
+    formData.append('licenseNumber', data.licenseNumber);
+    formData.append('rcNumber', data.rcNumber);
+    formData.append('phone', data.phone.toString());
+
+    // Append required file fields
+    formData.append('licenseImage', data.licenseImage);
+    formData.append('rcImage', data.rcImage);
+    formData.append('deliveryPartnerPhoto', data.deliveryPartnerPhoto);
+    formData.append('aadhaarFront', data.aadhaarFront);
+    formData.append('aadhaarBack', data.aadhaarBack);
+
+    console.log('Modify Delivery Partner FormData prepared:', formData);
+
+    const response = await api.patch(`/delivery-partner/${id}`, formData, {
+      headers: {'Content-Type': 'multipart/form-data'},
+    });
+
+    console.log('Modify Delivery Partner Success:', response.data);
+    return response.data;
+  } catch (error) {
+    console.error(
+      'Modify Delivery Partner Error:',
+      error.response?.data || error.message,
+    );
+    throw error;
+  }
+};
+
 export default api;

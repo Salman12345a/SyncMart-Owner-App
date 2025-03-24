@@ -86,34 +86,45 @@ const UploadBranchDocs: React.FC = ({route, navigation}) => {
     try {
       let response;
       if (isResubmit) {
-        response = await api.patch(`/modify/branch/${branchId}`, {
-          name: form.name,
-          branchLocation: form.branchLocation,
-          branchAddress: form.branchAddress,
-          branchEmail: form.branchEmail,
+        const payload = {
+          branchName: form.name,
+          location: {
+            type: 'Point',
+            coordinates: [location.longitude, location.latitude],
+          },
+          address: {
+            street: address.street,
+            area: address.area,
+            city: address.city,
+            pincode: address.pincode,
+          },
+          branchEmail: form.branchEmail || '',
           openingTime: form.openingTime,
           closingTime: form.closingTime,
           ownerName: form.ownerName,
           govId: form.govId,
           phone: form.phone,
-          deliveryServiceAvailable: form.deliveryServiceAvailable,
+          homeDelivery: form.deliveryServiceAvailable,
           selfPickup: form.selfPickup,
-          branchfrontImage: files.branchfrontImage,
-          ownerIdProof: files.ownerIdProof,
-          ownerPhoto: files.ownerPhoto,
-        });
+          branchfrontImage: branch?.branchfrontImage || '',
+          ownerIdProof: branch?.ownerIdProof || '',
+          ownerPhoto: branch?.ownerPhoto || '',
+        };
+
+        console.log('PATCH Payload:', JSON.stringify(payload, null, 2));
+
+        response = await api.patch(`/modify/branch/${branchId}`, payload);
+        // Access response.data.branch since Axios wraps the response
+        response = response.data; // Adjust for Axios response structure
       } else {
-        // Register branch
         response = await registerBranch(data);
         console.log('Register response:', response);
 
-        // Log in to get userId-based token
         const loginResponse = await api.post('/auth/branch/login', {
           phone: data.phone,
         });
         console.log('Login response:', loginResponse.data);
 
-        // Store tokens and userId
         const branchId = response.branch?._id;
         const accessToken = loginResponse.data.accessToken;
 
@@ -163,12 +174,21 @@ const UploadBranchDocs: React.FC = ({route, navigation}) => {
       Alert.alert('Error', errorMessage);
       console.error(
         isResubmit ? 'Resubmission failed:' : 'Upload failed:',
-        error,
+        error.response?.data || error,
       );
     } finally {
       setIsLoading(false);
     }
-  }, [files, form, isResubmit, branchId, addBranch, setUserId, navigation]);
+  }, [
+    files,
+    form,
+    isResubmit,
+    branchId,
+    branch,
+    addBranch,
+    setUserId,
+    navigation,
+  ]);
 
   return (
     <View style={styles.container}>
@@ -212,6 +232,12 @@ const UploadBranchDocs: React.FC = ({route, navigation}) => {
           {isResubmit ? 'Resubmitting...' : 'Uploading...'}
         </Text>
       )}
+      {isResubmit && (
+        <Text style={styles.warning}>
+          Note: File updates are not supported in resubmission yet. Only text
+          fields will be updated.
+        </Text>
+      )}
     </View>
   );
 };
@@ -219,6 +245,7 @@ const UploadBranchDocs: React.FC = ({route, navigation}) => {
 const styles = StyleSheet.create({
   container: {padding: 20, backgroundColor: '#f5f5f5'},
   text: {marginVertical: 10},
+  warning: {marginVertical: 10, color: 'red'},
 });
 
 export default UploadBranchDocs;
