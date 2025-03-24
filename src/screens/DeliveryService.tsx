@@ -44,11 +44,12 @@ const DeliveryService: React.FC = ({navigation}) => {
           partners.map(p => ({
             id: p._id,
             status: p.status,
-            name: p.name || 'Unnamed Partner', // Fallback for missing name
+            name: p.name || 'Unnamed Partner',
+            age: p.age, // Add age from backend response
             photo:
               p.documents && Array.isArray(p.documents)
                 ? p.documents.find(doc => doc.type === 'photo')?.url || ''
-                : '', // Fallback if documents is undefined or not an array
+                : '',
           })),
         );
       } catch (error) {
@@ -88,6 +89,18 @@ const DeliveryService: React.FC = ({navigation}) => {
       return;
     }
     navigation.navigate('DeliveryPartnerAuth');
+  };
+
+  const handlePartnerPress = partner => {
+    navigation.navigate('DeliveryStatus', {
+      partner: {
+        id: partner.id,
+        name: partner.name,
+        age: partner.age,
+        status: partner.status,
+        photoUrl: partner.photo,
+      },
+    });
   };
 
   if (!userId) {
@@ -132,14 +145,7 @@ const DeliveryService: React.FC = ({navigation}) => {
             <TouchableOpacity
               key={partner.id}
               style={styles.partnerCard}
-              onPress={() =>
-                navigation.navigate('StatusScreen', {
-                  id: partner.id,
-                  status: partner.status,
-                  name: partner.name,
-                  photo: partner.photo,
-                })
-              }>
+              onPress={() => handlePartnerPress(partner)}>
               <Text style={styles.partnerId}>ID: {partner.id}</Text>
               <View style={styles.statusContainer}>
                 <View

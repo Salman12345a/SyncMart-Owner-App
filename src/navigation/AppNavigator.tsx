@@ -21,6 +21,10 @@ import BranchAuth from '../screens/BranchAuth';
 import PhoneNumberScreen from '../screens/PhoneNumberScreen';
 import UploadBranchDocs from '../screens/UploadBranchDocs';
 import StatusScreen from '../screens/StatusScreen';
+import DeliveryStatus from '../screens/DeliveryStatus';
+import DeliveryReRegister from '../screens/DeliveryReRegister';
+import ReUploadDocuments from '../screens/ReUploadDocuments';
+import ReUploadPartnerPhoto from '../screens/ReUploadPartnerPhoto';
 
 export type RootStackParamList = {
   SplashScreen: undefined;
@@ -38,6 +42,7 @@ export type RootStackParamList = {
   OrderHasPacked: {order: Order};
   OrderPackedScreen: undefined;
   DeliveryPartnerAuth: undefined;
+  DeliveryStatus: {orderId: string};
   UploadDocuments: {formData: Partial<DeliveryPartnerForm>};
   UploadPartnerPhoto: {
     formData: Partial<DeliveryPartnerForm>;
@@ -48,6 +53,13 @@ export type RootStackParamList = {
   PhoneNumberScreen: {formData: Partial<BranchForm>};
   UploadBranchDocs: {formData: Partial<BranchForm>};
   StatusScreen: {branchId: string};
+  DeliveryReRegister: {id: string; name?: string};
+  ReUploadDocuments: {id: string; formData: Partial<DeliveryPartnerForm>};
+  ReUploadPartnerPhoto: {
+    id: string;
+    formData: Partial<DeliveryPartnerForm>;
+    initialFiles: any;
+  };
 };
 
 interface Order {
@@ -108,6 +120,13 @@ const AppNavigator: React.FC = () => (
     <Stack.Screen name="OrderHasPacked" component={OrderHasPacked} />
     <Stack.Screen name="OrderPackedScreen" component={OrderPackedScreen} />
     <Stack.Screen name="DeliveryPartnerAuth" component={DeliveryPartnerAuth} />
+    <Stack.Screen name="DeliveryStatus" component={DeliveryStatus} />
+    <Stack.Screen name="DeliveryReRegister" component={DeliveryReRegister} />
+    <Stack.Screen name="ReUploadDocuments" component={ReUploadDocuments} />
+    <Stack.Screen
+      name="ReUploadPartnerPhoto"
+      component={ReUploadPartnerPhoto}
+    />
     <Stack.Screen name="UploadDocuments" component={UploadDocuments} />
     <Stack.Screen name="UploadPartnerPhoto" component={UploadPartnerPhoto} />
     <Stack.Screen name="SuccessScreen" component={SuccessScreen} />

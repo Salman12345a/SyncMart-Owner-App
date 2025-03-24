@@ -6,7 +6,7 @@ src/
 │   │   ├── OrderCard.tsx     # Updated: Displays individual orders with navigation tweaks for OrderDetail
 │   │   └── StoreStatus.tsx   # Shows store status - unchanged
 │   ├── delivery/             # Delivery-related components
-│   │   └── DeliveryService.tsx  # Toggle for delivery service - unchanged
+│   │   └── DeliveryServiceToggle.tsx  # Toggle for delivery service - unchanged (renamed for clarity)
 │   ├── storemanage/          # Store management components - unchanged
 │   │   ├── FinancialSummary.tsx
 │   │   ├── InventoryItem.tsx
@@ -14,14 +14,14 @@ src/
 │   └── ui/                   # Generic UI components
 │       └── UniversalAdd.tsx  # Quantity adjustment component - unchanged
 ├── navigation/               # Navigation setup
-│   ├── AppNavigator.tsx      # Updated: Main stack navigator with new screens (AssignDeliveryPartner, OrderPackedScreen)
+│   ├── AppNavigator.tsx      # Updated: Main stack navigator with new screens (AssignDeliveryPartner, OrderPackedScreen, DeliveryStatus)
 │   ├── BottomTabNavigator.tsx  # Unchanged: Assumed for Sidebar (drawer navigation)
 │   └── Sidebar.tsx           # Drawer navigation - unchanged
 ├── screens/                  # Full-screen components
 │   ├── AddProduct.tsx        # Unchanged
 │   ├── AuthenticationScreen.tsx  # Unchanged
 │   ├── BranchAuth.tsx        # Updated: Removed validation for branchLocation and branchAddress
-│   ├── DeliveryService.tsx   # Unchanged
+│   ├── DeliveryService.tsx   # Updated: Integrated navigation to DeliveryStatus
 │   ├── EntryScreen.tsx       # Unchanged: Entry screen for registration/login
 │   ├── FinancialSummaryScreen.tsx  # Unchanged
 │   ├── HelpScreen.tsx        # Unchanged
@@ -44,7 +44,8 @@ src/
 │   ├── DeliveryReRegister.tsx  # New: Screen for re-registering delivery partners
 │   ├── ReUploadDocuments.tsx  # New: Screen for re-uploading registration documents
 │   ├── ReUploadPartnerPhoto.tsx  # New: Screen for re-uploading partner photos
-│   ├── UploadPartnerPhoto.tsx  # New: Screen for uploading partner photos
+│   ├── UploadPartnerPhoto.tsx  # Updated: Already shared, uploads partner photos
+│   └── DeliveryStatus.tsx    # New: Displays delivery partner photo and details (name, age, status)
 ├── services/                 # API and utility services
 │   ├── api.ts                # Updated: Includes fetchDeliveryPartners and collectCash for order management
 │   └── socket.ts             # Updated: Added customer-specific Socket.IO logic for real-time updates
