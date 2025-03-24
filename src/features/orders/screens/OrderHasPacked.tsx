@@ -1,8 +1,8 @@
 import React from 'react';
 import {View, Text, FlatList, StyleSheet, ScrollView} from 'react-native';
 import {StackScreenProps} from '@react-navigation/stack';
-import {RootStackParamList} from '../navigation/AppNavigator';
-import {useStore} from '../store/ordersStore';
+import {RootStackParamList} from '../../../navigation/AppNavigator';
+import {useStore} from '../../../store/ordersStore';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 
 type OrderHasPackedProps = StackScreenProps<
@@ -54,10 +54,10 @@ const OrderHasPacked: React.FC<OrderHasPackedProps> = ({route}) => {
 
       <View style={styles.summaryCard}>
         <Text style={styles.total}>Total: ₹{orderState.totalPrice}</Text>
-        {orderState.modificationHistory?.length > 0 && (
+        {orderState.modificationHistory && orderState.modificationHistory.length > 0 && (
           <View style={styles.changes}>
             <Text style={styles.changesTitle}>Modification History:</Text>
-            {orderState.modificationHistory[0].changes.map((change, index) => (
+            {orderState.modificationHistory[0]?.changes?.map((change, index) => (
               <View key={index} style={styles.changeItem}>
                 <Icon name="edit" size={14} color="#95a5a6" />
                 <Text style={styles.changeText}>{change}</Text>

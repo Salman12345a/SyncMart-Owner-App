@@ -8,13 +8,19 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import {StackScreenProps} from '@react-navigation/stack';
-import {RootStackParamList} from '../navigation/AppNavigator';
-import UniversalAdd from '../components/ui/UniversalAdd';
-import api from '../services/api';
-import {useStore} from '../store/ordersStore';
-import socketService from '../services/socket';
+import {RootStackParamList} from '../../../navigation/AppNavigator';
+import UniversalAdd from '../../../components/common/UniversalAdd';
+import api from '../../../services/api';
+import {useStore} from '../../../store/ordersStore';
+import socketService from '../../../services/socket';
 
-type OrderDetailProps = StackScreenProps<RootStackParamList, 'OrderDetail'>;
+interface Item {
+  _id: string;
+  name: string;
+  price: number;
+}
+
+interface OrderDetailProps extends StackScreenProps<RootStackParamList, 'OrderDetail'> {}
 
 const OrderDetail: React.FC<OrderDetailProps> = ({route, navigation}) => {
   const {order: initialOrder, fromPackedTab} = route.params || {};
@@ -116,7 +122,7 @@ const OrderDetail: React.FC<OrderDetailProps> = ({route, navigation}) => {
         await handleAccept();
       }
       const modifiedItems = updatedItems.map(item => ({
-        item: item.item._id || item.item,
+        item: (item.item as Item)._id || item.item,
         count: item.count,
       }));
       console.log('Sending modify request:', {
@@ -245,7 +251,7 @@ const OrderDetail: React.FC<OrderDetailProps> = ({route, navigation}) => {
       {currentOrder.modificationHistory?.length > 0 && (
         <View style={styles.changesContainer}>
           <Text style={styles.changesTitle}>Changes:</Text>
-          {currentOrder.modificationHistory[0].changes.map((change, index) => (
+          {currentOrder.modificationHistory[0]?.changes?.map((change, index) => (
             <Text key={index} style={styles.changeText}>
               {change}
             </Text>

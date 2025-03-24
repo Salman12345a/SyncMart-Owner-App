@@ -1,6 +1,6 @@
 import {create} from 'zustand';
 
-interface Order {
+export interface Order {
   _id: string;
   orderId: string;
   status: string;

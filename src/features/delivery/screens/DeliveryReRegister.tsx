@@ -9,11 +9,29 @@ import {
 } from 'react-native';
 import {Picker} from '@react-native-picker/picker';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import {StackNavigationProp} from '@react-navigation/stack';
+import {RouteProp} from '@react-navigation/native';
+import {RootStackParamList} from '../../../navigation/AppNavigator';
 
-const DeliveryReRegister: React.FC = ({route, navigation}) => {
-  const {id} = route.params;
+type DeliveryReRegisterNavigationProp = StackNavigationProp<
+  RootStackParamList,
+  'DeliveryReRegister'
+>;
+
+type DeliveryReRegisterRouteProp = RouteProp<
+  RootStackParamList,
+  'DeliveryReRegister'
+>;
+
+interface DeliveryReRegisterProps {
+  navigation: DeliveryReRegisterNavigationProp;
+  route: DeliveryReRegisterRouteProp;
+}
+
+const DeliveryReRegister: React.FC<DeliveryReRegisterProps> = ({route, navigation}) => {
+  const {id, name} = route.params;
   const [form, setForm] = useState({
-    name: route.params.name || '', // Pre-fill name from StatusScreen
+    name: name || '', // Pre-fill name from StatusScreen
     age: '',
     gender: 'male',
     licenseNumber: '',

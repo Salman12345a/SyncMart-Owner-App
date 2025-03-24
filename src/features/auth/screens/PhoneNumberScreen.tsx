@@ -1,6 +1,6 @@
 import React, {useState, useCallback, useEffect} from 'react';
 import {View, TextInput, Button, StyleSheet, Alert, Text} from 'react-native';
-import {useStore} from '../store/ordersStore';
+import {useStore} from '../../../store/ordersStore';
 
 const PhoneNumberScreen: React.FC = ({route, navigation}) => {
   const {formData, branchId, isResubmit} = route.params || {};

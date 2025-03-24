@@ -1,9 +1,9 @@
 import React, {useState} from 'react';
 import {View, Text, FlatList, TouchableOpacity, StyleSheet} from 'react-native';
 import {StackScreenProps} from '@react-navigation/stack';
-import {RootStackParamList} from '../navigation/AppNavigator';
-import OrderCard from '../components/dashboard/OrderCard';
-import {useStore} from '../store/ordersStore';
+import {RootStackParamList} from '../../../navigation/AppNavigator';
+import OrderCard from '../../../components/order/OrderCard';
+import {useStore} from '../../../store/ordersStore';
 
 type OrderPackedScreenProps = StackScreenProps<
   RootStackParamList,
@@ -41,6 +41,9 @@ const OrderPackedScreen: React.FC<OrderPackedScreenProps> = ({navigation}) => {
           <OrderCard
             order={item}
             navigation={navigation}
+            onAccept={() => {}}
+            onReject={() => {}}
+            onCancelItem={() => {}}
             onAssignDeliveryPartner={
               activeTab === 'delivery'
                 ? () =>

@@ -4,13 +4,12 @@ import {createBottomTabNavigator} from '@react-navigation/bottom-tabs';
 import {useNavigation} from '@react-navigation/native';
 import {StackNavigationProp} from '@react-navigation/stack';
 import Icon from 'react-native-vector-icons/Ionicons';
-import InventoryItemDisplay from '../screens/InventoryItemDisplay';
-import Financial from '../screens/FinancialSummaryScreen';
-import DeliveryService from '../screens/DeliveryService';
-import Order from '../screens/OrderManagementScreen';
-import AddProduct from '../screens/AddProduct';
-import {RootStackParamList} from '../navigation/AppNavigator';
-import HomeScreen from '../screens/HomeScreen';
+import InventoryItemDisplay from '../features/inventory/screens/InventoryItemDisplay';
+import Financial from '../features/financial/screens/FinancialSummaryScreen';
+import DeliveryService from '../features/delivery/screens/DeliveryService';
+import AddProduct from '../features/inventory/screens/AddProduct';
+import {RootStackParamList} from './AppNavigator';
+import HomeScreen from '../features/orders/screens/HomeScreen';
 
 const Tab = createBottomTabNavigator();
 

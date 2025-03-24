@@ -1,13 +1,17 @@
 import React, {useEffect, useCallback, useRef} from 'react';
 import {View, Text, Button, StyleSheet} from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import {useStore} from '../store/ordersStore';
-import {fetchBranchStatus} from '../services/api';
-import socketService from '../services/socket';
-import {storage} from '../utils/storage'; // MMKV
+import {useStore} from '../../../store/ordersStore';
+import {fetchBranchStatus} from '../../../services/api';
+import socketService from '../../../services/socket';
+import {storage} from '../../../utils/storage'; 
 import {shallow} from 'zustand/shallow';
+import {StackScreenProps} from '@react-navigation/stack';
+import {RootStackParamList} from '../../../navigation/types';
 
-const StatusScreen: React.FC = ({route, navigation}) => {
+type StatusScreenProps = StackScreenProps<RootStackParamList, 'Status'>;
+
+const StatusScreen: React.FC<StatusScreenProps> = ({route, navigation}) => {
   console.log('StatusScreen mounted with route.params:', route?.params);
 
   const {branchId} = route?.params || {};
@@ -16,11 +20,19 @@ const StatusScreen: React.FC = ({route, navigation}) => {
     return <Text style={styles.text}>Error: No branch ID provided</Text>;
   }
 
-  const branches = useStore(state => state.branches, shallow);
-  const addBranch = useStore(state => state.addBranch, shallow);
-  const updateBranchStatus = useStore(
-    state => state.updateBranchStatus,
-    shallow,
+  const {
+    branches,
+    addBranch,
+    updateBranchStatus,
+    userId
+  } = useStore(
+    state => ({
+      branches: state.branches,
+      addBranch: state.addBranch,
+      updateBranchStatus: state.updateBranchStatus,
+      userId: state.userId
+    }),
+    shallow
   );
   const branch = branches.find(b => b.id === branchId);
 
@@ -65,7 +77,7 @@ const StatusScreen: React.FC = ({route, navigation}) => {
     } catch (error) {
       console.error('Fetch error:', error);
     }
-  }, [branchId, addBranch, updateBranchStatus]); // Removed 'branches' dependency
+  }, [branchId, addBranch, updateBranchStatus]); 
 
   useEffect(() => {
     console.log('useEffect running for branchId:', branchId);
@@ -81,10 +93,9 @@ const StatusScreen: React.FC = ({route, navigation}) => {
   const handleWelcomeClick = useCallback(() => {
     console.log('Welcome clicked');
     storage.set('isApproved', true);
-    const userId = useStore.getState().userId; // Get current userId from store
     console.log('Navigating to HomeScreen with userId:', userId);
-    navigation.replace('HomeScreen', {userId}); // Pass userId explicitly
-  }, [navigation]);
+    navigation.replace('HomeScreen', {userId}); 
+  }, [navigation, userId]);
 
   const handleRetry = useCallback(() => {
     console.log('Retry clicked');

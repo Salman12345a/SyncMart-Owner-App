@@ -7,9 +7,10 @@ import {
   StyleSheet,
 } from 'react-native';
 import {launchImageLibrary} from 'react-native-image-picker';
+import {useStore} from '../../../store/ordersStore';
 
-const ReUploadDocuments: React.FC = ({route, navigation}) => {
-  const {id, formData} = route.params;
+const UploadDocuments: React.FC = ({route, navigation}) => {
+  const {formData} = route.params;
   const [files, setFiles] = useState({
     licenseImage: null,
     rcImage: null,
@@ -38,8 +39,7 @@ const ReUploadDocuments: React.FC = ({route, navigation}) => {
       return;
     }
 
-    navigation.navigate('ReUploadPartnerPhoto', {
-      id,
+    navigation.navigate('UploadPartnerPhoto', {
       formData,
       initialFiles: files,
     });
@@ -47,7 +47,7 @@ const ReUploadDocuments: React.FC = ({route, navigation}) => {
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.title}>Re-upload Required Documents</Text>
+      <Text style={styles.title}>Upload Required Documents</Text>
 
       <View style={styles.uploadSection}>
         <TouchableOpacity
@@ -185,4 +185,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default ReUploadDocuments;
+export default UploadDocuments;

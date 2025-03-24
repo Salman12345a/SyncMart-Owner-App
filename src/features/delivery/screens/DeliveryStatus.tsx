@@ -1,8 +1,23 @@
 // src/screens/DeliveryStatus.tsx
 import React from 'react';
 import {View, Text, Image, TouchableOpacity, StyleSheet} from 'react-native';
+import {StackNavigationProp} from '@react-navigation/stack';
+import {RouteProp} from '@react-navigation/native';
+import {RootStackParamList} from '../../../navigation/AppNavigator';
 
-const DeliveryStatus: React.FC = ({route, navigation}) => {
+type DeliveryStatusNavigationProp = StackNavigationProp<
+  RootStackParamList,
+  'DeliveryStatus'
+>;
+
+type DeliveryStatusRouteProp = RouteProp<RootStackParamList, 'DeliveryStatus'>;
+
+interface DeliveryStatusProps {
+  route: DeliveryStatusRouteProp;
+  navigation: DeliveryStatusNavigationProp;
+}
+
+const DeliveryStatus: React.FC<DeliveryStatusProps> = ({route, navigation}) => {
   const {partner} = route.params; // { id, name, age, status, photoUrl }
 
   const handleResubmit = () => {

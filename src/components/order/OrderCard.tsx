@@ -1,6 +1,17 @@
 import React from 'react';
 import {View, Text, TouchableOpacity, StyleSheet} from 'react-native';
 import api from '../../services/api';
+import {Order} from '../../store/ordersStore';
+import {NavigationProp, ParamListBase} from '@react-navigation/native';
+
+interface OrderCardProps {
+  order: Order;
+  onAccept: (orderId: string) => void;
+  onReject: (orderId: string) => void;
+  onCancelItem: (orderId: string, itemId: string) => void;
+  onAssignDeliveryPartner?: () => void;
+  navigation: NavigationProp<ParamListBase>;
+}
 
 const OrderCard = ({
   order,
@@ -9,7 +20,7 @@ const OrderCard = ({
   onCancelItem,
   onAssignDeliveryPartner, // New prop for packed delivery orders
   navigation,
-}) => {
+}: OrderCardProps) => {
   const handleAccept = async () => {
     await api.patch(`/orders/${order._id}/accept`);
     onAccept(order._id);
@@ -27,7 +38,7 @@ const OrderCard = ({
     onCancelItem(order._id, itemId);
   };
 
-  const handlePress = () => navigation.navigate('OrderDetail', {order});
+  const handlePress = () => navigation.navigate('OrderDetail' as never, {order} as never);
 
   const getStatusStyle = (status: string) => {
     switch (status) {

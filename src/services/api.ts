@@ -1,4 +1,4 @@
-import axios, {AxiosInstance} from 'axios';
+import axios, {AxiosInstance, AxiosError} from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {navigationRef} from '../../App';
 
@@ -21,10 +21,11 @@ api.interceptors.response.use(
     console.log('Response Data:', response.data);
     return response;
   },
-  async error => {
+  async (error: AxiosError) => {
     console.error('API Error:', error.response?.data || error.message);
     if (
       error.response?.status === 401 &&
+      error.config && 
       error.config.url !== '/auth/branch/login'
     ) {
       console.log(
@@ -50,7 +51,7 @@ export const fetchDeliveryPartners = async (branchId?: string) => {
     });
     console.log('Fetch Delivery Partners Success:', response.data);
     return response.data;
-  } catch (error) {
+  } catch (error: any) {
     console.error(
       'Fetch Delivery Partners Error:',
       error.response?.data || error.message,
@@ -65,7 +66,7 @@ export const collectCash = async (orderId: string) => {
     const response = await api.patch(`/orders/${orderId}/collect-cash`);
     console.log('Collect Cash Success:', response.data);
     return response.data;
-  } catch (error) {
+  } catch (error: any) {
     console.error('Collect Cash Error:', error.response?.data || error.message);
     throw error;
   }
@@ -108,7 +109,7 @@ export const registerDeliveryPartner = async (data: {
     });
     console.log('Register Delivery Partner Success:', response.data);
     return response.data;
-  } catch (error) {
+  } catch (error: any) {
     console.error(
       'Register Delivery Partner Error:',
       error.response?.data || error.message,
@@ -198,7 +199,7 @@ export const registerBranch = async (data: {
     }
 
     return response.data;
-  } catch (error) {
+  } catch (error: any) {
     console.error(
       'Register Branch Error:',
       error.response?.data || error.message,
@@ -213,7 +214,7 @@ export const fetchBranchStatus = async (branchId: string) => {
     const response = await api.get(`/branch/status/${branchId}`);
     console.log('Fetch Branch Status Success:', response.data);
     return response.data;
-  } catch (error) {
+  } catch (error: any) {
     console.error(
       'Fetch Branch Status Error:',
       error.response?.data || error.message,
@@ -290,7 +291,7 @@ export const resubmitBranch = async (
 
     console.log('Resubmit Branch Success:', responseData);
     return responseData;
-  } catch (error) {
+  } catch (error: any) {
     console.error('Resubmit Branch Error:', error.message || error);
     throw error;
   }
@@ -342,11 +343,23 @@ export const modifyDeliveryPartner = async (
 
     console.log('Modify Delivery Partner Success:', response.data);
     return response.data;
-  } catch (error) {
+  } catch (error: any) {
     console.error(
       'Modify Delivery Partner Error:',
       error.response?.data || error.message,
     );
+    throw error;
+  }
+};
+
+export const fetchOrderDetails = async (orderId: string) => {
+  try {
+    console.log('Fetching order details for orderId:', orderId);
+    const response = await api.get(`/orders/${orderId}`);
+    console.log('Fetch Order Details Success:', response.data);
+    return response.data;
+  } catch (error: any) {
+    console.error('Fetch Order Details Error:', error.response?.data || error.message);
     throw error;
   }
 };

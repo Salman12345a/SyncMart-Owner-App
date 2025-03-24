@@ -8,9 +8,9 @@ import {
   Alert,
 } from 'react-native';
 import {StackScreenProps} from '@react-navigation/stack';
-import {RootStackParamList} from '../navigation/AppNavigator';
-import {useStore} from '../store/ordersStore';
-import api, {fetchOrderDetails} from '../services/api';
+import {RootStackParamList} from '../../../navigation/AppNavigator';
+import {useStore} from '../../../store/ordersStore';
+import api, {fetchOrderDetails} from '../../../services/api';
 
 type AssignDeliveryPartnerProps = StackScreenProps<
   RootStackParamList,
@@ -84,7 +84,7 @@ const AssignDeliveryPartner: React.FC<AssignDeliveryPartnerProps> = ({
         contentContainerStyle={styles.orderList}
       />
       <Text style={styles.total}>Total: ₹{orderState.totalPrice}</Text>
-      {orderState.modificationHistory?.length > 0 && (
+      {orderState.modificationHistory && orderState.modificationHistory.length > 0 && (
         <View style={styles.changes}>
           <Text style={styles.changesTitle}>Changes:</Text>
           {orderState.modificationHistory[0].changes.map((change, index) => (

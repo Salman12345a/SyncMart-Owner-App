@@ -16,7 +16,7 @@ const SuccessScreen: React.FC = ({navigation, route}) => {
   return (
     <View style={{flex: 1, justifyContent: 'center', alignItems: 'center'}}>
       <LottieView
-        source={require('../assets/animations/confirm.json')} // Replace with your Lottie file
+        source={require('../../../assets/animations/confirm.json')} // Replace with your Lottie file
         autoPlay
         loop={false}
         style={{width: 200, height: 200}}

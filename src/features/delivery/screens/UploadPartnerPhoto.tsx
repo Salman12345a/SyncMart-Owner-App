@@ -5,14 +5,41 @@ import {
   TouchableOpacity,
   ScrollView,
   StyleSheet,
+  Alert,
 } from 'react-native';
 import {launchImageLibrary} from 'react-native-image-picker';
-import {registerDeliveryPartner} from '../services/api';
-import {useStore} from '../store/ordersStore';
+import {StackNavigationProp} from '@react-navigation/stack';
+import {RouteProp} from '@react-navigation/native';
+import {RootStackParamList} from '../../../navigation/AppNavigator';
+import {registerDeliveryPartner} from '../../../services/api';
+import {useStore} from '../../../store/ordersStore';
 
-const UploadPartnerPhoto: React.FC = ({route, navigation}) => {
+type UploadPartnerPhotoNavigationProp = StackNavigationProp<
+  RootStackParamList,
+  'UploadPartnerPhoto'
+>;
+
+type UploadPartnerPhotoRouteProp = RouteProp<
+  RootStackParamList,
+  'UploadPartnerPhoto'
+>;
+
+interface UploadPartnerPhotoProps {
+  navigation: UploadPartnerPhotoNavigationProp;
+  route: UploadPartnerPhotoRouteProp;
+}
+
+// Define the Asset type for the image picker
+interface Asset {
+  uri: string;
+  type: string;
+  name?: string;
+  size?: number;
+}
+
+const UploadPartnerPhoto: React.FC<UploadPartnerPhotoProps> = ({route, navigation}) => {
   const {formData, initialFiles} = route.params;
-  const [deliveryPartnerPhoto, setDeliveryPartnerPhoto] = useState(null);
+  const [deliveryPartnerPhoto, setDeliveryPartnerPhoto] = useState<Asset | null>(null);
   const {addDeliveryPartner} = useStore();
 
   const pickFile = async () => {
@@ -20,52 +47,63 @@ const UploadPartnerPhoto: React.FC = ({route, navigation}) => {
       mediaType: 'photo',
       maxWidth: 50 * 1024 * 1024,
     });
-    if (!result.didCancel && result.assets) {
-      setDeliveryPartnerPhoto(result.assets[0]);
+    if (!result.didCancel && result.assets && result.assets[0]) {
+      setDeliveryPartnerPhoto(result.assets[0] as Asset);
     }
   };
 
   const handleSubmit = async () => {
     if (!deliveryPartnerPhoto) {
-      console.error('Delivery partner photo must be uploaded');
+      Alert.alert('Error', 'Delivery partner photo must be uploaded');
       return;
     }
 
-    const data = {
-      ...formData,
-      licenseImage: {
-        uri: initialFiles.licenseImage.uri,
-        type: initialFiles.licenseImage.type || 'image/jpeg',
-        name: 'license.jpg',
-      },
-      rcImage: {
-        uri: initialFiles.rcImage.uri,
-        type: initialFiles.rcImage.type || 'image/jpeg',
-        name: 'rc.jpg',
-      },
-      aadhaarFront: {
-        uri: initialFiles.aadhaarFront.uri,
-        type: initialFiles.aadhaarFront.type || 'image/jpeg',
-        name: 'aadhaar_front.jpg',
-      },
-      aadhaarBack: {
-        uri: initialFiles.aadhaarBack.uri,
-        type: initialFiles.aadhaarBack.type || 'image/jpeg',
-        name: 'aadhaar_back.jpg',
-      },
-      deliveryPartnerPhoto: {
-        uri: deliveryPartnerPhoto.uri,
-        type: deliveryPartnerPhoto.type || 'image/jpeg',
-        name: 'photo.jpg',
-      },
-    };
-
     try {
-      const response = await registerDeliveryPartner(data);
+      const formDataToSend = {
+        ...formData,
+        licenseImage: {
+          uri: initialFiles?.licenseImage?.uri,
+          type: initialFiles?.licenseImage?.type || 'image/jpeg',
+          name: 'license.jpg',
+        },
+        rcImage: {
+          uri: initialFiles?.rcImage?.uri,
+          type: initialFiles?.rcImage?.type || 'image/jpeg',
+          name: 'rc.jpg',
+        },
+        aadhaarFront: {
+          uri: initialFiles?.aadhaarFront?.uri,
+          type: initialFiles?.aadhaarFront?.type || 'image/jpeg',
+          name: 'aadhaar_front.jpg',
+        },
+        aadhaarBack: {
+          uri: initialFiles?.aadhaarBack?.uri,
+          type: initialFiles?.aadhaarBack?.type || 'image/jpeg',
+          name: 'aadhaar_back.jpg',
+        },
+        deliveryPartnerPhoto: {
+          uri: deliveryPartnerPhoto.uri,
+          type: deliveryPartnerPhoto.type || 'image/jpeg',
+          name: 'photo.jpg',
+        },
+      };
+
+      // Ensure required fields are present
+      const dataToSend = {
+        ...formDataToSend,
+        age: formDataToSend.age || 0,
+        gender: formDataToSend.gender || 'male',
+        licenseNumber: formDataToSend.licenseNumber || '',
+        rcNumber: formDataToSend.rcNumber || '',
+        phone: formDataToSend.phone || 0,
+      };
+
+      const response = await registerDeliveryPartner(dataToSend);
       addDeliveryPartner({id: response.id, status: 'pending'});
       navigation.navigate('SuccessScreen', {partnerId: response.id});
     } catch (error) {
-      console.error('Upload failed:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      Alert.alert('Error', `Failed to submit: ${errorMessage}`);
     }
   };
 

@@ -1,7 +1,7 @@
 import React, {useEffect} from 'react';
 import {View, Text, StyleSheet} from 'react-native';
 import {useNavigation} from '@react-navigation/native';
-import {storage} from '../utils/storage'; // MMKV
+import {storage} from '../../../utils/storage'; // MMKV
 
 const SplashScreen: React.FC = () => {
   const navigation = useNavigation<any>();

@@ -7,11 +7,13 @@ import {
   TouchableOpacity,
   Alert,
 } from 'react-native';
-import DeliveryServiceToggle from '../components/delivery/DeliveryServiceToggle';
-import {useStore} from '../store/ordersStore';
+import DeliveryServiceToggle from '../../../components/delivery/DeliveryServiceToggle';
+import {useStore} from '../../../store/ordersStore';
 import io from 'socket.io-client';
-import {fetchDeliveryPartners} from '../services/api';
+import {fetchDeliveryPartners} from '../../../services/api';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import {StackNavigationProp} from '@react-navigation/stack';
+import {RootStackParamList} from '../../../navigation/AppNavigator';
 
 const socket = io('http://10.0.2.2:3000', {
   transports: ['websocket'],
@@ -20,7 +22,24 @@ const socket = io('http://10.0.2.2:3000', {
 
 const MAX_DELIVERY_PARTNERS = 5;
 
-const DeliveryService: React.FC = ({navigation}) => {
+type DeliveryServiceNavigationProp = StackNavigationProp<
+  RootStackParamList,
+  'DeliveryService'
+>;
+
+interface DeliveryServiceProps {
+  navigation: DeliveryServiceNavigationProp;
+}
+
+interface DeliveryPartner {
+  id: string;
+  name: string;
+  age: number;
+  status: string;
+  photo: string;
+}
+
+const DeliveryService: React.FC<DeliveryServiceProps> = ({navigation}) => {
   const {
     userId,
     setDeliveryServiceAvailable,
@@ -91,7 +110,7 @@ const DeliveryService: React.FC = ({navigation}) => {
     navigation.navigate('DeliveryPartnerAuth');
   };
 
-  const handlePartnerPress = partner => {
+  const handlePartnerPress = (partner: DeliveryPartner) => {
     navigation.navigate('DeliveryStatus', {
       partner: {
         id: partner.id,
