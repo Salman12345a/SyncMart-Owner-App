@@ -8,7 +8,7 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import socketService from '../../../services/socket'; // Import SocketService
+import socketService from '../../../services/socket';
 import Header from '../../../components/dashboard/Header';
 import OrderCard from '../../../components/order/OrderCard';
 import {useStore} from '../../../store/ordersStore';
@@ -16,14 +16,18 @@ import api from '../../../services/api';
 import {StackNavigationProp} from '@react-navigation/stack';
 import {RootStackParamList} from '../../../navigation/AppNavigator';
 
-type HomeScreenNavigationProp = StackNavigationProp<RootStackParamList, 'HomeScreen'>;
+type HomeScreenNavigationProp = StackNavigationProp<
+  RootStackParamList,
+  'HomeScreen'
+>;
 
 interface HomeScreenProps {
   navigation: HomeScreenNavigationProp;
 }
 
 const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
-  const {storeStatus, orders, setStoreStatus, setOrders, setUserId} = useStore();
+  const {storeStatus, orders, setStoreStatus, setOrders, setUserId} =
+    useStore();
   const [userId, setLocalUserId] = useState<string | null>(null);
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -104,7 +108,6 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
           }
         }
 
-        // Connect socket using SocketService if finalUserId is not null
         if (finalUserId) {
           socketService.connect(finalUserId);
         }
@@ -116,7 +119,6 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
           fetchOrders(finalUserId);
         }
 
-        // Cleanup on unmount
         return () => {
           socketService.disconnect();
         };
@@ -202,15 +204,12 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
   }
 
   if (!userId || !accessToken) {
-    return null; // Navigation.reset already handled
+    return null;
   }
 
   return (
     <View style={styles.container}>
-      <Header
-        navigation={navigation}
-        showStoreStatus
-      />
+      <Header navigation={navigation} showStoreStatus />
       <View style={styles.content}>
         <Text style={styles.title}>Welcome to the Dashboard!</Text>
         <FlatList
@@ -226,8 +225,14 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
             />
           )}
           keyExtractor={item => item._id}
+          contentContainerStyle={styles.orderList}
         />
       </View>
+      <TouchableOpacity
+        onPress={() => navigation.navigate('OrderPackedScreen')}
+        style={styles.packedOrderButton}>
+        <Text style={styles.packedOrderButtonText}>Packed Order</Text>
+      </TouchableOpacity>
     </View>
   );
 };
@@ -236,6 +241,7 @@ const styles = StyleSheet.create({
   container: {flex: 1},
   content: {padding: 20, flex: 1},
   title: {fontSize: 20, marginBottom: 10, color: '#333'},
+  orderList: {paddingBottom: 20},
   orderCard: {
     backgroundColor: '#fff',
     padding: 15,
@@ -278,6 +284,18 @@ const styles = StyleSheet.create({
     marginRight: 10,
   },
   buttonText: {color: '#fff'},
+  packedOrderButton: {
+    backgroundColor: '#28a745',
+    padding: 15,
+    alignItems: 'center',
+    borderTopWidth: 1,
+    borderTopColor: '#e0e0e0',
+  },
+  packedOrderButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
 });
 
 export default HomeScreen;
