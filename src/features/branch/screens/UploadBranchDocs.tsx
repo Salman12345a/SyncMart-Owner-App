@@ -10,6 +10,7 @@ import api from '../../../services/api';
 import {useStore} from '../../../store/ordersStore';
 import {storage} from '../../../utils/storage';
 
+// Type definitions remain the same until UploadBranchDocsProps
 type UploadBranchDocsNavigationProp = StackNavigationProp<
   RootStackParamList,
   'UploadBranchDocs'
@@ -25,15 +26,13 @@ interface UploadBranchDocsProps {
   route: UploadBranchDocsRouteProp;
 }
 
-// Define the Asset type for the image picker
 interface Asset {
   uri: string;
   type?: string;
-  name?: string;
+  fileName?: string; // Changed from name to fileName to match first code
   size?: number;
 }
 
-// Define Branch interface with strict status type
 interface Branch {
   id: string;
   status: 'pending' | 'approved' | 'rejected';
@@ -58,126 +57,49 @@ interface Branch {
   ownerPhoto: string;
   deliveryServiceAvailable: boolean;
   selfPickup: boolean;
+  branchEmail?: string; // Added from first code
 }
 
-// Define a more flexible branch interface for internal use
-interface BranchInternal {
-  id: string;
-  status: 'pending' | 'approved' | 'rejected';
-  name: string;
-  address: {
-    street: string;
-    area: string;
-    city: string;
-    pincode: string;
-  };
-  location: {
-    type: string;
-    coordinates: [number, number];
-  };
-  openingTime: string;
-  closingTime: string;
-  ownerName: string;
-  govId: string;
-  phone: string;
-  branchfrontImage?: string;
-  ownerIdProof?: string;
-  ownerPhoto?: string;
-  deliveryServiceAvailable: boolean;
-  selfPickup: boolean;
-}
-
-// Define route params interface
 interface UploadBranchDocsRouteParams {
-  formData: BranchFormData | string;
-  initialFiles?: any;
+  formData: any; // Made more flexible to handle both string and object
   branchId?: string;
   isResubmit?: boolean;
 }
 
-// Form data structure
 interface BranchFormData {
-  branchName: string;
-  branchLocation: {
-    latitude: number;
-    longitude: number;
-  };
-  branchAddress: {
-    street: string;
-    area: string;
-    city: string;
-    pincode: string;
-  };
+  name: string; // Updated to match first code's field names
+  branchLocation: string;
+  branchAddress: string;
   branchEmail?: string;
   openingTime: string;
   closingTime: string;
   ownerName: string;
   govId: string;
   phone: string;
-  homeDelivery: 'yes' | 'no';
+  deliveryServiceAvailable: 'yes' | 'no';
   selfPickup: 'yes' | 'no';
 }
 
-// Define the structure expected by the registerBranch function
-interface RegisterBranchData {
-  name: string;
-  location: {
-    type: 'Point';
-    coordinates: [number, number];
-  };
-  address: {
-    street: string;
-    area: string;
-    city: string;
-    pincode: string;
-  };
-  branchEmail?: string;
-  openingTime: string;
-  closingTime: string;
-  ownerName: string;
-  govId: string;
-  phone: string;
-  deliveryServiceAvailable: boolean;
-  selfPickup: boolean;
-  branchfrontImage: {
-    uri: string;
-    type: string;
-    name: string;
-  };
-  ownerIdProof: {
-    uri: string;
-    type: string;
-    name: string;
-  };
-  ownerPhoto: {
-    uri: string;
-    type: string;
-    name: string;
-  };
-}
+const UploadBranchDocs: React.FC<UploadBranchDocsProps> = ({
+  route,
+  navigation,
+}) => {
+  const {formData, branchId, isResubmit} = route.params || {};
+  const {branches, addBranch, setUserId} = useStore();
+  const branch =
+    isResubmit && branchId ? branches.find(b => b.id === branchId) : null;
 
-const UploadBranchDocs: React.FC<UploadBranchDocsProps> = ({route, navigation}) => {
-  // Extract and parse params with proper type assertion
-  const rawParams = route.params as unknown as UploadBranchDocsRouteParams || {};
-  const branchId = rawParams.branchId;
-  const isResubmit = rawParams.isResubmit;
-  
-  // Parse formData if it's a string
-  let parsedFormData: Partial<BranchFormData> = {};
-  if (typeof rawParams.formData === 'string') {
+  const [form] = useState(() => {
     try {
-      parsedFormData = JSON.parse(rawParams.formData);
+      return typeof formData === 'string'
+        ? JSON.parse(formData)
+        : formData || {};
     } catch (e) {
       console.error('Error parsing formData:', e);
+      return {};
     }
-  } else if (rawParams.formData) {
-    parsedFormData = rawParams.formData;
-  }
-  
-  const {branches, addBranch, setUserId} = useStore();
-  const branch = isResubmit && branchId ? branches.find(b => b.id === branchId) : null;
+  });
 
-  const [form, setForm] = useState<Partial<BranchFormData>>(parsedFormData);
   const [files, setFiles] = useState<{
     branchfrontImage: Asset | null;
     ownerIdProof: Asset | null;
@@ -205,242 +127,198 @@ const UploadBranchDocs: React.FC<UploadBranchDocsProps> = ({route, navigation}) 
     try {
       const result = await launchImageLibrary({
         mediaType: 'photo',
-        maxWidth: 50 * 1024 * 1024,
+        quality: 0.7, // Added from first code
       });
 
-      if (!result.didCancel && result.assets && result.assets[0]) {
+      if (!result.didCancel && result.assets?.[0]) {
         setFiles(prev => ({
           ...prev,
-          [type]: result.assets?.[0] as Asset,
+          [type]: result.assets[0],
         }));
       }
     } catch (error) {
-      console.error('Error picking image:', error);
-      Alert.alert('Error', 'Failed to pick image');
+      Alert.alert('Error', `Failed to pick ${type}`);
+      console.error(`Error picking ${type}:`, error);
     }
   }, []);
 
-  const handleSubmit = async () => {
+  const handleSubmit = useCallback(async () => {
+    if (!files.branchfrontImage || !files.ownerIdProof || !files.ownerPhoto) {
+      Alert.alert('Error', 'Please upload all required documents');
+      return;
+    }
+
+    setIsLoading(true);
+
     try {
-      if (!files.branchfrontImage || !files.ownerIdProof || !files.ownerPhoto) {
-        Alert.alert('Error', 'Please upload all required documents');
-        return;
-      }
+      const location = JSON.parse(form.branchLocation || '{}');
+      const address = JSON.parse(form.branchAddress || '{}');
 
-      setIsLoading(true);
-
-      // Check if we have all required form data
-      if (!form.branchName || !form.branchLocation || !form.branchAddress || 
-          !form.openingTime || !form.closingTime || !form.ownerName || 
-          !form.govId || !form.phone) {
-        Alert.alert('Error', 'Missing required form data');
-        setIsLoading(false);
-        return;
-      }
-
-      // Ensure branchLocation is properly formatted
-      let locationCoordinates: [number, number] = [0, 0];
-      if (form.branchLocation) {
-        if (typeof form.branchLocation === 'string') {
-          try {
-            const parsedLocation = JSON.parse(form.branchLocation as unknown as string);
-            locationCoordinates = [
-              parsedLocation.longitude || 0,
-              parsedLocation.latitude || 0,
-            ];
-          } catch (e) {
-            console.error('Error parsing location:', e);
-          }
-        } else {
-          locationCoordinates = [
-            form.branchLocation.longitude,
-            form.branchLocation.latitude,
-          ];
-        }
-      }
-
-      // Ensure address is properly formatted
-      const address = {
-        street: form.branchAddress?.street || '',
-        area: form.branchAddress?.area || '',
-        city: form.branchAddress?.city || '',
-        pincode: form.branchAddress?.pincode || '',
-      };
-
-      const data: RegisterBranchData = {
-        name: form.branchName || '',
+      const data = {
+        name: form.name || '',
         location: {
           type: 'Point',
-          coordinates: locationCoordinates,
+          coordinates: [location.longitude || 0, location.latitude || 0],
         },
-        address: address,
+        address: {
+          street: address.street || '',
+          area: address.area || '',
+          city: address.city || '',
+          pincode: address.pincode || '',
+        },
         branchEmail: form.branchEmail || '',
         openingTime: form.openingTime || '',
         closingTime: form.closingTime || '',
         ownerName: form.ownerName || '',
         govId: form.govId || '',
         phone: form.phone || '',
-        deliveryServiceAvailable: form.homeDelivery === 'yes',
+        deliveryServiceAvailable: form.deliveryServiceAvailable === 'yes',
         selfPickup: form.selfPickup === 'yes',
-        branchfrontImage: {
-          uri: files.branchfrontImage.uri,
-          type: files.branchfrontImage.type || 'image/jpeg',
-          name: 'branchfront.jpg',
-        },
-        ownerIdProof: {
-          uri: files.ownerIdProof.uri,
-          type: files.ownerIdProof.type || 'image/jpeg',
-          name: 'ownerid.jpg',
-        },
-        ownerPhoto: {
-          uri: files.ownerPhoto.uri,
-          type: files.ownerPhoto.type || 'image/jpeg',
-          name: 'ownerphoto.jpg',
-        },
+        branchfrontImage: files.branchfrontImage,
+        ownerIdProof: files.ownerIdProof,
+        ownerPhoto: files.ownerPhoto,
       };
 
       let response;
       if (isResubmit && branchId) {
-        // For resubmit, we'll use the patch method directly
-        const formData = new FormData();
-        
-        formData.append('branchName', data.name);
-        formData.append(
-          'branchLocation',
-          JSON.stringify({
-            latitude: data.location.coordinates[1],
-            longitude: data.location.coordinates[0],
-          }),
-        );
-        formData.append('branchAddress', JSON.stringify(data.address));
-        formData.append('branchEmail', data.branchEmail || '');
-        formData.append('openingTime', data.openingTime);
-        formData.append('closingTime', data.closingTime);
-        formData.append('ownerName', data.ownerName);
-        formData.append('govId', data.govId);
-        formData.append('phone', data.phone);
-        formData.append('homeDelivery', data.deliveryServiceAvailable.toString());
-        formData.append('selfPickup', data.selfPickup.toString());
-        
-        formData.append('branchfrontImage', {
-          uri: files.branchfrontImage.uri,
-          type: files.branchfrontImage.type || 'image/jpeg',
-          name: 'branchfront.jpg',
-        } as any);
-        
-        formData.append('ownerIdProof', {
-          uri: files.ownerIdProof.uri,
-          type: files.ownerIdProof.type || 'image/jpeg',
-          name: 'ownerid.jpg',
-        } as any);
-        
-        formData.append('ownerPhoto', {
-          uri: files.ownerPhoto.uri,
-          type: files.ownerPhoto.type || 'image/jpeg',
-          name: 'ownerphoto.jpg',
-        } as any);
-        
-        response = await api.patch(`/modify/branch/${branchId}`, formData, {
-          headers: {'Content-Type': 'multipart/form-data'},
-        });
+        const payload = {
+          branchName: data.name,
+          location: data.location,
+          address: data.address,
+          branchEmail: data.branchEmail,
+          openingTime: data.openingTime,
+          closingTime: data.closingTime,
+          ownerName: data.ownerName,
+          govId: data.govId,
+          phone: data.phone,
+          homeDelivery: data.deliveryServiceAvailable,
+          selfPickup: data.selfPickup,
+          branchfrontImage: branch?.branchfrontImage || '',
+          ownerIdProof: branch?.ownerIdProof || '',
+          ownerPhoto: branch?.ownerPhoto || '',
+        };
+
+        response = await api.patch(`/modify/branch/${branchId}`, payload);
+        response = response.data;
       } else {
         response = await registerBranch(data);
+
+        const loginResponse = await api.post('/auth/branch/login', {
+          phone: data.phone,
+        });
+
+        const newBranchId = response.branch?._id;
+        const accessToken = loginResponse.data.accessToken;
+
+        if (newBranchId && accessToken) {
+          await AsyncStorage.setItem('userId', newBranchId);
+          await AsyncStorage.setItem('accessToken', accessToken);
+          setUserId(newBranchId);
+        }
       }
 
-      if (response?.data) {
-        const id = response.data.id || response.data._id || response.data.branch?._id;
-        const token = response.data.token || response.data.accessToken;
-        
-        if (token) {
-          await AsyncStorage.setItem('token', token);
-          await storage.set('token', token);
-          api.defaults.headers.common.Authorization = `Bearer ${token}`;
-        }
-        
-        if (id) {
-          await AsyncStorage.setItem('userId', id);
-          await storage.set('userId', id);
-          
-          // Create a branch object that satisfies the BranchInternal interface
-          const newBranch: BranchInternal = {
-            id,
-            status: 'pending',
-            phone: form.phone || '',
-            name: form.branchName || '',
-            openingTime: form.openingTime || '',
-            closingTime: form.closingTime || '',
-            ownerName: form.ownerName || '',
-            govId: form.govId || '',
-            address: address,
-            location: {
-              type: 'Point',
-              coordinates: locationCoordinates,
-            },
-            deliveryServiceAvailable: form.homeDelivery === 'yes',
-            selfPickup: form.selfPickup === 'yes',
-          };
-          
-          // Type assertion to match the expected Branch type
-          addBranch(newBranch as unknown as Branch);
-          setUserId(id);
-          
-          navigation.navigate('StatusScreen', {
-            id,
-            type: 'branch',
-          });
-        }
+      const branchData: Branch = {
+        id: response.branch._id,
+        status: response.branch.status || 'pending',
+        name: response.branch.name,
+        phone: data.phone,
+        address: data.address,
+        location: data.location,
+        branchEmail: response.branch.branchEmail,
+        openingTime: response.branch.openingTime,
+        closingTime: response.branch.closingTime,
+        ownerName: response.branch.ownerName,
+        govId: response.branch.govId,
+        deliveryServiceAvailable: response.branch.deliveryServiceAvailable,
+        selfPickup: response.branch.selfPickup,
+        branchfrontImage: response.branch.branchfrontImage,
+        ownerIdProof: response.branch.ownerIdProof,
+        ownerPhoto: response.branch.ownerPhoto,
+      };
+
+      addBranch(branchData);
+
+      if (!isResubmit) {
+        storage.set('isRegistered', true);
+        storage.set('branchId', response.branch._id);
       }
+
+      navigation.navigate('StatusScreen', {branchId: response.branch._id});
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-      Alert.alert('Error', `Failed to submit: ${errorMessage}`);
+      const errorMessage =
+        error.message || (isResubmit ? 'Resubmission failed' : 'Upload failed');
+      Alert.alert('Error', errorMessage);
+      console.error(
+        isResubmit ? 'Resubmission failed:' : 'Upload failed:',
+        error.response?.data || error,
+      );
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [
+    files,
+    form,
+    isResubmit,
+    branchId,
+    branch,
+    addBranch,
+    setUserId,
+    navigation,
+  ]);
 
   return (
     <View style={styles.container}>
+      <Button
+        title="Pick Branch Front Image"
+        onPress={() => pickImage('branchfrontImage')}
+        disabled={isLoading}
+      />
       <Text style={styles.text}>
-        Please upload the following documents to complete your registration:
+        {files.branchfrontImage
+          ? files.branchfrontImage.fileName || 'Branch Front Uploaded'
+          : 'No Branch Front Uploaded'}
       </Text>
 
       <Button
-        title={
-          files.branchfrontImage ? 'Branch Front Image ✓' : 'Upload Branch Front Image'
-        }
-        onPress={() => pickImage('branchfrontImage')}
-      />
-
-      <Button
-        title={
-          files.ownerIdProof ? 'Owner ID Proof ✓' : 'Upload Owner ID Proof'
-        }
+        title="Pick Owner ID Proof"
         onPress={() => pickImage('ownerIdProof')}
+        disabled={isLoading}
       />
+      <Text style={styles.text}>
+        {files.ownerIdProof
+          ? files.ownerIdProof.fileName || 'Owner ID Proof Uploaded'
+          : 'No Owner ID Proof Uploaded'}
+      </Text>
 
       <Button
-        title={files.ownerPhoto ? 'Owner Photo ✓' : 'Upload Owner Photo'}
+        title="Pick Owner Photo"
         onPress={() => pickImage('ownerPhoto')}
+        disabled={isLoading}
       />
-
-      {!files.branchfrontImage ||
-      !files.ownerIdProof ||
-      !files.ownerPhoto ? (
-        <Text style={styles.warning}>
-          All documents are required to proceed.
-        </Text>
-      ) : null}
+      <Text style={styles.text}>
+        {files.ownerPhoto
+          ? files.ownerPhoto.fileName || 'Owner Photo Uploaded'
+          : 'No Owner Photo Uploaded'}
+      </Text>
 
       <Button
-        title={isLoading ? 'Submitting...' : 'Submit'}
+        title={isResubmit ? 'Resubmit' : 'Submit'}
         onPress={handleSubmit}
-        disabled={
-          isLoading ||
-          !files.branchfrontImage ||
-          !files.ownerIdProof ||
-          !files.ownerPhoto
-        }
+        disabled={isLoading}
       />
+
+      {isLoading && (
+        <Text style={styles.text}>
+          {isResubmit ? 'Resubmitting...' : 'Uploading...'}
+        </Text>
+      )}
+
+      {isResubmit && (
+        <Text style={styles.warning}>
+          Note: File updates are not supported in resubmission yet. Only text
+          fields will be updated.
+        </Text>
+      )}
     </View>
   );
 };
@@ -449,7 +327,6 @@ const styles = StyleSheet.create({
   container: {padding: 20, backgroundColor: '#f5f5f5'},
   text: {marginVertical: 10},
   warning: {marginVertical: 10, color: 'red'},
-  button: {marginVertical: 10},
 });
 
 export default UploadBranchDocs;

@@ -38,7 +38,8 @@ const OrderCard = ({
     onCancelItem(order._id, itemId);
   };
 
-  const handlePress = () => navigation.navigate('OrderDetail' as never, {order} as never);
+  const handlePress = () =>
+    navigation.navigate('OrderDetail' as never, {order} as never);
 
   const getStatusStyle = (status: string) => {
     switch (status) {

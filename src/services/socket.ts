@@ -1,11 +1,24 @@
 import {io, Socket} from 'socket.io-client';
 import {useStore} from '../store/ordersStore';
-import {navigationRef} from '../../App'; // Import navigationRef for navigation
+import {navigationRef} from '../../App';
 
 class SocketService {
   private socket: Socket | null = null;
 
-  // Existing branch connection
+  // Get current socket instance
+  getSocket(): Socket | null {
+    return this.socket;
+  }
+
+  // Emit event
+  emit(event: string, data: any): void {
+    if (this.socket && this.socket.connected) {
+      this.socket.emit(event, data);
+    } else {
+      console.warn(`Socket not connected, cannot emit ${event}`);
+    }
+  }
+
   connect(branchId: string) {
     if (this.socket) return;
 
@@ -36,7 +49,6 @@ class SocketService {
     });
   }
 
-  // New customer connection for OrderDetail
   connectCustomer(customerId: string) {
     if (this.socket) return;
 
@@ -47,7 +59,7 @@ class SocketService {
 
     this.socket.on('connect', () => {
       console.log('Socket connected (customer):', this.socket?.id);
-      this.socket?.emit('joinRoom', `customer_${customerId}`); // Matches app.js
+      this.socket?.emit('joinRoom', `customer_${customerId}`);
     });
 
     this.socket.on('connect_error', err => {
@@ -63,7 +75,7 @@ class SocketService {
         status: 'packed',
         totalPrice: data.totalPrice,
         items: data.items.map((item: any) => ({
-          _id: item.item, // Assumes backend sends item ID
+          _id: item.item,
           item: {name: item.name, price: item.price},
           count: item.count,
         })),
@@ -74,7 +86,6 @@ class SocketService {
     });
   }
 
-  // New method for branch registration and resubmission
   connectBranchRegistration(phone: string) {
     if (this.socket) return;
 
@@ -85,7 +96,7 @@ class SocketService {
 
     this.socket.on('connect', () => {
       console.log('Socket connected (branch registration):', this.socket?.id);
-      this.socket?.emit('joinSyncmartRoom', phone); // Matches backend room naming (syncmart_${phone})
+      this.socket?.emit('joinSyncmartRoom', phone);
     });
 
     this.socket.on('connect_error', err => {
@@ -105,7 +116,7 @@ class SocketService {
     });
 
     this.socket.on('branchResubmitted', data => {
-      console.log('Branch resubmitted:', data); // { branchId, phone, status }
+      console.log('Branch resubmitted:', data);
       const {updateBranchStatus} = useStore.getState();
       updateBranchStatus(data.branchId, data.status);
       if (navigationRef.current) {

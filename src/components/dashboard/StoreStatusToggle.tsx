@@ -1,32 +1,54 @@
-import React, {useCallback} from 'react';
+import React, {useCallback, useEffect} from 'react';
 import {View, StyleSheet} from 'react-native';
 import SwitchSelector from 'react-native-switch-selector';
 import {useStore} from '../../store/ordersStore';
 import api from '../../services/api';
+import socketService from '../../services/socket';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-interface StoreStatusToggleProps {
-  socket?: any;
-}
-
-const StoreStatusToggle: React.FC<StoreStatusToggleProps> = ({socket}) => {
+const StoreStatusToggle: React.FC = () => {
   const {storeStatus, setStoreStatus} = useStore();
+
+  // Initialize socket connection
+  useEffect(() => {
+    const initializeSocket = async () => {
+      try {
+        const phone = await AsyncStorage.getItem('branchPhone');
+        if (phone) {
+          console.log('Initializing socket with phone:', phone);
+          socketService.connectBranchRegistration(phone);
+        } else {
+          console.warn('No branch phone found in AsyncStorage');
+        }
+      } catch (error) {
+        console.error('Error initializing socket:', error);
+      }
+    };
+
+    initializeSocket();
+
+    // Optional cleanup
+    return () => {
+      // socketService.disconnect(); // Uncomment if you need to disconnect on unmount
+    };
+  }, []);
 
   const toggleSyncMartStatus = useCallback(async () => {
     const newStatus = storeStatus === 'open' ? 'closed' : 'open';
     setStoreStatus(newStatus);
+
     try {
+      // Update status via API
       await api.post('/syncmarts/status', {storeStatus: newStatus});
-      if (socket) {
-        socket.emit('syncmart:status', {storeStatus: newStatus});
-        console.log('Emitted syncmart:status with:', newStatus);
-      } else {
-        console.warn('Socket not available, skipping emit');
-      }
+
+      // Emit socket event
+      socketService.emit('syncmart:status', {storeStatus: newStatus});
+      console.log('Store status updated and emitted:', newStatus);
     } catch (err) {
       console.error('Toggle SyncMart Status Error:', err);
-      setStoreStatus(storeStatus);
+      setStoreStatus(storeStatus); // Revert on error
     }
-  }, [storeStatus, setStoreStatus, socket]);
+  }, [storeStatus, setStoreStatus]);
 
   return (
     <View style={styles.container}>
