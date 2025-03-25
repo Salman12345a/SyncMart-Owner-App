@@ -54,24 +54,26 @@ const OrderHasPacked: React.FC<OrderHasPackedProps> = ({route}) => {
 
       <View style={styles.summaryCard}>
         <Text style={styles.total}>Total: ₹{orderState.totalPrice}</Text>
-        {orderState.modificationHistory && orderState.modificationHistory.length > 0 && (
-          <View style={styles.changes}>
-            <Text style={styles.changesTitle}>Modification History:</Text>
-            {orderState.modificationHistory[0]?.changes?.map((change, index) => (
-              <View key={index} style={styles.changeItem}>
-                <Icon name="edit" size={14} color="#95a5a6" />
-                <Text style={styles.changeText}>{change}</Text>
-              </View>
-            ))}
-          </View>
-        )}
+        {orderState.modificationHistory &&
+          orderState.modificationHistory.length > 0 && (
+            <View style={styles.changes}>
+              <Text style={styles.changesTitle}>Modification History:</Text>
+              {orderState.modificationHistory[0]?.changes?.map(
+                (change, index) => (
+                  <View key={index} style={styles.changeItem}>
+                    <Icon name="edit" size={14} color="#95a5a6" />
+                    <Text style={styles.changeText}>{change}</Text>
+                  </View>
+                ),
+              )}
+            </View>
+          )}
       </View>
 
       <View style={styles.notice}>
         <Icon name="info" size={24} color="#3498db" />
         <Text style={styles.message}>
-          Your order is packed and ready! Please visit the store to collect your
-          items.
+          Informed Customer!To visit the Dk mart to collect their items.
         </Text>
       </View>
     </ScrollView>

@@ -229,7 +229,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
         />
       </View>
       <TouchableOpacity
-        onPress={() => navigation.navigate('OrderPackedScreen')}
+        onPress={() => navigation.navigate('MainPackedScreen')}
         style={styles.packedOrderButton}>
         <Text style={styles.packedOrderButtonText}>Packed Order</Text>
       </TouchableOpacity>

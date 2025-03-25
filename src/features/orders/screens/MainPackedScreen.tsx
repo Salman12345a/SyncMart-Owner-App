@@ -7,10 +7,10 @@ import {useStore} from '../../../store/ordersStore';
 
 type OrderPackedScreenProps = StackScreenProps<
   RootStackParamList,
-  'OrderPackedScreen'
+  'MainPackedScreen'
 >;
 
-const OrderPackedScreen: React.FC<OrderPackedScreenProps> = ({navigation}) => {
+const MainPackedScreen: React.FC<OrderPackedScreenProps> = ({navigation}) => {
   const {orders} = useStore();
   const [activeTab, setActiveTab] = useState<'delivery' | 'pickup'>('delivery');
 
@@ -51,6 +51,12 @@ const OrderPackedScreen: React.FC<OrderPackedScreenProps> = ({navigation}) => {
                       order: item,
                       fromPackedTab: true,
                     })
+                : undefined
+            }
+            // Custom onPress for pickup orders to navigate to OrderHasPacked
+            onPress={
+              activeTab === 'pickup'
+                ? () => navigation.navigate('OrderHasPacked', {order: item})
                 : undefined
             }
           />
@@ -94,4 +100,4 @@ const styles = StyleSheet.create({
   emptyText: {textAlign: 'center', color: '#555', fontSize: 16, marginTop: 20},
 });
 
-export default OrderPackedScreen;
+export default MainPackedScreen;

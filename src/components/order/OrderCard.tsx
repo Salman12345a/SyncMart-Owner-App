@@ -1,8 +1,6 @@
 import React from 'react';
 import {View, Text, TouchableOpacity, StyleSheet} from 'react-native';
 import api from '../../services/api';
-import {Order} from '../../store/ordersStore';
-import {NavigationProp, ParamListBase} from '@react-navigation/native';
 
 const OrderCard = ({
   order,
@@ -11,6 +9,7 @@ const OrderCard = ({
   onCancelItem,
   onAssignDeliveryPartner, // New prop for packed delivery orders
   navigation,
+  onPress, // New optional prop to override default onPress behavior
 }) => {
   const handleAccept = async () => {
     await api.patch(`/orders/${order._id}/accept`);
@@ -29,7 +28,14 @@ const OrderCard = ({
     onCancelItem(order._id, itemId);
   };
 
-  const handlePress = () => navigation.navigate('OrderDetail', {order});
+  // Default navigation to OrderDetail if no custom onPress is provided
+  const handlePress = () => {
+    if (onPress) {
+      onPress();
+    } else {
+      navigation.navigate('OrderDetail', {order});
+    }
+  };
 
   const getStatusStyle = (status: string) => {
     switch (status) {
@@ -56,25 +62,7 @@ const OrderCard = ({
           </Text>
         </View>
       ))}
-      {order.status === 'placed' && (
-        <View style={styles.buttonContainer}>
-          <TouchableOpacity onPress={handleAccept} style={styles.button}>
-            <Text style={styles.buttonText}>Accept</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={handleReject} style={styles.button}>
-            <Text style={styles.buttonText}>Reject</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-      {order.status === 'packed' &&
-        onAssignDeliveryPartner &&
-        order.deliveryServiceAvailable && (
-          <TouchableOpacity
-            onPress={onAssignDeliveryPartner}
-            style={styles.assignButton}>
-            <Text style={styles.assignButtonText}>Assign Delivery Partner</Text>
-          </TouchableOpacity>
-        )}
+
       <View style={styles.statusContainer}>
         <Text style={[styles.status, getStatusStyle(order.status)]}>
           {order.status}

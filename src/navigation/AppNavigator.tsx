@@ -28,7 +28,7 @@ import Order from '../features/orders/screens/OrderManagementScreen';
 import OrderDetail from '../features/orders/screens/OrderDetail';
 import AssignDeliveryPartner from '../features/delivery/screens/AssignDeliveryPartner';
 import OrderHasPacked from '../features/orders/screens/OrderHasPacked';
-import OrderPackedScreen from '../features/orders/screens/OrderPackedScreen';
+import MainPackedScreen from '../features/orders/screens/MainPackedScreen';
 // Branch screens
 import BranchAuth from '../features/branch/screens/BranchAuth';
 import UploadBranchDocs from '../features/branch/screens/UploadBranchDocs';
@@ -48,7 +48,7 @@ export type RootStackParamList = {
   OrderDetail: {order: Order; fromPackedTab?: boolean};
   AssignDeliveryPartner: {order: Order};
   OrderHasPacked: {order: Order};
-  OrderPackedScreen: undefined;
+  MainPackedScreen: undefined;
   DeliveryPartnerAuth: undefined;
   DeliveryStatus: {
     partner: {
@@ -57,7 +57,7 @@ export type RootStackParamList = {
       age: number;
       status: string;
       photoUrl: string;
-    }
+    };
   };
   UploadDocuments: {formData: Partial<DeliveryPartnerForm>};
   UploadPartnerPhoto: {
@@ -123,50 +123,74 @@ const AppNavigator: React.FC = () => (
     initialRouteName="SplashScreen">
     {/* Common screens */}
     <Stack.Screen name="SplashScreen" component={SplashScreen} />
-    
+
     {/* Auth screens */}
     <Stack.Screen name="EntryScreen" component={EntryScreen} />
     <Stack.Screen name="Authentication" component={AuthenticationScreen} />
     <Stack.Screen name="UserDetails" component={UserDetailsScreen} />
     <Stack.Screen name="PhoneNumberScreen" component={PhoneNumberScreen} />
-    
+
     {/* Navigation */}
     <Stack.Screen name="Main" component={Sidebar} />
     <Stack.Screen name="HomeScreen" component={Sidebar} />
-    
+
     {/* Inventory screens */}
     <Stack.Screen name="AddProduct" component={AddProduct} />
-    
+
     {/* Financial screens */}
     <Stack.Screen name="Finance" component={Financial} />
-    
+
     {/* Order screens */}
     <Stack.Screen name="Order" component={Order} />
-    <Stack.Screen 
-      name="OrderDetail" 
-      component={OrderDetail as React.ComponentType<any>} 
+    <Stack.Screen
+      name="OrderDetail"
+      component={OrderDetail as React.ComponentType<any>}
     />
-    <Stack.Screen name="OrderHasPacked" component={OrderHasPacked as React.ComponentType<any>} />
-    <Stack.Screen name="OrderPackedScreen" component={OrderPackedScreen} />
-    
+    <Stack.Screen
+      name="OrderHasPacked"
+      component={OrderHasPacked as React.ComponentType<any>}
+    />
+    <Stack.Screen name="MainPackedScreen" component={MainPackedScreen} />
+
     {/* Delivery screens */}
-    <Stack.Screen name="DeliveryService" component={DeliveryService as React.ComponentType<any>} />
-    <Stack.Screen name="DeliveryPartnerAuth" component={DeliveryPartnerAuth as React.ComponentType<any>} />
-    <Stack.Screen name="DeliveryStatus" component={DeliveryStatus as React.ComponentType<any>} />
-    <Stack.Screen name="DeliveryReRegister" component={DeliveryReRegister as React.ComponentType<any>} />
-    <Stack.Screen name="ReUploadDocuments" component={ReUploadDocuments as React.ComponentType<any>} />
+    <Stack.Screen
+      name="DeliveryService"
+      component={DeliveryService as React.ComponentType<any>}
+    />
+    <Stack.Screen
+      name="DeliveryPartnerAuth"
+      component={DeliveryPartnerAuth as React.ComponentType<any>}
+    />
+    <Stack.Screen
+      name="DeliveryStatus"
+      component={DeliveryStatus as React.ComponentType<any>}
+    />
+    <Stack.Screen
+      name="DeliveryReRegister"
+      component={DeliveryReRegister as React.ComponentType<any>}
+    />
+    <Stack.Screen
+      name="ReUploadDocuments"
+      component={ReUploadDocuments as React.ComponentType<any>}
+    />
     <Stack.Screen
       name="ReUploadPartnerPhoto"
       component={ReUploadPartnerPhoto as React.ComponentType<any>}
     />
-    <Stack.Screen name="UploadDocuments" component={UploadDocuments as React.ComponentType<any>} />
-    <Stack.Screen name="UploadPartnerPhoto" component={UploadPartnerPhoto as React.ComponentType<any>} />
+    <Stack.Screen
+      name="UploadDocuments"
+      component={UploadDocuments as React.ComponentType<any>}
+    />
+    <Stack.Screen
+      name="UploadPartnerPhoto"
+      component={UploadPartnerPhoto as React.ComponentType<any>}
+    />
     <Stack.Screen name="SuccessScreen" component={SuccessScreen} />
     <Stack.Screen
       name="AssignDeliveryPartner"
       component={AssignDeliveryPartner as React.ComponentType<any>}
     />
-    
+
     {/* Branch screens */}
     <Stack.Screen name="BranchAuth" component={BranchAuth} />
     <Stack.Screen name="UploadBranchDocs" component={UploadBranchDocs} />

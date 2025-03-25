@@ -20,7 +20,8 @@ interface Item {
   price: number;
 }
 
-interface OrderDetailProps extends StackScreenProps<RootStackParamList, 'OrderDetail'> {}
+interface OrderDetailProps
+  extends StackScreenProps<RootStackParamList, 'OrderDetail'> {}
 
 const OrderDetail: React.FC<OrderDetailProps> = ({route, navigation}) => {
   const {order: initialOrder, fromPackedTab} = route.params || {};
@@ -158,7 +159,7 @@ const OrderDetail: React.FC<OrderDetailProps> = ({route, navigation}) => {
       updateOrder(currentOrder._id, response.data);
       // Navigate based on deliveryServiceAvailable
       if (response.data.deliveryServiceAvailable) {
-        navigation.replace('OrderPackedScreen'); // Delivery orders replace OrderDetail with OrderPackedScreen
+        navigation.replace('MainPackedScreen'); // Delivery orders replace OrderDetail with
       } else {
         navigation.replace('OrderHasPacked', {order: response.data}); // Pickup orders replace OrderDetail with OrderHasPacked
       }
@@ -184,7 +185,7 @@ const OrderDetail: React.FC<OrderDetailProps> = ({route, navigation}) => {
       console.log('Cash collected:', response.data);
       updateOrder(currentOrder._id, {...currentOrder, status: 'completed'});
       Alert.alert('Success', 'Cash collected successfully');
-      navigation.goBack(); // Goes back to OrderPackedScreen
+      navigation.goBack(); // Goes back to MainPackedScreen
     } catch (error) {
       console.error(
         'Collect Cash Error:',
@@ -198,22 +199,6 @@ const OrderDetail: React.FC<OrderDetailProps> = ({route, navigation}) => {
       );
     }
   };
-
-  // Navigate to OrderHasPacked for pickup orders on status update
-  useEffect(() => {
-    if (
-      currentOrder.status === 'packed' &&
-      !currentOrder.deliveryServiceAvailable &&
-      !fromPackedTab
-    ) {
-      navigation.replace('OrderHasPacked', {order: currentOrder}); // Replace OrderDetail with OrderHasPacked
-    }
-  }, [
-    currentOrder.status,
-    currentOrder.deliveryServiceAvailable,
-    navigation,
-    fromPackedTab,
-  ]);
 
   return (
     <View style={styles.container}>
@@ -251,11 +236,13 @@ const OrderDetail: React.FC<OrderDetailProps> = ({route, navigation}) => {
       {currentOrder.modificationHistory?.length > 0 && (
         <View style={styles.changesContainer}>
           <Text style={styles.changesTitle}>Changes:</Text>
-          {currentOrder.modificationHistory[0]?.changes?.map((change, index) => (
-            <Text key={index} style={styles.changeText}>
-              {change}
-            </Text>
-          ))}
+          {currentOrder.modificationHistory[0]?.changes?.map(
+            (change, index) => (
+              <Text key={index} style={styles.changeText}>
+                {change}
+              </Text>
+            ),
+          )}
         </View>
       )}
       <Text style={styles.total}>Total Amount: ₹{totalAmountState}</Text>
