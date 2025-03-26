@@ -213,7 +213,9 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
       <View style={styles.content}>
         <Text style={styles.title}>Welcome to the Dashboard!</Text>
         <FlatList
-          data={orders.filter(o => o.status !== 'packed')}
+          data={orders.filter(
+            o => o.status !== 'packed' && o.status !== 'assigned',
+          )}
           renderItem={({item}) => (
             <OrderCard
               order={item}

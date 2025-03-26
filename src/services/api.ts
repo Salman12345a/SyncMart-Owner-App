@@ -179,7 +179,6 @@ export const registerBranch = async (data: {
 
     console.log('Register Branch Success:', response.data);
 
-    // Store accessToken and branchPhone
     if (response.data.accessToken) {
       await AsyncStorage.setItem('accessToken', response.data.accessToken);
       console.log('Access Token stored:', response.data.accessToken);
@@ -189,7 +188,6 @@ export const registerBranch = async (data: {
     await AsyncStorage.setItem('branchPhone', data.phone);
     console.log('Branch Phone stored:', data.phone);
 
-    // Store userId as branchId for consistency
     if (response.data.branch?._id) {
       await AsyncStorage.setItem('userId', response.data.branch._id);
       console.log('UserId (branchId) stored:', response.data.branch._id);
@@ -296,7 +294,6 @@ export const resubmitBranch = async (
   }
 };
 
-// New function: Modify an existing delivery partner's details
 export const modifyDeliveryPartner = async (
   id: string,
   data: {
@@ -318,16 +315,14 @@ export const modifyDeliveryPartner = async (
 
     const formData = new FormData();
 
-    // Append optional text fields
     if (data.name) formData.append('name', data.name);
-    const ageNum = isNaN(data.age) ? 0 : data.age; // Default to 0 if invalid
+    const ageNum = isNaN(data.age) ? 0 : data.age;
     formData.append('age', ageNum.toString());
     formData.append('gender', data.gender);
     formData.append('licenseNumber', data.licenseNumber);
     formData.append('rcNumber', data.rcNumber);
     formData.append('phone', data.phone.toString());
 
-    // Append required file fields
     formData.append('licenseImage', data.licenseImage);
     formData.append('rcImage', data.rcImage);
     formData.append('deliveryPartnerPhoto', data.deliveryPartnerPhoto);
@@ -345,6 +340,22 @@ export const modifyDeliveryPartner = async (
   } catch (error) {
     console.error(
       'Modify Delivery Partner Error:',
+      error.response?.data || error.message,
+    );
+    throw error;
+  }
+};
+
+// Added fetchOrderDetails function
+export const fetchOrderDetails = async (orderId: string) => {
+  try {
+    console.log('Fetching order details for orderId:', orderId);
+    const response = await api.get(`/orders/${orderId}`);
+    console.log('Fetch Order Details Success:', response.data);
+    return response.data;
+  } catch (error) {
+    console.error(
+      'Fetch Order Details Error:',
       error.response?.data || error.message,
     );
     throw error;

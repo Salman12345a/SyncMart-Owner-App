@@ -39,17 +39,12 @@ const OrderDetail: React.FC<OrderDetailProps> = ({route, navigation}) => {
   );
 
   useEffect(() => {
-    const customerId = currentOrder.customer || '67b4dd5abe2479aa2cfe45a0'; // Replace with dynamic source
+    const customerId = currentOrder.customer || '67b4dd5abe2479aa2cfe45a0';
     socketService.connectCustomer(customerId);
     return () => socketService.disconnect();
   }, [currentOrder.customer]);
 
   useEffect(() => {
-    console.log('Initial order.items:', currentOrder.items);
-  }, []);
-
-  useEffect(() => {
-    console.log('Updated currentOrder:', currentOrder);
     setUpdatedItems(currentOrder.items);
     const newTotal = currentOrder.items.reduce(
       (sum, item) =>
@@ -119,17 +114,12 @@ const OrderDetail: React.FC<OrderDetailProps> = ({route, navigation}) => {
   const handleModifyOrder = async () => {
     try {
       if (currentOrder.status !== 'accepted') {
-        console.log('Accepting order before modifying:', currentOrder._id);
         await handleAccept();
       }
       const modifiedItems = updatedItems.map(item => ({
         item: (item.item as Item)._id || item.item,
         count: item.count,
       }));
-      console.log('Sending modify request:', {
-        orderId: currentOrder._id,
-        modifiedItems,
-      });
       await api.patch(`/orders/${currentOrder._id}/modify`, {modifiedItems});
       setHasModified(false);
       updateOrder(currentOrder._id, {...currentOrder, items: updatedItems});
@@ -150,18 +140,16 @@ const OrderDetail: React.FC<OrderDetailProps> = ({route, navigation}) => {
   const handlePackedOrder = async () => {
     try {
       if (currentOrder.status !== 'accepted') {
-        console.log('Accepting order before packing:', currentOrder._id);
         await handleAccept();
       }
-      console.log('Sending pack request:', {orderId: currentOrder._id});
       const response = await api.patch(`/orders/${currentOrder._id}/pack`);
-      console.log('Pack successful:', response.data);
       updateOrder(currentOrder._id, response.data);
-      // Navigate based on deliveryServiceAvailable
+
       if (response.data.deliveryServiceAvailable) {
-        navigation.replace('MainPackedScreen'); // Delivery orders replace OrderDetail with
+        console.log('Navigating to AssignDeliveryPartner:', response.data);
+        navigation.replace('AssignDeliveryPartner', {order: response.data});
       } else {
-        navigation.replace('OrderHasPacked', {order: response.data}); // Pickup orders replace OrderDetail with OrderHasPacked
+        navigation.replace('OrderHasPacked', {order: response.data});
       }
     } catch (error) {
       console.error(
@@ -171,29 +159,6 @@ const OrderDetail: React.FC<OrderDetailProps> = ({route, navigation}) => {
       Alert.alert(
         'Error',
         `Failed to pack order: ${
-          error.response?.data?.message || error.message
-        }`,
-      );
-    }
-  };
-
-  const handleCollectCash = async () => {
-    try {
-      const response = await api.patch(
-        `/orders/${currentOrder._id}/collect-cash`,
-      );
-      console.log('Cash collected:', response.data);
-      updateOrder(currentOrder._id, {...currentOrder, status: 'completed'});
-      Alert.alert('Success', 'Cash collected successfully');
-      navigation.goBack(); // Goes back to MainPackedScreen
-    } catch (error) {
-      console.error(
-        'Collect Cash Error:',
-        error.response?.data || error.message,
-      );
-      Alert.alert(
-        'Error',
-        `Failed to collect cash: ${
           error.response?.data?.message || error.message
         }`,
       );
@@ -233,28 +198,18 @@ const OrderDetail: React.FC<OrderDetailProps> = ({route, navigation}) => {
         keyExtractor={item => item._id}
         contentContainerStyle={styles.list}
       />
-      {currentOrder.modificationHistory?.length > 0 && (
-        <View style={styles.changesContainer}>
-          <Text style={styles.changesTitle}>Changes:</Text>
-          {currentOrder.modificationHistory[0]?.changes?.map(
-            (change, index) => (
-              <Text key={index} style={styles.changeText}>
-                {change}
-              </Text>
-            ),
-          )}
-        </View>
-      )}
       <Text style={styles.total}>Total Amount: ₹{totalAmountState}</Text>
+
       {currentOrder.status === 'packed' &&
       currentOrder.deliveryServiceAvailable &&
       !fromPackedTab ? (
         <TouchableOpacity
-          onPress={() =>
-            navigation.navigate('AssignDeliveryPartner', {order: currentOrder})
-          }
+          onPress={() => {
+            console.log('Navigating to AssignDeliveryPartner:', currentOrder);
+            navigation.navigate('AssignDeliveryPartner', {order: currentOrder});
+          }}
           style={styles.deliveryButton}>
-          <Text style={styles.deliveryButtonText}>Delivery Assign</Text>
+          <Text style={styles.deliveryButtonText}>Assign Delivery</Text>
         </TouchableOpacity>
       ) : (
         currentOrder.status !== 'packed' && (
@@ -269,13 +224,6 @@ const OrderDetail: React.FC<OrderDetailProps> = ({route, navigation}) => {
             </Text>
           </TouchableOpacity>
         )
-      )}
-      {currentOrder.status === 'packed' && fromPackedTab && (
-        <TouchableOpacity
-          onPress={handleCollectCash}
-          style={styles.collectCashButton}>
-          <Text style={styles.collectCashButtonText}>Collect Cash</Text>
-        </TouchableOpacity>
       )}
     </View>
   );
@@ -333,9 +281,6 @@ const styles = StyleSheet.create({
     marginTop: 20,
   },
   packButtonText: {color: '#fff', fontSize: 16, fontWeight: 'bold'},
-  changesContainer: {marginVertical: 10},
-  changesTitle: {fontSize: 16, fontWeight: 'bold', color: '#333'},
-  changeText: {fontSize: 14, color: '#555'},
   deliveryButton: {
     backgroundColor: '#007AFF',
     padding: 15,
@@ -344,14 +289,6 @@ const styles = StyleSheet.create({
     marginTop: 20,
   },
   deliveryButtonText: {color: '#fff', fontSize: 16, fontWeight: 'bold'},
-  collectCashButton: {
-    backgroundColor: '#28a745',
-    padding: 15,
-    borderRadius: 5,
-    alignItems: 'center',
-    marginTop: 20,
-  },
-  collectCashButtonText: {color: '#fff', fontSize: 16, fontWeight: 'bold'},
 });
 
 export default OrderDetail;

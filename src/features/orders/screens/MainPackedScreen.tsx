@@ -15,11 +15,23 @@ const MainPackedScreen: React.FC<OrderPackedScreenProps> = ({navigation}) => {
   const [activeTab, setActiveTab] = useState<'delivery' | 'pickup'>('delivery');
 
   const deliveryOrders = orders.filter(
-    o => o.status === 'packed' && o.deliveryServiceAvailable,
+    o =>
+      (o.status === 'packed' || o.status === 'assigned') &&
+      o.deliveryServiceAvailable,
   );
+
   const pickupOrders = orders.filter(
     o => o.status === 'packed' && !o.deliveryServiceAvailable,
   );
+
+  const handleNavigation = (item: any) => {
+    if (item.deliveryServiceAvailable) {
+      // Send both packed and assigned to AssignDeliveryPartner
+      navigation.navigate('AssignDeliveryPartner', {order: item});
+    } else {
+      navigation.navigate('OrderDetail', {order: item, fromPackedTab: true});
+    }
+  };
 
   return (
     <View style={styles.container}>
@@ -46,18 +58,16 @@ const MainPackedScreen: React.FC<OrderPackedScreenProps> = ({navigation}) => {
             onCancelItem={() => {}}
             onAssignDeliveryPartner={
               activeTab === 'delivery'
-                ? () =>
-                    navigation.navigate('OrderDetail', {
-                      order: item,
-                      fromPackedTab: true,
-                    })
+                ? () => {
+                    console.log('Navigating with order:', item);
+                    handleNavigation(item);
+                  }
                 : undefined
             }
-            // Custom onPress for pickup orders to navigate to OrderHasPacked
             onPress={
-              activeTab === 'pickup'
-                ? () => navigation.navigate('OrderHasPacked', {order: item})
-                : undefined
+              activeTab === 'delivery'
+                ? () => handleNavigation(item)
+                : () => navigation.navigate('OrderHasPacked', {order: item})
             }
           />
         )}
