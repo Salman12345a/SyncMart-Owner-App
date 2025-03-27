@@ -11,7 +11,10 @@ import {
 import {StackScreenProps} from '@react-navigation/stack';
 import {RootStackParamList} from '../../../navigation/AppNavigator';
 import {useStore} from '../../../store/ordersStore';
-import api, {fetchOrderDetails} from '../../../services/api';
+import api, {
+  fetchOrderDetails,
+  fetchDeliveryPartners,
+} from '../../../services/api';
 
 type AssignDeliveryPartnerProps = StackScreenProps<
   RootStackParamList,
@@ -22,7 +25,8 @@ interface Partner {
   _id: string;
   name: string;
   availability: boolean;
-  currentOrders?: string[]; // Added to track multiple orders
+  status: 'pending' | 'approved' | 'rejected';
+  currentOrders?: string[];
 }
 
 const AssignDeliveryPartner: React.FC<AssignDeliveryPartnerProps> = ({
@@ -33,27 +37,62 @@ const AssignDeliveryPartner: React.FC<AssignDeliveryPartnerProps> = ({
   const orderState =
     useStore(state => state.orders.find(o => o._id === initialOrder._id)) ||
     initialOrder;
+  const {userId, updateOrder} = useStore();
   const [partners, setPartners] = useState<Partner[]>([]);
   const [isModalVisible, setIsModalVisible] = useState(false);
-  const {updateOrder} = useStore();
 
   useEffect(() => {
-    const loadOrderDetails = async () => {
+    const loadOrderAndPartners = async () => {
       try {
+        // Fetch order details to ensure order data is current
         const orderData = await fetchOrderDetails(orderState._id);
-        console.log('Order Data:', orderData);
-        // Show all partners, not just available ones, to allow multiple assignments
-        const allPartners = orderData.branch?.deliveryPartners || [];
-        setPartners(allPartners);
-        console.log('Available Partners:', allPartners);
+        console.log('Raw Order Data:', JSON.stringify(orderData, null, 2));
+
+        // Only proceed if it's a delivery order
+        if (!orderData.deliveryServiceAvailable) {
+          Alert.alert('Error', 'This screen is for delivery orders only');
+          navigation.goBack();
+          return;
+        }
+
+        // Fetch delivery partners directly from branch endpoint
+        const branchPartners = await fetchDeliveryPartners(userId);
+        console.log('Raw Branch Partners:', branchPartners);
+
+        // Filter approved partners
+        const approvedPartners = branchPartners.filter((p: Partner) => {
+          const status = p.status?.toLowerCase();
+          const isApproved = status === 'approved';
+          console.log(
+            `Partner ${p._id} - Status: ${status}, Approved: ${isApproved}`,
+          );
+          return isApproved;
+        });
+
+        console.log('Approved Partners:', approvedPartners);
+        if (approvedPartners.length === 0 && branchPartners.length > 0) {
+          console.warn(
+            'No approved partners found, but raw partners exist:',
+            branchPartners,
+          );
+        }
+        setPartners(approvedPartners);
       } catch (error) {
-        console.error('Load Order Error:', error);
-        Alert.alert('Error', 'Failed to load order details');
+        console.error('Load Error:', error);
+        Alert.alert('Error', 'Failed to load order or partners');
         navigation.goBack();
       }
     };
-    loadOrderDetails();
-  }, [orderState._id, navigation]);
+    loadOrderAndPartners();
+  }, [orderState._id, userId, navigation]);
+
+  useEffect(() => {
+    // Navigate to OrderHistory when status becomes "delivered"
+    if (orderState.status === 'delivered') {
+      Alert.alert('Success', 'Order delivered, moved to history');
+      navigation.navigate('OrderHistory', {screen: 'delivery'});
+    }
+  }, [orderState.status, navigation]);
 
   const handleAssignDelivery = async (partnerId?: string) => {
     try {
@@ -71,28 +110,6 @@ const AssignDeliveryPartner: React.FC<AssignDeliveryPartnerProps> = ({
       navigation.goBack();
     } catch (error) {
       Alert.alert('Error', 'Failed to assign delivery partner');
-    }
-  };
-
-  const handleCollectCash = async () => {
-    try {
-      const response = await api.patch(
-        `/orders/${orderState._id}/collect-cash`,
-      );
-      updateOrder(orderState._id, {...orderState, status: 'completed'});
-      Alert.alert('Success', 'Cash collected successfully');
-      navigation.goBack();
-    } catch (error) {
-      console.error(
-        'Collect Cash Error:',
-        error.response?.data || error.message,
-      );
-      Alert.alert(
-        'Error',
-        `Failed to collect cash: ${
-          error.response?.data?.message || error.message
-        }`,
-      );
     }
   };
 
@@ -125,7 +142,9 @@ const AssignDeliveryPartner: React.FC<AssignDeliveryPartnerProps> = ({
           </View>
         )}
       {orderState.status === 'packed' && partners.length === 0 ? (
-        <Text style={styles.noPartners}>No available delivery partners</Text>
+        <Text style={styles.noPartners}>
+          No approved delivery partners available
+        </Text>
       ) : orderState.status === 'packed' ? (
         <>
           <FlatList
@@ -142,11 +161,10 @@ const AssignDeliveryPartner: React.FC<AssignDeliveryPartnerProps> = ({
             keyExtractor={item => item._id}
             ListHeaderComponent={
               <Text style={styles.partnerListTitle}>
-                Select Delivery Partner:
+                Select Approved Delivery Partner:
               </Text>
             }
           />
-          {/* Optional: Single button if only one partner */}
           {partners.length === 1 && (
             <TouchableOpacity
               onPress={() => handleAssignDelivery()}
@@ -156,11 +174,11 @@ const AssignDeliveryPartner: React.FC<AssignDeliveryPartnerProps> = ({
           )}
         </>
       ) : orderState.status === 'assigned' ? (
-        <TouchableOpacity
-          onPress={handleCollectCash}
-          style={styles.collectCashButton}>
-          <Text style={styles.collectCashButtonText}>Collect Cash</Text>
-        </TouchableOpacity>
+        <Text style={styles.assignedText}>
+          Order assigned, awaiting delivery
+        </Text>
+      ) : orderState.status === 'delivered' ? (
+        <Text style={styles.deliveredText}>Order delivered</Text>
       ) : null}
       <Modal
         visible={isModalVisible}
@@ -207,6 +225,18 @@ const styles = StyleSheet.create({
   changesTitle: {fontSize: 16, fontWeight: 'bold', color: '#333'},
   changeText: {fontSize: 14, color: '#555'},
   noPartners: {fontSize: 16, color: '#555', textAlign: 'center', marginTop: 20},
+  assignedText: {
+    fontSize: 16,
+    color: '#555',
+    textAlign: 'center',
+    marginTop: 20,
+  },
+  deliveredText: {
+    fontSize: 16,
+    color: '#2ecc71',
+    textAlign: 'center',
+    marginTop: 20,
+  },
   modalContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -236,14 +266,6 @@ const styles = StyleSheet.create({
     marginTop: 20,
   },
   assignButtonText: {color: '#fff', fontSize: 16, fontWeight: 'bold'},
-  collectCashButton: {
-    backgroundColor: '#28a745',
-    padding: 15,
-    borderRadius: 5,
-    alignItems: 'center',
-    marginTop: 20,
-  },
-  collectCashButtonText: {color: '#fff', fontSize: 16, fontWeight: 'bold'},
 });
 
 export default AssignDeliveryPartner;

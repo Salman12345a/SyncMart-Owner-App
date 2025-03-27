@@ -68,7 +68,8 @@ src/
 │           ├── HomeScreen.tsx
 │           ├── OrderDetail.tsx
 │           |── OrderHasPacked.tsx
-│           |── OrderPackedScreen.tsx
+│           |── MainPackedScreen.tsx
+│           |── OrderHistory.tsx
 │           └── OrderManagementScreen.js
 ├── navigation
 │   ├── AppNavigator.tsx

@@ -37,6 +37,7 @@ import StatusScreen from '../features/branch/screens/StatusScreen';
 export type RootStackParamList = {
   SplashScreen: undefined;
   EntryScreen: undefined;
+  OrderHistory: undefined;
   Authentication: undefined;
   Main: undefined;
   HomeScreen: undefined;

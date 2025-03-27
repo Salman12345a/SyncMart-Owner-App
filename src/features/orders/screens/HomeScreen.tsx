@@ -214,7 +214,11 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
         <Text style={styles.title}>Welcome to the Dashboard!</Text>
         <FlatList
           data={orders.filter(
-            o => o.status !== 'packed' && o.status !== 'assigned',
+            o =>
+              o.status !== 'delivered' &&
+              o.status !== 'cancelled' &&
+              o.status !== 'packed' &&
+              o.status !== 'assigned',
           )}
           renderItem={({item}) => (
             <OrderCard
@@ -239,6 +243,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
   );
 };
 
+// Styles remain unchanged
 const styles = StyleSheet.create({
   container: {flex: 1},
   content: {padding: 20, flex: 1},

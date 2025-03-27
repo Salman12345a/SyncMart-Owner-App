@@ -1,5 +1,12 @@
 import React from 'react';
-import {View, Text, FlatList, StyleSheet, ScrollView} from 'react-native';
+import {
+  View,
+  Text,
+  FlatList,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+} from 'react-native';
 import {StackScreenProps} from '@react-navigation/stack';
 import {RootStackParamList} from '../../../navigation/AppNavigator';
 import {useStore} from '../../../store/ordersStore';
@@ -10,11 +17,23 @@ type OrderHasPackedProps = StackScreenProps<
   'OrderHasPacked'
 >;
 
-const OrderHasPacked: React.FC<OrderHasPackedProps> = ({route}) => {
+const OrderHasPacked: React.FC<OrderHasPackedProps> = ({route, navigation}) => {
   const {order: initialOrder} = route.params;
   const orderState =
     useStore(state => state.orders.find(o => o._id === initialOrder._id)) ||
     initialOrder;
+  const {updateOrder} = useStore();
+
+  const handleCollectCash = () => {
+    if (!orderState.deliveryServiceAvailable) {
+      // Update store synchronously
+      updateOrder(orderState._id, {...orderState});
+      // Navigate back after update
+      navigation.goBack();
+    } else {
+      console.log('Error: Collect Cash is only for pickup orders');
+    }
+  };
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
@@ -73,9 +92,17 @@ const OrderHasPacked: React.FC<OrderHasPackedProps> = ({route}) => {
       <View style={styles.notice}>
         <Icon name="info" size={24} color="#3498db" />
         <Text style={styles.message}>
-          Informed Customer!To visit the Dk mart to collect their items.
+          Informed Customer! To visit the Dk mart to collect their items.
         </Text>
       </View>
+
+      {!orderState.deliveryServiceAvailable && (
+        <TouchableOpacity
+          onPress={handleCollectCash}
+          style={styles.collectCashButton}>
+          <Text style={styles.collectCashButtonText}>Collect Cash</Text>
+        </TouchableOpacity>
+      )}
     </ScrollView>
   );
 };
@@ -209,6 +236,18 @@ const styles = StyleSheet.create({
     color: '#3498db',
     marginLeft: 15,
     flex: 1,
+  },
+  collectCashButton: {
+    backgroundColor: '#28a745',
+    padding: 15,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginTop: 20,
+  },
+  collectCashButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
   },
 });
 

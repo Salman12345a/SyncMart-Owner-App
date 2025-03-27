@@ -4,12 +4,14 @@ import HomeScreen from '../features/orders/screens/HomeScreen';
 import WalletScreen from '../features/financial/screens/WalletScreen';
 import StoreManagement from '../components/storemanage/SyncmartManagement';
 import HelpScreen from '../features/common/screens/HelpScreen';
+import OrderHistory from '../features/orders/screens/OrderHistory';
 
 export type DrawerParamList = {
   Home: undefined;
   Wallet: undefined;
   StoreManagement: undefined;
   Help: undefined;
+  OrderHistory: undefined;
 };
 
 const Drawer = createDrawerNavigator<DrawerParamList>();
@@ -29,6 +31,11 @@ const Sidebar: React.FC = () => {
         // Hide default header, use custom Header
       />
       <Drawer.Screen name="Help" component={HelpScreen} />
+      <Drawer.Screen
+        name="OrderHistory"
+        component={OrderHistory}
+        options={{headerShown: false}}
+      />
     </Drawer.Navigator>
   );
 };
