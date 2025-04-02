@@ -31,28 +31,49 @@ const OrderDetail: React.FC<OrderDetailProps> = ({route, navigation}) => {
   const [updatedItems, setUpdatedItems] = useState(currentOrder.items);
   const [hasModified, setHasModified] = useState(false);
   const [totalAmountState, setTotalAmountState] = useState(
-    currentOrder.items.reduce(
-      (sum, item) =>
-        sum + Number(item.item.price || 0) * Number(item.count || 0),
-      0,
-    ),
+    currentOrder.totalPrice || 0,
   );
 
+  // Fetch detailed order data if price or totalPrice is missing
+  useEffect(() => {
+    const fetchDetails = async () => {
+      try {
+        const response = await api.get(`/orders/${currentOrder._id}`);
+        setUpdatedItems(response.data.items);
+        setTotalAmountState(response.data.totalPrice || 0);
+      } catch (error) {
+        console.error('Fetch Order Details Error:', error);
+        Alert.alert('Error', 'Failed to load order details');
+      }
+    };
+
+    // Check if price or totalPrice is missing
+    if (
+      !currentOrder.items.some(i => i.item.price) ||
+      !currentOrder.totalPrice
+    ) {
+      fetchDetails();
+    } else {
+      setUpdatedItems(currentOrder.items);
+      setTotalAmountState(currentOrder.totalPrice || 0);
+    }
+  }, [currentOrder]);
+
+  // Socket connection for customer
   useEffect(() => {
     const customerId = currentOrder.customer || '67b4dd5abe2479aa2cfe45a0';
     socketService.connectCustomer(customerId);
     return () => socketService.disconnect();
   }, [currentOrder.customer]);
 
+  // Check for modifications
   useEffect(() => {
-    setUpdatedItems(currentOrder.items);
-    const newTotal = currentOrder.items.reduce(
-      (sum, item) =>
-        sum + Number(item.item.price || 0) * Number(item.count || 0),
-      0,
-    );
-    setTotalAmountState(newTotal);
-  }, [currentOrder]);
+    const isModified = updatedItems.some((updatedItem, index) => {
+      const originalItem = initialOrder.items[index];
+      return updatedItem.count !== originalItem.count;
+    });
+    setHasModified(isModified);
+  }, [updatedItems, initialOrder.items]);
 
   const getItemCount = (itemId: string) =>
     updatedItems.find(i => i._id === itemId)?.count || 0;
@@ -81,23 +102,32 @@ const OrderDetail: React.FC<OrderDetailProps> = ({route, navigation}) => {
     );
   };
 
-  useEffect(() => {
-    const isModified = updatedItems.some((updatedItem, index) => {
-      const originalItem = initialOrder.items[index];
-      return updatedItem.count !== originalItem.count;
-    });
-    setHasModified(isModified);
-  }, [updatedItems, initialOrder.items]);
-
   const handleCancelOrder = async () => {
-    try {
-      const response = await api.patch(`/orders/${currentOrder._id}/cancel`);
-      updateOrder(currentOrder._id, response.data);
-      navigation.goBack();
-    } catch (error) {
-      console.error('Cancel Order Error:', error);
-      Alert.alert('Error', 'Failed to cancel order');
-    }
+    Alert.alert(
+      'Confirm Cancellation',
+      'Are you sure you want to cancel the order?',
+      [
+        {
+          text: 'No',
+          style: 'cancel',
+        },
+        {
+          text: 'Yes',
+          onPress: async () => {
+            try {
+              const response = await api.patch(
+                `/orders/${currentOrder._id}/cancel`,
+              );
+              updateOrder(currentOrder._id, response.data);
+              navigation.goBack();
+            } catch (error) {
+              console.error('Cancel Order Error:', error);
+              Alert.alert('Error', 'Failed to cancel order');
+            }
+          },
+        },
+      ],
+    );
   };
 
   const handleAccept = async () => {

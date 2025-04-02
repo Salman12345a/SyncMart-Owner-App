@@ -34,21 +34,19 @@ const AssignDeliveryPartner: React.FC<AssignDeliveryPartnerProps> = ({
   navigation,
 }) => {
   const {order: initialOrder} = route.params;
-  const orderState =
-    useStore(state => state.orders.find(o => o._id === initialOrder._id)) ||
-    initialOrder;
   const {userId, updateOrder} = useStore();
+  const [orderState, setOrderState] = useState(initialOrder);
   const [partners, setPartners] = useState<Partner[]>([]);
   const [isModalVisible, setIsModalVisible] = useState(false);
 
   useEffect(() => {
     const loadOrderAndPartners = async () => {
       try {
-        // Fetch order details to ensure order data is current
-        const orderData = await fetchOrderDetails(orderState._id);
-        console.log('Raw Order Data:', JSON.stringify(orderData, null, 2));
+        const orderData = await fetchOrderDetails(initialOrder._id);
+        console.log('Fetched Order Data:', JSON.stringify(orderData, null, 2));
+        setOrderState(orderData);
+        updateOrder(initialOrder._id, orderData);
 
-        // Only proceed if it's a delivery order (use deliveryEnabled)
         if (!orderData.deliveryEnabled) {
           Alert.alert(
             'Error',
@@ -58,11 +56,12 @@ const AssignDeliveryPartner: React.FC<AssignDeliveryPartnerProps> = ({
           return;
         }
 
-        // Fetch delivery partners directly from branch endpoint
         const branchPartners = await fetchDeliveryPartners(userId);
-        console.log('Raw Branch Partners:', branchPartners);
+        console.log(
+          'Fetched Branch Partners:',
+          JSON.stringify(branchPartners, null, 2),
+        );
 
-        // Filter approved partners
         const approvedPartners = branchPartners.filter((p: Partner) => {
           const status = p.status?.toLowerCase();
           const isApproved = status === 'approved';
@@ -87,10 +86,9 @@ const AssignDeliveryPartner: React.FC<AssignDeliveryPartnerProps> = ({
       }
     };
     loadOrderAndPartners();
-  }, [orderState._id, userId, navigation]);
+  }, [initialOrder._id, userId, navigation, updateOrder]);
 
   useEffect(() => {
-    // Navigate to OrderHistory when status becomes "delivered"
     if (orderState.status === 'delivered') {
       Alert.alert('Success', 'Order delivered, moved to history');
       navigation.navigate('OrderHistory', {screen: 'delivery'});
@@ -108,42 +106,49 @@ const AssignDeliveryPartner: React.FC<AssignDeliveryPartnerProps> = ({
       const response = await api.patch(
         `/orders/${orderState._id}/assign/${selectedPartnerId}`,
       );
+      console.log('Assign Response:', JSON.stringify(response.data, null, 2));
+      setOrderState(response.data);
       updateOrder(orderState._id, response.data);
       Alert.alert('Success', 'Delivery partner assigned successfully');
       navigation.goBack();
     } catch (error) {
+      console.error('Assign Error:', error);
       Alert.alert('Error', 'Failed to assign delivery partner');
     }
   };
 
-  return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Order #{orderState.orderId}</Text>
-      <Text style={styles.status}>Status: {orderState.status}</Text>
-      <FlatList
-        data={orderState.items}
-        renderItem={({item}) => (
-          <View style={styles.item}>
-            <Text>
-              {item.item.name} x {item.count} - ₹{item.item.price}
-            </Text>
-          </View>
-        )}
-        keyExtractor={item => item._id}
-        contentContainerStyle={styles.orderList}
-      />
-      <Text style={styles.total}>Total: ₹{orderState.totalPrice}</Text>
-      {orderState.modificationHistory &&
-        orderState.modificationHistory.length > 0 && (
-          <View style={styles.changes}>
-            <Text style={styles.changesTitle}>Changes:</Text>
-            {orderState.modificationHistory[0].changes.map((change, index) => (
-              <Text key={index} style={styles.changeText}>
-                {change}
-              </Text>
-            ))}
-          </View>
-        )}
+  const renderHeader = () => (
+    <View>
+      <View style={styles.header}>
+        <Text style={styles.title}>Order #{orderState.orderId}</Text>
+        <Text style={styles.orderId}>Status: {orderState.status}</Text>
+      </View>
+
+      <View style={styles.card}>
+        <Text style={styles.sectionTitle}>Order Items</Text>
+      </View>
+    </View>
+  );
+
+  const renderFooter = () => (
+    <View>
+      <View style={styles.summaryCard}>
+        <Text style={styles.total}>Total: ₹{orderState.totalPrice || 0}</Text>
+        {orderState.modificationHistory &&
+          orderState.modificationHistory.length > 0 && (
+            <View style={styles.changes}>
+              <Text style={styles.changesTitle}>Changes:</Text>
+              {orderState.modificationHistory[0].changes.map(
+                (change, index) => (
+                  <Text key={index} style={styles.changeText}>
+                    {change}
+                  </Text>
+                ),
+              )}
+            </View>
+          )}
+      </View>
+
       {orderState.status === 'packed' && partners.length === 0 ? (
         <Text style={styles.noPartners}>
           No approved delivery partners available
@@ -183,6 +188,36 @@ const AssignDeliveryPartner: React.FC<AssignDeliveryPartnerProps> = ({
       ) : orderState.status === 'delivered' ? (
         <Text style={styles.deliveredText}>Order delivered</Text>
       ) : null}
+    </View>
+  );
+
+  return (
+    <View style={styles.container}>
+      <FlatList
+        data={orderState.items}
+        renderItem={({item}) => (
+          <View style={styles.card}>
+            <View style={styles.item}>
+              <View style={styles.itemDetails}>
+                <Text style={styles.itemName}>
+                  {item.item.name || 'Unknown Item'}
+                </Text>
+                <Text style={styles.itemMeta}>
+                  {item.count} x ₹{item.item.price || 0}
+                </Text>
+              </View>
+              <Text style={styles.itemTotal}>
+                ₹{(item.item.price || 0) * item.count}
+              </Text>
+            </View>
+          </View>
+        )}
+        keyExtractor={item => item._id}
+        ListHeaderComponent={renderHeader}
+        ListFooterComponent={renderFooter}
+        contentContainerStyle={{paddingBottom: 20}}
+      />
+
       <Modal
         visible={isModalVisible}
         transparent
@@ -212,33 +247,130 @@ const AssignDeliveryPartner: React.FC<AssignDeliveryPartnerProps> = ({
 };
 
 const styles = StyleSheet.create({
-  container: {flex: 1, padding: 20, backgroundColor: '#f5f5f5'},
-  title: {fontSize: 24, fontWeight: 'bold', marginBottom: 10, color: '#333'},
-  status: {fontSize: 16, marginBottom: 10, color: '#555'},
-  item: {marginVertical: 5},
-  orderList: {paddingBottom: 10},
-  total: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginVertical: 10,
-    textAlign: 'right',
-    color: '#333',
+  container: {
+    flex: 1,
+    backgroundColor: '#f8f9fa',
+    paddingHorizontal: 20, // Match OrderHasPacked padding
   },
-  changes: {marginVertical: 10},
-  changesTitle: {fontSize: 16, fontWeight: 'bold', color: '#333'},
-  changeText: {fontSize: 14, color: '#555'},
-  noPartners: {fontSize: 16, color: '#555', textAlign: 'center', marginTop: 20},
+  header: {
+    alignItems: 'center',
+    marginBottom: 25,
+    padding: 20,
+    backgroundColor: 'white',
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: {width: 0, height: 2},
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  title: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: '#2c3e50',
+    marginTop: 10,
+  },
+  orderId: {
+    fontSize: 16,
+    color: '#7f8c8d',
+    marginTop: 5,
+  },
+  card: {
+    backgroundColor: 'white',
+    borderRadius: 12,
+    paddingHorizontal: 20, // Match OrderHasPacked
+    paddingTop: 10, // Adjusted to fit items
+    paddingBottom: 10,
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: {width: 0, height: 2},
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#34495e',
+    marginBottom: 15,
+    paddingBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#ecf0f1',
+  },
+  item: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f5f6fa',
+  },
+  itemDetails: {
+    flex: 1,
+  },
+  itemName: {
+    fontSize: 16,
+    color: '#2c3e50',
+    marginBottom: 4,
+  },
+  itemMeta: {
+    fontSize: 14,
+    color: '#7f8c8d',
+  },
+  itemTotal: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#2ecc71',
+  },
+  summaryCard: {
+    backgroundColor: 'white',
+    borderRadius: 12,
+    padding: 20,
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: {width: 0, height: 2},
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  total: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#2c3e50',
+    textAlign: 'right',
+    marginBottom: 15,
+  },
+  changes: {
+    paddingTop: 15,
+    borderTopWidth: 1,
+    borderTopColor: '#ecf0f1',
+  },
+  changesTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#e67e22',
+    marginBottom: 10,
+  },
+  changeText: {
+    fontSize: 14,
+    color: '#95a5a6',
+  },
+  noPartners: {
+    fontSize: 16,
+    color: '#7f8c8d',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
   assignedText: {
     fontSize: 16,
-    color: '#555',
+    color: '#7f8c8d',
     textAlign: 'center',
-    marginTop: 20,
+    marginBottom: 20,
   },
   deliveredText: {
     fontSize: 16,
     color: '#2ecc71',
     textAlign: 'center',
-    marginTop: 20,
+    marginBottom: 20,
   },
   modalContainer: {
     flex: 1,
@@ -248,27 +380,35 @@ const styles = StyleSheet.create({
   },
   partnerListTitle: {
     fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 10,
-    color: '#333',
+    fontWeight: '600',
+    color: '#34495e',
+    marginBottom: 15,
+    paddingBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#ecf0f1',
   },
   partnerItem: {
-    padding: 10,
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
-    borderRadius: 5,
-    marginVertical: 5,
-    backgroundColor: '#fff',
-  },
-  partnerText: {fontSize: 16, color: '#333'},
-  assignButton: {
-    backgroundColor: '#007AFF',
     padding: 15,
-    borderRadius: 5,
+    borderRadius: 8,
+    backgroundColor: 'white',
+    marginVertical: 5,
+  },
+  partnerText: {
+    fontSize: 16,
+    color: '#2c3e50',
+  },
+  assignButton: {
+    backgroundColor: '#28a745',
+    padding: 15,
+    borderRadius: 8,
     alignItems: 'center',
     marginTop: 20,
   },
-  assignButtonText: {color: '#fff', fontSize: 16, fontWeight: 'bold'},
+  assignButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
 });
 
 export default AssignDeliveryPartner;

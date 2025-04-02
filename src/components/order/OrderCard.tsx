@@ -52,16 +52,36 @@ const OrderCard = ({
     }
   };
 
+  // Log order.items for debugging
+  console.log('OrderCard order:', order);
+  console.log('OrderCard items:', order?.items);
+
+  // Ensure items exist before slicing, default to empty array if not
+  const displayedItems = (order?.items || []).slice(0, 2);
+
   return (
     <TouchableOpacity onPress={handlePress} style={styles.card}>
       <Text style={styles.orderId}>Order ID: {order.orderId}</Text>
-      {order.items.map(item => (
-        <View key={item._id} style={styles.item}>
-          <Text style={styles.itemText}>
-            {item.item.name} x {item.count}
-          </Text>
-        </View>
-      ))}
+      {displayedItems.length > 0 ? (
+        displayedItems.map(item => (
+          <View key={item._id} style={styles.item}>
+            <Text style={styles.itemText}>
+              {item.item?.name || 'Unknown Item'} x {item.count || 0}
+            </Text>
+            <Text style={styles.priceText}>
+              ₹{item.item?.price ? item.item.price.toFixed(2) : '0.00'}
+            </Text>
+          </View>
+        ))
+      ) : (
+        <Text style={styles.noItemsText}>No items available</Text>
+      )}
+      {order.items && order.items.length > 2 && (
+        <Text style={styles.moreItemsText}>
+          +{order.items.length - 2} more item
+          {order.items.length - 2 > 1 ? 's' : ''}
+        </Text>
+      )}
       <View style={styles.footerContainer}>
         {order.deliveryEnabled && (
           <Icon
@@ -109,6 +129,23 @@ const styles = StyleSheet.create({
   itemText: {
     fontSize: 14,
     color: '#555',
+    flex: 1, // Ensures item name doesn’t overlap price
+  },
+  priceText: {
+    fontSize: 14,
+    color: '#555',
+    fontWeight: '600', // Makes price slightly prominent
+  },
+  noItemsText: {
+    fontSize: 14,
+    color: '#888',
+    fontStyle: 'italic',
+  },
+  moreItemsText: {
+    fontSize: 12,
+    color: '#888',
+    marginTop: 5,
+    fontStyle: 'italic',
   },
   buttonContainer: {
     flexDirection: 'row',
@@ -143,14 +180,14 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   footerContainer: {
-    flexDirection: 'row', // Icon and status in a row
-    alignItems: 'center', // Vertically center
+    flexDirection: 'row',
+    alignItems: 'center',
     marginTop: 10,
-    position: 'relative', // Ensure layout control
+    position: 'relative',
   },
   statusContainer: {
-    flex: 1, // Take available space
-    alignItems: 'flex-end', // Status stays right
+    flex: 1,
+    alignItems: 'flex-end',
   },
   status: {
     fontSize: 12,
@@ -168,7 +205,7 @@ const styles = StyleSheet.create({
   statusCancelled: {backgroundColor: '#6c757d'},
   statusDefault: {backgroundColor: '#6c757d'},
   deliveryIcon: {
-    marginRight: 8, // Space between icon and status when present
+    marginRight: 8,
   },
 });
 

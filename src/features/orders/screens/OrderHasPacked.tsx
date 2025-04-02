@@ -1,4 +1,4 @@
-import React from 'react';
+import React, {useState, useEffect} from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {StackScreenProps} from '@react-navigation/stack';
 import {RootStackParamList} from '../../../navigation/AppNavigator';
 import {useStore} from '../../../store/ordersStore';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import api from '../../../services/api';
 
 type OrderHasPackedProps = StackScreenProps<
   RootStackParamList,
@@ -19,10 +20,26 @@ type OrderHasPackedProps = StackScreenProps<
 
 const OrderHasPacked: React.FC<OrderHasPackedProps> = ({route, navigation}) => {
   const {order: initialOrder} = route.params;
-  const orderState =
-    useStore(state => state.orders.find(o => o._id === initialOrder._id)) ||
-    initialOrder;
   const {updateOrder} = useStore();
+  const [orderState, setOrderState] = useState(initialOrder);
+
+  // Fetch latest order data on mount to ensure item details are present
+  useEffect(() => {
+    const fetchOrderDetails = async () => {
+      try {
+        const response = await api.get(`/orders/${initialOrder._id}`);
+        console.log(
+          'Fetched Order Data:',
+          JSON.stringify(response.data, null, 2),
+        );
+        setOrderState(response.data);
+        updateOrder(initialOrder._id, response.data);
+      } catch (error) {
+        console.error('Fetch Order Error:', error);
+      }
+    };
+    fetchOrderDetails();
+  }, [initialOrder._id, updateOrder]);
 
   const handleCollectCash = () => {
     if (!orderState.deliveryServiceAvailable) {
@@ -56,13 +73,15 @@ const OrderHasPacked: React.FC<OrderHasPackedProps> = ({route, navigation}) => {
                 style={styles.itemIcon}
               />
               <View style={styles.itemDetails}>
-                <Text style={styles.itemName}>{item.item.name}</Text>
+                <Text style={styles.itemName}>
+                  {item.item.name || 'Unknown Item'}
+                </Text>
                 <Text style={styles.itemMeta}>
-                  {item.count} x ₹{item.item.price}
+                  {item.count} x ₹{item.item.price || 0}
                 </Text>
               </View>
               <Text style={styles.itemTotal}>
-                ₹{item.count * item.item.price}
+                ₹{(item.item.price || 0) * item.count}
               </Text>
             </View>
           )}
@@ -72,7 +91,7 @@ const OrderHasPacked: React.FC<OrderHasPackedProps> = ({route, navigation}) => {
       </View>
 
       <View style={styles.summaryCard}>
-        <Text style={styles.total}>Total: ₹{orderState.totalPrice}</Text>
+        <Text style={styles.total}>Total: ₹{orderState.totalPrice || 0}</Text>
         {orderState.modificationHistory &&
           orderState.modificationHistory.length > 0 && (
             <View style={styles.changes}>
