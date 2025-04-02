@@ -10,15 +10,22 @@ const SplashScreen: React.FC = () => {
     const checkStatus = async () => {
       await new Promise(resolve => setTimeout(resolve, 2000)); // 2-second delay
 
+      const token = storage.getString('accessToken'); // Check login token
       const isApproved = storage.getBoolean('isApproved') || false;
       const isRegistered = storage.getBoolean('isRegistered') || false;
       const branchId = storage.getString('branchId');
 
-      if (isApproved) {
+      if (token) {
+        // If token exists, user is logged in, go to HomeScreen
+        navigation.replace('HomeScreen');
+      } else if (isApproved) {
+        // If approved but no token (unlikely), still go to HomeScreen
         navigation.replace('HomeScreen');
       } else if (isRegistered && branchId) {
+        // If registered but not approved, go to StatusScreen
         navigation.replace('StatusScreen', {branchId});
       } else {
+        // Otherwise, go to EntryScreen
         navigation.replace('EntryScreen');
       }
     };

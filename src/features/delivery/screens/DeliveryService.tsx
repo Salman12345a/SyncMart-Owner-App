@@ -11,6 +11,7 @@ import DeliveryServiceToggle from '../../../components/delivery/DeliveryServiceT
 import {useStore} from '../../../store/ordersStore';
 import io from 'socket.io-client';
 import {fetchDeliveryPartners} from '../../../services/api';
+import api from '../../../services/api';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import {StackNavigationProp} from '@react-navigation/stack';
 import {RootStackParamList} from '../../../navigation/AppNavigator';
@@ -58,13 +59,13 @@ const DeliveryService: React.FC<DeliveryServiceProps> = ({navigation}) => {
     const syncDeliveryPartners = async () => {
       try {
         const partners = await fetchDeliveryPartners(userId);
-        console.log('Fetched partners:', partners); // Debug log
+        console.log('Fetched partners:', partners);
         setDeliveryPartners(
           partners.map(p => ({
             id: p._id,
             status: p.status,
             name: p.name || 'Unnamed Partner',
-            age: p.age, // Add age from backend response
+            age: p.age,
             photo:
               p.documents && Array.isArray(p.documents)
                 ? p.documents.find(doc => doc.type === 'photo')?.url || ''
@@ -75,7 +76,23 @@ const DeliveryService: React.FC<DeliveryServiceProps> = ({navigation}) => {
         console.error('Failed to fetch delivery partners:', error);
       }
     };
+
+    const fetchDeliveryServiceStatus = async () => {
+      try {
+        const response = await api.get('/syncmarts/delivery'); // Adjust endpoint if needed
+        const {deliveryServiceAvailable} = response.data;
+        if (typeof deliveryServiceAvailable === 'boolean') {
+          setDeliveryServiceAvailable(deliveryServiceAvailable);
+        } else {
+          console.warn('Invalid deliveryServiceAvailable format from API');
+        }
+      } catch (error) {
+        console.error('Failed to fetch delivery service status:', error);
+      }
+    };
+
     syncDeliveryPartners();
+    fetchDeliveryServiceStatus(); // Fetch initial status
 
     socket.on('connect', () => {
       console.log('Socket connected:', socket.id);

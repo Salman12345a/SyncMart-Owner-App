@@ -14,19 +14,19 @@ const MainPackedScreen: React.FC<OrderPackedScreenProps> = ({navigation}) => {
   const {orders} = useStore();
   const [activeTab, setActiveTab] = useState<'delivery' | 'pickup'>('delivery');
 
+  // Filter orders based on deliveryEnabled instead of deliveryServiceAvailable
   const deliveryOrders = orders.filter(
     o =>
-      (o.status === 'packed' || o.status === 'assigned') &&
-      o.deliveryServiceAvailable,
+      (o.status === 'packed' || o.status === 'assigned') && o.deliveryEnabled,
   );
 
   const pickupOrders = orders.filter(
-    o => o.status === 'packed' && !o.deliveryServiceAvailable,
+    o => o.status === 'packed' && !o.deliveryEnabled,
   );
 
   const handleNavigation = (item: any) => {
-    if (item.deliveryServiceAvailable) {
-      // Send both packed and assigned to AssignDeliveryPartner
+    if (item.deliveryEnabled) {
+      // Send delivery-enabled orders to AssignDeliveryPartner
       navigation.navigate('AssignDeliveryPartner', {order: item});
     } else {
       navigation.navigate('OrderDetail', {order: item, fromPackedTab: true});

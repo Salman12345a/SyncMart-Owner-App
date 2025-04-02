@@ -7,7 +7,7 @@ import {
   FlatList,
   TouchableOpacity,
 } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import {storage} from '../../../utils/storage';
 import socketService from '../../../services/socket';
 import Header from '../../../components/dashboard/Header';
 import OrderCard from '../../../components/order/OrderCard';
@@ -49,8 +49,8 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
   useEffect(() => {
     const checkAuth = async () => {
       try {
-        const storedUserId = await AsyncStorage.getItem('userId');
-        const storedAccessToken = await AsyncStorage.getItem('accessToken');
+        const storedUserId = storage.getString('userId');
+        const storedAccessToken = storage.getString('accessToken');
         console.log(
           'HomeScreen mounted with userId:',
           storedUserId,
@@ -89,17 +89,17 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
                 'Mismatch between stored userId and token userId, updating storage',
               );
               finalUserId = tokenPayload.userId;
-              await AsyncStorage.setItem('userId', finalUserId);
-              console.log('Updated AsyncStorage userId to:', finalUserId);
+              storage.set('userId', finalUserId);
+              console.log('Updated MMKV userId to:', finalUserId);
             } else if (!storedUserId) {
               console.log('No stored userId, setting from token');
               finalUserId = tokenPayload.userId;
-              await AsyncStorage.setItem('userId', finalUserId);
+              storage.set('userId', finalUserId);
             }
           } catch (e) {
             console.warn('Failed to decode token:', e);
-            await AsyncStorage.removeItem('userId');
-            await AsyncStorage.removeItem('accessToken');
+            storage.removeItem('userId');
+            storage.removeItem('accessToken');
             navigation.reset({
               index: 0,
               routes: [{name: 'Authentication'}],
@@ -110,18 +110,12 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
 
         if (finalUserId) {
           socketService.connect(finalUserId);
+          fetchOrders(finalUserId);
         }
 
         setLocalUserId(finalUserId);
         setAccessToken(storedAccessToken);
         setUserId(finalUserId);
-        if (finalUserId) {
-          fetchOrders(finalUserId);
-        }
-
-        return () => {
-          socketService.disconnect();
-        };
       } catch (error) {
         console.error('Auth check error:', error);
         navigation.reset({
@@ -134,6 +128,11 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
     };
 
     checkAuth();
+
+    return () => {
+      socketService.disconnect();
+      console.log('HomeScreen unmounted, socket disconnected');
+    };
   }, [navigation, fetchOrders, setUserId]);
 
   const handleAccept = useCallback(
@@ -243,7 +242,6 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
   );
 };
 
-// Styles remain unchanged
 const styles = StyleSheet.create({
   container: {flex: 1},
   content: {padding: 20, flex: 1},

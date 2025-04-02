@@ -48,9 +48,12 @@ const AssignDeliveryPartner: React.FC<AssignDeliveryPartnerProps> = ({
         const orderData = await fetchOrderDetails(orderState._id);
         console.log('Raw Order Data:', JSON.stringify(orderData, null, 2));
 
-        // Only proceed if it's a delivery order
-        if (!orderData.deliveryServiceAvailable) {
-          Alert.alert('Error', 'This screen is for delivery orders only');
+        // Only proceed if it's a delivery order (use deliveryEnabled)
+        if (!orderData.deliveryEnabled) {
+          Alert.alert(
+            'Error',
+            'This screen is for delivery-enabled orders only',
+          );
           navigation.goBack();
           return;
         }

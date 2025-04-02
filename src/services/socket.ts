@@ -42,11 +42,7 @@ class SocketService {
       addOrder(order);
     });
 
-    this.socket.on('syncmart:status', data => {
-      console.log('Socket syncmart:status received:', data);
-      const {setStoreStatus} = useStore.getState();
-      setStoreStatus(data.storeStatus);
-    });
+    // Removed 'syncmart:status' listener to let StoreStatusToggle handle it
   }
 
   connectCustomer(customerId: string) {
@@ -79,7 +75,7 @@ class SocketService {
           item: {name: item.name, price: item.price},
           count: item.count,
         })),
-        deliveryServiceAvailable: data.deliveryServiceAvailable || false,
+        deliveryServiceAvailable: data.deliveryEnabled || false,
         modificationHistory: [{changes: data.changes}],
         customer: customerId,
       });

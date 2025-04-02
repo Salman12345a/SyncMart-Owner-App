@@ -1,5 +1,5 @@
 import axios, {AxiosInstance, AxiosError} from 'axios';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import {storage} from '../utils/storage'; // Replace AsyncStorage with MMKV
 import {navigationRef} from '../../App';
 
 const api: AxiosInstance = axios.create({
@@ -7,7 +7,7 @@ const api: AxiosInstance = axios.create({
 });
 
 api.interceptors.request.use(async config => {
-  const token = await AsyncStorage.getItem('accessToken');
+  const token = storage.getString('accessToken'); // Use MMKV
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
     console.log('Request Authorization Header:', `Bearer ${token}`);
@@ -30,7 +30,7 @@ api.interceptors.response.use(
       console.log(
         'Unauthorized: Clearing token and redirecting to Authentication',
       );
-      await AsyncStorage.removeItem('accessToken');
+      storage.removeItem('accessToken'); // Use MMKV
       if (navigationRef.current) {
         navigationRef.current.reset({
           index: 0,
@@ -180,16 +180,16 @@ export const registerBranch = async (data: {
     console.log('Register Branch Success:', response.data);
 
     if (response.data.accessToken) {
-      await AsyncStorage.setItem('accessToken', response.data.accessToken);
+      storage.set('accessToken', response.data.accessToken); // Use MMKV
       console.log('Access Token stored:', response.data.accessToken);
     } else {
       console.warn('No accessToken returned in response');
     }
-    await AsyncStorage.setItem('branchPhone', data.phone);
+    storage.set('branchPhone', data.phone); // Use MMKV
     console.log('Branch Phone stored:', data.phone);
 
     if (response.data.branch?._id) {
-      await AsyncStorage.setItem('userId', response.data.branch._id);
+      storage.set('userId', response.data.branch._id); // Use MMKV
       console.log('UserId (branchId) stored:', response.data.branch._id);
     } else {
       console.warn('No branch._id returned in response');
@@ -268,7 +268,7 @@ export const resubmitBranch = async (
       ownerPhoto: data.ownerPhoto.uri,
     };
 
-    const token = await AsyncStorage.getItem('accessToken');
+    const token = storage.getString('accessToken'); // Use MMKV
     const url = `http://10.0.2.2:3000/api/modify/branch/${branchId}`;
     const response = await fetch(url, {
       method: 'PATCH',
@@ -346,7 +346,6 @@ export const modifyDeliveryPartner = async (
   }
 };
 
-// Added fetchOrderDetails function
 export const fetchOrderDetails = async (orderId: string) => {
   try {
     console.log('Fetching order details for orderId:', orderId);

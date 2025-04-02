@@ -143,13 +143,15 @@ const OrderDetail: React.FC<OrderDetailProps> = ({route, navigation}) => {
         await handleAccept();
       }
       const response = await api.patch(`/orders/${currentOrder._id}/pack`);
-      updateOrder(currentOrder._id, response.data);
+      const updatedOrder = response.data;
+      updateOrder(currentOrder._id, updatedOrder);
 
-      if (response.data.deliveryServiceAvailable) {
-        console.log('Navigating to AssignDeliveryPartner:', response.data);
-        navigation.replace('AssignDeliveryPartner', {order: response.data});
+      // Navigate based on deliveryEnabled after packing
+      if (updatedOrder.deliveryEnabled) {
+        console.log('Navigating to AssignDeliveryPartner:', updatedOrder);
+        navigation.replace('AssignDeliveryPartner', {order: updatedOrder});
       } else {
-        navigation.replace('OrderHasPacked', {order: response.data});
+        navigation.replace('OrderHasPacked', {order: updatedOrder});
       }
     } catch (error) {
       console.error(
@@ -201,7 +203,7 @@ const OrderDetail: React.FC<OrderDetailProps> = ({route, navigation}) => {
       <Text style={styles.total}>Total Amount: ₹{totalAmountState}</Text>
 
       {currentOrder.status === 'packed' &&
-      currentOrder.deliveryServiceAvailable &&
+      currentOrder.deliveryEnabled &&
       !fromPackedTab ? (
         <TouchableOpacity
           onPress={() => {

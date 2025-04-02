@@ -1,5 +1,6 @@
 import React from 'react';
 import {View, Text, TouchableOpacity, StyleSheet} from 'react-native';
+import Icon from 'react-native-vector-icons/MaterialIcons'; // For delivery icon
 import api from '../../services/api';
 
 const OrderCard = ({
@@ -7,9 +8,9 @@ const OrderCard = ({
   onAccept,
   onReject,
   onCancelItem,
-  onAssignDeliveryPartner, // New prop for packed delivery orders
+  onAssignDeliveryPartner,
   navigation,
-  onPress, // New optional prop to override default onPress behavior
+  onPress,
 }) => {
   const handleAccept = async () => {
     await api.patch(`/orders/${order._id}/accept`);
@@ -28,7 +29,6 @@ const OrderCard = ({
     onCancelItem(order._id, itemId);
   };
 
-  // Default navigation to OrderDetail if no custom onPress is provided
   const handlePress = () => {
     if (onPress) {
       onPress();
@@ -62,11 +62,20 @@ const OrderCard = ({
           </Text>
         </View>
       ))}
-
-      <View style={styles.statusContainer}>
-        <Text style={[styles.status, getStatusStyle(order.status)]}>
-          {order.status}
-        </Text>
+      <View style={styles.footerContainer}>
+        {order.deliveryEnabled && (
+          <Icon
+            name="delivery-dining"
+            size={20}
+            color="#007AFF"
+            style={styles.deliveryIcon}
+          />
+        )}
+        <View style={styles.statusContainer}>
+          <Text style={[styles.status, getStatusStyle(order.status)]}>
+            {order.status}
+          </Text>
+        </View>
       </View>
     </TouchableOpacity>
   );
@@ -133,9 +142,15 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
-  statusContainer: {
-    alignItems: 'flex-end',
+  footerContainer: {
+    flexDirection: 'row', // Icon and status in a row
+    alignItems: 'center', // Vertically center
     marginTop: 10,
+    position: 'relative', // Ensure layout control
+  },
+  statusContainer: {
+    flex: 1, // Take available space
+    alignItems: 'flex-end', // Status stays right
   },
   status: {
     fontSize: 12,
@@ -152,6 +167,9 @@ const styles = StyleSheet.create({
   statusPacked: {backgroundColor: '#17a2b8'},
   statusCancelled: {backgroundColor: '#6c757d'},
   statusDefault: {backgroundColor: '#6c757d'},
+  deliveryIcon: {
+    marginRight: 8, // Space between icon and status when present
+  },
 });
 
 export default OrderCard;

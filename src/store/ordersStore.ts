@@ -1,4 +1,5 @@
 import {create} from 'zustand';
+import {MMKV} from 'react-native-mmkv';
 
 export interface Order {
   _id: string;
@@ -60,17 +61,28 @@ interface StoreState {
   ) => void;
 }
 
+const storage = new MMKV();
+const STORAGE_KEY = 'deliveryServiceAvailable';
+
+// Load initial value from MMKV (synchronous)
+const initialDeliveryServiceAvailable =
+  storage.getBoolean(STORAGE_KEY) !== undefined
+    ? storage.getBoolean(STORAGE_KEY)
+    : false;
+
 export const useStore = create<StoreState>((set, get) => ({
   storeStatus: 'open',
-  deliveryServiceAvailable: false,
+  deliveryServiceAvailable: initialDeliveryServiceAvailable, // Set from MMKV
   userId: null,
   sessionExpiredMessage: null,
   orders: [],
   deliveryPartners: [],
   branches: [],
   setStoreStatus: status => set({storeStatus: status}),
-  setDeliveryServiceAvailable: available =>
-    set({deliveryServiceAvailable: available}),
+  setDeliveryServiceAvailable: available => {
+    set({deliveryServiceAvailable: available});
+    storage.set(STORAGE_KEY, available); // Persist synchronously
+  },
   setUserId: id => set({userId: id}),
   setSessionExpiredMessage: message => set({sessionExpiredMessage: message}),
   addOrder: order => set(state => ({orders: [...state.orders, order]})),
@@ -86,10 +98,7 @@ export const useStore = create<StoreState>((set, get) => ({
     get().deliveryPartners.some(dp => dp.status === 'approved'),
   addBranch: branch =>
     set(state => ({
-      branches: [
-        ...state.branches.filter(b => b.id !== branch.id), // Remove if exists
-        branch, // Add new/updated branch
-      ],
+      branches: [...state.branches.filter(b => b.id !== branch.id), branch],
     })),
   updateBranchStatus: (branchId, status) =>
     set(state => ({

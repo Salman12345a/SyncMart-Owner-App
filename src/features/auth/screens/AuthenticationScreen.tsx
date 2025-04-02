@@ -1,4 +1,3 @@
-// src/screens/AuthenticationScreen.tsx
 import React, {useState, useEffect} from 'react';
 import {
   View,
@@ -9,39 +8,34 @@ import {
   Alert,
 } from 'react-native';
 import api from '../../../services/api';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import {storage} from '../../../utils/storage'; // Replace AsyncStorage with MMKV
 import {useNavigation} from '@react-navigation/native';
 import {useStore} from '../../../store/ordersStore';
 import {jwtDecode} from 'jwt-decode';
 
 const AuthenticationScreen: React.FC = () => {
-  const [phone, setPhone] = useState(''); // Changed from email/password to phone
+  const [phone, setPhone] = useState('');
   const navigation = useNavigation<any>();
   const {setUserId, sessionExpiredMessage, setSessionExpiredMessage} =
     useStore();
 
-  // Check token and show expiration message on mount
   useEffect(() => {
     const checkTokenAndMessage = async () => {
-      const token = await AsyncStorage.getItem('accessToken');
+      const token = storage.getString('accessToken'); // Use MMKV
       if (token) {
         try {
           const decoded: {userId: string} = jwtDecode(token);
           setUserId(decoded.userId);
-          navigation.replace('Main');
+          navigation.replace('HomeScreen'); // Navigate to HomeScreen
         } catch (err) {
           console.error('Token decode error:', err);
-          await AsyncStorage.removeItem('accessToken');
+          storage.removeItem('accessToken'); // Use MMKV
         }
       }
 
-      // Show expiration message if it exists
       if (sessionExpiredMessage) {
         Alert.alert('Session Expired', sessionExpiredMessage, [
-          {
-            text: 'OK',
-            onPress: () => setSessionExpiredMessage(null), // Clear message after display
-          },
+          {text: 'OK', onPress: () => setSessionExpiredMessage(null)},
         ]);
       }
     };
@@ -56,10 +50,10 @@ const AuthenticationScreen: React.FC = () => {
       const {accessToken} = response.data;
 
       const decoded: {userId: string} = jwtDecode(accessToken);
-      await AsyncStorage.setItem('accessToken', accessToken);
+      storage.set('accessToken', accessToken); // Use MMKV
       setUserId(decoded.userId);
 
-      navigation.replace('Main');
+      navigation.replace('HomeScreen'); // Navigate to HomeScreen
     } catch (err) {
       console.error('Login Error:', err);
       const errorMessage =
@@ -76,7 +70,7 @@ const AuthenticationScreen: React.FC = () => {
         value={phone}
         onChangeText={setPhone}
         placeholder="Phone Number"
-        keyboardType="phone-pad" // Updated for phone input
+        keyboardType="phone-pad"
         autoCapitalize="none"
       />
       <TouchableOpacity style={styles.button} onPress={handleLogin}>
