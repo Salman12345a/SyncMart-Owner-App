@@ -1,10 +1,10 @@
-import React from 'react';
+import React, {useState, useEffect} from 'react';
 import {View, Text, TouchableOpacity, StyleSheet} from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons'; // For delivery icon
 import api from '../../services/api';
 
 const OrderCard = ({
-  order,
+  order: initialOrder,
   onAccept,
   onReject,
   onCancelItem,
@@ -12,6 +12,32 @@ const OrderCard = ({
   navigation,
   onPress,
 }) => {
+  const [order, setOrder] = useState(initialOrder);
+
+  // Fetch order details if item names or prices are missing
+  useEffect(() => {
+    const fetchOrderDetails = async () => {
+      try {
+        const response = await api.get(`/orders/${initialOrder._id}`);
+        console.log(
+          'Fetched OrderCard Data:',
+          JSON.stringify(response.data, null, 2),
+        );
+        setOrder(response.data);
+      } catch (error) {
+        console.error('Fetch OrderCard Error:', error);
+      }
+    };
+
+    // Check if any item lacks name or price
+    if (
+      !initialOrder.items ||
+      initialOrder.items.some(item => !item.item?.name || !item.item?.price)
+    ) {
+      fetchOrderDetails();
+    }
+  }, [initialOrder._id]);
+
   const handleAccept = async () => {
     await api.patch(`/orders/${order._id}/accept`);
     onAccept(order._id);
@@ -69,7 +95,10 @@ const OrderCard = ({
               {item.item?.name || 'Unknown Item'} x {item.count || 0}
             </Text>
             <Text style={styles.priceText}>
-              ₹{item.item?.price ? item.item.price.toFixed(2) : '0.00'}
+              ₹
+              {item.item?.price
+                ? (item.item.price * (item.count || 0)).toFixed(2)
+                : '0.00'}
             </Text>
           </View>
         ))
