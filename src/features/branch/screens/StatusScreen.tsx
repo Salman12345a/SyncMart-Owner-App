@@ -1,13 +1,21 @@
 import React, {useEffect, useCallback, useRef, useState} from 'react';
-import {View, Text, Button, StyleSheet, Alert} from 'react-native';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  ActivityIndicator,
+  SafeAreaView,
+  StatusBar,
+} from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import LottieView from 'lottie-react-native';
 import {useStore} from '../../../store/ordersStore';
 import {fetchBranchStatus, validateToken} from '../../../services/api';
 import socketService from '../../../services/socket';
 import {storage} from '../../../utils/storage';
 import {StackScreenProps} from '@react-navigation/stack';
 import {RootStackParamList} from '../../../navigation/types';
-import api from '../../../services/api';
 import CongratulationsModal from '../../../components/common/CongratulationsModal';
 
 type StatusScreenProps = StackScreenProps<RootStackParamList, 'Status'>;
@@ -16,7 +24,11 @@ const StatusScreen: React.FC<StatusScreenProps> = ({route, navigation}) => {
   const {branchId} = route?.params || {};
   if (!branchId) {
     console.error('No branchId provided in route params');
-    return <Text style={styles.text}>Error: No branch ID provided</Text>;
+    return (
+      <SafeAreaView style={styles.errorContainer}>
+        <Text style={styles.errorText}>Error: No branch ID provided</Text>
+      </SafeAreaView>
+    );
   }
 
   // Use stable store references
@@ -29,12 +41,27 @@ const StatusScreen: React.FC<StatusScreenProps> = ({route, navigation}) => {
   const [showCongratulations, setShowCongratulations] = useState(false);
   const hasFetched = useRef(false);
   const isMounted = useRef(true);
+  const lottieRef = useRef<LottieView>(null);
 
   // Memoize branch lookup to prevent unnecessary re-renders
   const branch = React.useMemo(
     () => branches.find(b => b.id === branchId),
     [branches, branchId],
   );
+
+  // Get animation source based on status
+  const getAnimationSource = (status: string | null) => {
+    switch (status) {
+      case 'pending':
+        return require('../../../assets/animations/pending.json');
+      case 'approved':
+        return require('../../../assets/animations/approved.json');
+      case 'rejected':
+        return require('../../../assets/animations/reject.json');
+      default:
+        return require('../../../assets/animations/pending.json');
+    }
+  };
 
   // Stable callback with minimal dependencies
   const syncBranchStatus = useCallback(async () => {
@@ -88,6 +115,11 @@ const StatusScreen: React.FC<StatusScreenProps> = ({route, navigation}) => {
       if (response.status === 'approved') {
         storage.set('isApproved', true);
       }
+
+      // Play animation when status changes
+      if (lottieRef.current) {
+        lottieRef.current.play();
+      }
     } catch (error) {
       console.error('Failed to sync branch status:', error);
       hasFetched.current = false;
@@ -96,7 +128,7 @@ const StatusScreen: React.FC<StatusScreenProps> = ({route, navigation}) => {
         setIsLoading(false);
       }
     }
-  }, [branchId, addBranch, updateBranchStatus]); // Removed 'branches' and 'isLoading' from deps
+  }, [branchId, addBranch, updateBranchStatus]);
 
   useEffect(() => {
     console.log('useEffect running for branchId:', branchId);
@@ -110,7 +142,7 @@ const StatusScreen: React.FC<StatusScreenProps> = ({route, navigation}) => {
     return () => {
       isMounted.current = false;
     };
-  }, [branchId, syncBranchStatus, branchStatus]); // Added branchStatus to prevent re-fetch
+  }, [branchId, syncBranchStatus, branchStatus]);
 
   // Handle socket connection separately
   useEffect(() => {
@@ -167,7 +199,14 @@ const StatusScreen: React.FC<StatusScreenProps> = ({route, navigation}) => {
         clearTimeout(retryTimeout);
       }
     };
-  }, []); // Empty deps - only run once on mount
+  }, []);
+
+  // Play animation when component mounts
+  useEffect(() => {
+    if (lottieRef.current) {
+      lottieRef.current.play();
+    }
+  }, [branchStatus]);
 
   const handleWelcomeClick = useCallback(async () => {
     try {
@@ -194,10 +233,9 @@ const StatusScreen: React.FC<StatusScreenProps> = ({route, navigation}) => {
       setShowCongratulations(true);
     } catch (error) {
       console.error('Welcome button error:', error);
-      Alert.alert('Error', 'An unexpected error occurred. Please try again.');
       setIsLoading(false);
     }
-  }, [navigation, branchId]);
+  }, [branchId]);
 
   const handleCongratulationsClose = useCallback(() => {
     setShowCongratulations(false);
@@ -222,69 +260,201 @@ const StatusScreen: React.FC<StatusScreenProps> = ({route, navigation}) => {
   const currentStatus = branchStatus || branch?.status;
   const branchName = branch?.name || 'Your Branch';
 
-  return (
-    <View style={styles.container}>
-      <Text style={styles.text}>
-        {isLoading
-          ? 'Processing, please wait...'
-          : currentStatus === 'pending'
-          ? 'Your branch is pending approval...'
-          : currentStatus === 'approved'
-          ? 'Congratulations! Your branch has been approved!'
-          : currentStatus === 'rejected'
-          ? 'Your branch registration was rejected. Please update your information and resubmit.'
-          : 'No status available'}
-      </Text>
-      <Button
-        title={isLoading ? 'Please wait...' : 'Refresh'}
-        onPress={handleRetry}
-        disabled={isLoading}
-      />
-      {currentStatus === 'approved' && (
-        <View style={styles.buttonSpacing}>
-          <Button
-            title={isLoading ? 'Preparing dashboard...' : 'Welcome to SyncMart'}
-            onPress={handleWelcomeClick}
-            disabled={isLoading}
-          />
-        </View>
-      )}
-      {currentStatus === 'rejected' && (
-        <View style={styles.buttonSpacing}>
-          <Button
-            title="Resubmit"
-            onPress={handleResubmit}
-            disabled={isLoading}
-          />
-        </View>
-      )}
+  const getStatusMessage = (status: string | null) => {
+    switch (status) {
+      case 'pending':
+        return 'Your branch application is under review';
+      case 'approved':
+        return 'Congratulations! Your branch has been approved!';
+      case 'rejected':
+        return 'Your branch registration was rejected';
+      default:
+        return 'Status unavailable';
+    }
+  };
 
-      {/* Congratulations Modal */}
-      <CongratulationsModal
-        visible={showCongratulations}
-        branchName={branchName}
-        onClose={handleCongratulationsClose}
-      />
-    </View>
+  const getStatusDescription = (status: string | null) => {
+    switch (status) {
+      case 'pending':
+        return 'Please wait while our team reviews your application. This process usually takes 24-48 hours.';
+      case 'approved':
+        return 'You can now access all SyncMart features and start managing your business.';
+      case 'rejected':
+        return 'Please check the whatsapp we sent the rejection reason and resubmit your application with the necessary corrections.';
+      default:
+        return 'Unable to retrieve your status. Please try again later.';
+    }
+  };
+
+  return (
+    <SafeAreaView style={styles.safeArea}>
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+      <View style={styles.container}>
+        <View style={styles.animationContainer}>
+          <LottieView
+            ref={lottieRef}
+            source={getAnimationSource(currentStatus)}
+            style={styles.animation}
+            autoPlay
+            loop={
+              currentStatus === 'pending' ||
+              currentStatus === 'approved' ||
+              currentStatus === 'rejected'
+            }
+          />
+        </View>
+
+        <View style={styles.contentContainer}>
+          <Text style={styles.statusTitle}>
+            {getStatusMessage(currentStatus)}
+          </Text>
+          <Text style={styles.statusDescription}>
+            {getStatusDescription(currentStatus)}
+          </Text>
+
+          {isLoading ? (
+            <View style={styles.loaderContainer}>
+              <ActivityIndicator size="large" color="#007AFF" />
+              <Text style={styles.loaderText}>Processing...</Text>
+            </View>
+          ) : (
+            <View style={styles.buttonsContainer}>
+              {currentStatus === 'approved' && (
+                <TouchableOpacity
+                  style={styles.primaryButton}
+                  onPress={handleWelcomeClick}
+                  disabled={isLoading}>
+                  <Text style={styles.primaryButtonText}>
+                    Continue to Dashboard
+                  </Text>
+                </TouchableOpacity>
+              )}
+
+              {currentStatus === 'rejected' && (
+                <TouchableOpacity
+                  style={styles.secondaryButton}
+                  onPress={handleResubmit}
+                  disabled={isLoading}>
+                  <Text style={styles.secondaryButtonText}>
+                    Update & Resubmit
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
+        </View>
+
+        {/* Congratulations Modal */}
+        <CongratulationsModal
+          visible={showCongratulations}
+          branchName={branchName}
+          onClose={handleCongratulationsClose}
+        />
+      </View>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+  },
   container: {
-    padding: 20,
-    alignItems: 'center',
-    backgroundColor: '#f5f5f5',
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+  },
+  errorContainer: {
     flex: 1,
     justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+    backgroundColor: '#FFFFFF',
   },
-  text: {
-    fontSize: 18,
-    marginBottom: 20,
+  errorText: {
+    fontSize: 16,
+    color: '#FF3B30',
     textAlign: 'center',
-    color: '#333',
   },
-  buttonSpacing: {
-    marginTop: 10,
+  animationContainer: {
+    marginTop: 252,
+    height: 110,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  animation: {
+    width: 340,
+    height: 340,
+  },
+  contentContainer: {
+    flex: 1,
+    paddingHorizontal: 24,
+    paddingTop: 8,
+  },
+  statusTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#333333',
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+  statusDescription: {
+    fontSize: 16,
+    color: '#666666',
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 32,
+  },
+  loaderContainer: {
+    alignItems: 'center',
+    marginTop: 24,
+  },
+  loaderText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: '#666666',
+  },
+  buttonsContainer: {
+    marginTop: 16,
+  },
+  refreshButton: {
+    paddingVertical: 12,
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  refreshButtonText: {
+    fontSize: 16,
+    color: '#007AFF',
+    fontWeight: '600',
+  },
+  primaryButton: {
+    backgroundColor: '#007AFF',
+    borderRadius: 12,
+    paddingVertical: 16,
+    alignItems: 'center',
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: {width: 0, height: 2},
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  primaryButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  secondaryButton: {
+    backgroundColor: '#F2F2F7',
+    borderRadius: 12,
+    paddingVertical: 16,
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  secondaryButtonText: {
+    color: '#007AFF',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
 

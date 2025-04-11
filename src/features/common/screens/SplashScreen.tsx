@@ -1,5 +1,5 @@
 import React, {useEffect} from 'react';
-import {View, Text, StyleSheet, Platform} from 'react-native';
+import {View, Image, StyleSheet, Platform} from 'react-native';
 import {useNavigation} from '@react-navigation/native';
 import {storage} from '../../../utils/storage'; // MMKV
 import {request, PERMISSIONS, RESULTS} from 'react-native-permissions';
@@ -97,7 +97,11 @@ const SplashScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>DK Mart</Text>
+      <Image
+        source={require('../../../assets/images/Logo.png')}
+        style={styles.logo}
+        resizeMode="contain"
+      />
     </View>
   );
 };
@@ -107,12 +111,11 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: '#340e5c',
   },
-  title: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: '#007AFF',
+  logo: {
+    width: 200,
+    height: 200,
   },
 });
 

@@ -39,14 +39,6 @@ const CongratulationsModal: React.FC<CongratulationsModalProps> = ({
       onRequestClose={onClose}>
       <View style={styles.container}>
         <View style={styles.modalContent}>
-          <LottieView
-            ref={animationRef}
-            source={require('../../assets/animations/party.json')}
-            style={styles.animation}
-            autoPlay
-            loop={false}
-          />
-
           <Text style={styles.congratsText}>Congratulations!</Text>
 
           <Text style={styles.branchNameText}>{branchName}</Text>
@@ -67,6 +59,15 @@ const CongratulationsModal: React.FC<CongratulationsModalProps> = ({
           <TouchableOpacity style={styles.button} onPress={onClose}>
             <Text style={styles.buttonText}>Proceed to Login</Text>
           </TouchableOpacity>
+
+          {/* Animation positioned as overlay */}
+          <LottieView
+            ref={animationRef}
+            source={require('../../assets/animations/party.json')}
+            style={styles.animation}
+            autoPlay
+            loop={false}
+          />
         </View>
       </View>
     </Modal>
@@ -91,11 +92,18 @@ const styles = StyleSheet.create({
     shadowOffset: {width: 0, height: 2},
     shadowOpacity: 0.3,
     shadowRadius: 4,
+    overflow: 'visible',
+    position: 'relative',
   },
   animation: {
-    width: 150,
-    height: 150,
-    marginBottom: 10,
+    width: width,
+    height: height,
+    position: 'absolute',
+    top: -height / 2,
+    left: -width / 4,
+    right: 0,
+    zIndex: 10,
+    pointerEvents: 'none',
   },
   congratsText: {
     fontSize: 28,
@@ -103,6 +111,7 @@ const styles = StyleSheet.create({
     color: '#2ecc71',
     marginBottom: 10,
     textAlign: 'center',
+    zIndex: 1,
   },
   branchNameText: {
     fontSize: 22,
