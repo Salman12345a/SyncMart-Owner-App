@@ -44,32 +44,110 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
   const fetchOrders = useCallback(
     async (branchId: string) => {
       try {
-        const response = await api.get('/orders/', {params: {branchId}});
-        console.log('Orders fetched successfully:', response.data);
-        setOrders(response.data);
-      } catch (error) {
-        console.error('Fetch Orders Error:', error);
-        Alert.alert('Error', 'Failed to load orders');
+        // Log fetch attempt
+        console.log('Fetching orders for branchId:', branchId);
+
+        // Check if we have a token before making the request
+        const token = storage.getString('accessToken');
+        if (!token) {
+          console.error(
+            'No token available for order fetch - redirecting to login',
+          );
+          navigation.reset({
+            index: 0,
+            routes: [{name: 'Authentication'}],
+          });
+          return;
+        }
+
+        // Log the token being used (partially redacted)
+        console.log('Using token for fetch:', token.substring(0, 10) + '...');
+
+        // Check if branch is approved
+        const isApproved = storage.getBoolean('isApproved');
+        if (!isApproved) {
+          console.error('Branch not approved - redirecting to StatusScreen');
+          navigation.reset({
+            index: 0,
+            routes: [{name: 'StatusScreen', params: {branchId}}],
+          });
+          return;
+        }
+
+        const response = await api.get('/orders/', {
+          params: {branchId},
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        console.log(
+          'Orders fetched successfully:',
+          response.data?.length || 0,
+          'orders',
+        );
+        setOrders(response.data || []);
+      } catch (error: any) {
+        console.error(
+          'Fetch Orders Error:',
+          error?.response?.status,
+          error?.response?.data || error?.message || error,
+        );
+
+        // Handle unauthorized errors
+        if (error?.response?.status === 401) {
+          console.log('Unauthorized during order fetch - redirecting to login');
+          storage.delete('accessToken');
+          storage.delete('userId');
+          Alert.alert(
+            'Session Expired',
+            'Your session has expired. Please login again.',
+            [
+              {
+                text: 'OK',
+                onPress: () => {
+                  navigation.reset({
+                    index: 0,
+                    routes: [{name: 'Authentication'}],
+                  });
+                },
+              },
+            ],
+          );
+          return;
+        }
+
+        Alert.alert('Error', 'Failed to load orders. Please try again.');
       }
     },
-    [setOrders],
+    [setOrders, navigation],
   );
 
   useEffect(() => {
     const checkAuth = async () => {
       try {
         const storedUserId = storage.getString('userId');
+        const storedBranchId = storage.getString('branchId');
         const storedAccessToken = storage.getString('accessToken');
         const isApproved = storage.getBoolean('isApproved') || false;
 
         console.log(
           'HomeScreen mounted with userId:',
           storedUserId,
+          'branchId:',
+          storedBranchId,
           'accessToken:',
-          storedAccessToken,
+          storedAccessToken ? 'present' : 'missing',
           'isApproved:',
           isApproved,
         );
+
+        // In case we're coming from StatusScreen approval, ensure userId = branchId
+        if (storedBranchId && !storedUserId) {
+          console.log('Setting userId from branchId for consistency');
+          storage.set('userId', storedBranchId);
+          setUserId(storedBranchId);
+        }
 
         if (!storedAccessToken) {
           console.error('No accessToken available - redirecting to login');
@@ -81,16 +159,26 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
         }
 
         // If not approved, redirect to StatusScreen
-        if (!isApproved && storedUserId) {
-          console.error('Branch not approved - redirecting to StatusScreen');
-          navigation.reset({
-            index: 0,
-            routes: [{name: 'StatusScreen', params: {branchId: storedUserId}}],
-          });
-          return;
+        if (!isApproved) {
+          const idToUse = storedUserId || storedBranchId;
+          if (idToUse) {
+            console.error('Branch not approved - redirecting to StatusScreen');
+            navigation.reset({
+              index: 0,
+              routes: [{name: 'StatusScreen', params: {branchId: idToUse}}],
+            });
+            return;
+          } else {
+            // If no ID is available, go to Authentication
+            navigation.reset({
+              index: 0,
+              routes: [{name: 'Authentication'}],
+            });
+            return;
+          }
         }
 
-        let finalUserId = storedUserId;
+        let finalUserId = storedUserId || storedBranchId;
         if (storedAccessToken) {
           try {
             // Use our custom TokenPayload type

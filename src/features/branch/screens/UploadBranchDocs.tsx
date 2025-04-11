@@ -7,6 +7,7 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
+  Image,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import {launchImageLibrary} from 'react-native-image-picker';
@@ -260,6 +261,25 @@ const UploadBranchDocs: React.FC<UploadBranchDocsProps> = ({
     navigation,
   ]);
 
+  // Render preview if image exists
+  const renderImagePreview = (type: keyof typeof files) => {
+    if (files[type]?.uri) {
+      return (
+        <View style={styles.previewContainer}>
+          <Image source={{uri: files[type]?.uri}} style={styles.imagePreview} />
+          <Text style={styles.imageUploaded}>
+            {type === 'branchfrontImage'
+              ? 'Branch Front'
+              : type === 'ownerIdProof'
+              ? 'ID Proof'
+              : 'Owner Photo'}
+          </Text>
+        </View>
+      );
+    }
+    return null;
+  };
+
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <Text style={styles.header}>Upload Branch Documents</Text>
@@ -269,86 +289,74 @@ const UploadBranchDocs: React.FC<UploadBranchDocsProps> = ({
 
       <View style={styles.formGroup}>
         <Text style={styles.label}>Branch Front Image *</Text>
-        <TouchableOpacity
-          style={[
-            styles.uploadButton,
-            isLoading && styles.buttonDisabled,
-            files.branchfrontImage && styles.uploadButtonSelected,
-          ]}
-          onPress={() => pickImage('branchfrontImage')}
-          disabled={isLoading}>
-          <Icon
-            name="storefront"
-            size={20}
-            color={files.branchfrontImage ? '#2ecc71' : '#7f8c8d'}
-            style={styles.icon}
-          />
-          <Text
+        <View style={styles.uploadSection}>
+          {renderImagePreview('branchfrontImage')}
+          <TouchableOpacity
             style={[
-              styles.uploadButtonText,
-              files.branchfrontImage && styles.uploadButtonTextSelected,
-            ]}>
-            {files.branchfrontImage
-              ? files.branchfrontImage.fileName || 'Branch Front Uploaded'
-              : 'Pick Branch Front Image'}
-          </Text>
-        </TouchableOpacity>
+              styles.uploadIconContainer,
+              isLoading && styles.buttonDisabled,
+              files.branchfrontImage && styles.uploadCompleted,
+            ]}
+            onPress={() => pickImage('branchfrontImage')}
+            disabled={isLoading}>
+            <Icon
+              name={files.branchfrontImage ? 'check-circle' : 'add-a-photo'}
+              size={32}
+              color={files.branchfrontImage ? '#2ecc71' : '#3498db'}
+            />
+            <Text style={styles.uploadText}>
+              {files.branchfrontImage ? 'Change Image' : 'Tap to Upload'}
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <View style={styles.formGroup}>
         <Text style={styles.label}>Owner ID Proof *</Text>
-        <TouchableOpacity
-          style={[
-            styles.uploadButton,
-            isLoading && styles.buttonDisabled,
-            files.ownerIdProof && styles.uploadButtonSelected,
-          ]}
-          onPress={() => pickImage('ownerIdProof')}
-          disabled={isLoading}>
-          <Icon
-            name="badge"
-            size={20}
-            color={files.ownerIdProof ? '#2ecc71' : '#7f8c8d'}
-            style={styles.icon}
-          />
-          <Text
+        <View style={styles.uploadSection}>
+          {renderImagePreview('ownerIdProof')}
+          <TouchableOpacity
             style={[
-              styles.uploadButtonText,
-              files.ownerIdProof && styles.uploadButtonTextSelected,
-            ]}>
-            {files.ownerIdProof
-              ? files.ownerIdProof.fileName || 'Owner ID Proof Uploaded'
-              : 'Pick Owner ID Proof'}
-          </Text>
-        </TouchableOpacity>
+              styles.uploadIconContainer,
+              isLoading && styles.buttonDisabled,
+              files.ownerIdProof && styles.uploadCompleted,
+            ]}
+            onPress={() => pickImage('ownerIdProof')}
+            disabled={isLoading}>
+            <Icon
+              name={files.ownerIdProof ? 'check-circle' : 'badge'}
+              size={32}
+              color={files.ownerIdProof ? '#2ecc71' : '#3498db'}
+            />
+            <Text style={styles.uploadText}>
+              {files.ownerIdProof ? 'Change Image' : 'Tap to Upload'}
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <View style={styles.formGroup}>
         <Text style={styles.label}>Owner Photo *</Text>
-        <TouchableOpacity
-          style={[
-            styles.uploadButton,
-            isLoading && styles.buttonDisabled,
-            files.ownerPhoto && styles.uploadButtonSelected,
-          ]}
-          onPress={() => pickImage('ownerPhoto')}
-          disabled={isLoading}>
-          <Icon
-            name="person"
-            size={20}
-            color={files.ownerPhoto ? '#2ecc71' : '#7f8c8d'}
-            style={styles.icon}
-          />
-          <Text
+        <View style={styles.uploadSection}>
+          {renderImagePreview('ownerPhoto')}
+          <TouchableOpacity
             style={[
-              styles.uploadButtonText,
-              files.ownerPhoto && styles.uploadButtonTextSelected,
-            ]}>
-            {files.ownerPhoto
-              ? files.ownerPhoto.fileName || 'Owner Photo Uploaded'
-              : 'Pick Owner Photo'}
-          </Text>
-        </TouchableOpacity>
+              styles.uploadIconContainer,
+              isLoading && styles.buttonDisabled,
+              files.ownerPhoto && styles.uploadCompleted,
+            ]}
+            onPress={() => pickImage('ownerPhoto')}
+            disabled={isLoading}>
+            <Icon
+              name={files.ownerPhoto ? 'check-circle' : 'person-add'}
+              size={32}
+              color={files.ownerPhoto ? '#2ecc71' : '#3498db'}
+            />
+            <Text style={styles.uploadText}>
+              {files.ownerPhoto ? 'Change Image' : 'Tap to Upload'}
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {isResubmit && (
@@ -397,36 +405,56 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   formGroup: {
-    marginBottom: 20,
+    marginBottom: 24,
   },
   label: {
-    fontSize: 14,
+    fontSize: 16,
     color: '#34495e',
-    marginBottom: 8,
+    marginBottom: 12,
     fontWeight: '500',
   },
-  uploadButton: {
+  uploadSection: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'white',
-    borderRadius: 8,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: '#ecf0f1',
+    justifyContent: 'space-between',
   },
-  uploadButtonSelected: {
-    borderColor: '#2ecc71',
-  },
-  uploadButtonText: {
+  uploadIconContainer: {
     flex: 1,
-    fontSize: 16,
+    height: 120,
+    backgroundColor: '#ecf0f1',
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#dcdde1',
+    borderStyle: 'dashed',
+  },
+  uploadCompleted: {
+    borderColor: '#2ecc71',
+    borderStyle: 'solid',
+    backgroundColor: '#eafaf1',
+  },
+  uploadText: {
+    marginTop: 8,
+    fontSize: 14,
     color: '#7f8c8d',
+    textAlign: 'center',
   },
-  uploadButtonTextSelected: {
-    color: '#2ecc71',
-  },
-  icon: {
+  previewContainer: {
+    width: '45%',
     marginRight: 10,
+  },
+  imagePreview: {
+    width: '100%',
+    height: 120,
+    borderRadius: 8,
+    resizeMode: 'cover',
+  },
+  imageUploaded: {
+    textAlign: 'center',
+    marginTop: 5,
+    fontSize: 12,
+    color: '#2c3e50',
   },
   submitButton: {
     flexDirection: 'row',
@@ -440,6 +468,7 @@ const styles = StyleSheet.create({
   },
   buttonDisabled: {
     backgroundColor: '#95a5a6',
+    opacity: 0.7,
   },
   submitButtonText: {
     color: 'white',

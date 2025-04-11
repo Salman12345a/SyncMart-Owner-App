@@ -1,12 +1,14 @@
 import React, {useEffect, useCallback, useRef, useState} from 'react';
-import {View, Text, Button, StyleSheet} from 'react-native';
+import {View, Text, Button, StyleSheet, Alert} from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {useStore} from '../../../store/ordersStore';
-import {fetchBranchStatus} from '../../../services/api';
+import {fetchBranchStatus, validateToken} from '../../../services/api';
 import socketService from '../../../services/socket';
 import {storage} from '../../../utils/storage';
 import {StackScreenProps} from '@react-navigation/stack';
 import {RootStackParamList} from '../../../navigation/types';
+import api from '../../../services/api';
+import CongratulationsModal from '../../../components/common/CongratulationsModal';
 
 type StatusScreenProps = StackScreenProps<RootStackParamList, 'Status'>;
 
@@ -24,6 +26,7 @@ const StatusScreen: React.FC<StatusScreenProps> = ({route, navigation}) => {
 
   const [branchStatus, setBranchStatus] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [showCongratulations, setShowCongratulations] = useState(false);
   const hasFetched = useRef(false);
   const isMounted = useRef(true);
 
@@ -112,42 +115,98 @@ const StatusScreen: React.FC<StatusScreenProps> = ({route, navigation}) => {
   // Handle socket connection separately
   useEffect(() => {
     let socketConnected = false;
+    let retryCount = 0;
+    const maxRetries = 3;
+    let retryTimeout: NodeJS.Timeout | null = null;
+
     const connectSocket = async () => {
       if (socketConnected) return;
 
       try {
         const phone = await AsyncStorage.getItem('branchPhone');
-        if (phone && !socketService.isConnected?.()) {
-          console.log('Connecting socket with phone:', phone);
+        if (phone && !socketService.getConnectionStatus().isConnected) {
+          console.log(
+            `Connecting socket with phone (attempt ${
+              retryCount + 1
+            }/${maxRetries}):`,
+            phone,
+          );
           socketService.connectBranchRegistration(phone);
-          socketConnected = true;
+
+          // Check if connection was successful after a short delay
+          setTimeout(() => {
+            if (socketService.getConnectionStatus().isConnected) {
+              console.log('Socket connection successful');
+              socketConnected = true;
+              retryCount = 0;
+            } else if (retryCount < maxRetries) {
+              console.log('Socket connection failed, scheduling retry');
+              retryCount++;
+              retryTimeout = setTimeout(connectSocket, 2000); // Retry after 2 seconds
+            } else {
+              console.log(
+                'Max retries reached, giving up on socket connection',
+              );
+            }
+          }, 1000);
         }
       } catch (error) {
-        console.error('Error connecting socket:', error);
+        console.log('Error connecting socket:', error);
+        if (retryCount < maxRetries) {
+          retryCount++;
+          retryTimeout = setTimeout(connectSocket, 2000);
+        }
       }
     };
 
     connectSocket();
 
     return () => {
-      // Cleanup if needed
-      // if (socketConnected) socketService.disconnect();
+      // Cleanup timeouts on unmount
+      if (retryTimeout) {
+        clearTimeout(retryTimeout);
+      }
     };
   }, []); // Empty deps - only run once on mount
 
-  const handleWelcomeClick = useCallback(() => {
-    console.log('Welcome clicked');
-    // Set as approved in storage
-    storage.set('isApproved', true);
-    // Store user ID if not stored already
-    const currentUserId = useStore.getState().userId || branchId;
-    if (!useStore.getState().userId) {
-      storage.set('userId', branchId);
-      useStore.getState().setUserId(branchId);
+  const handleWelcomeClick = useCallback(async () => {
+    try {
+      console.log('Welcome clicked');
+      setIsLoading(true);
+
+      // Set as approved in storage
+      storage.set('isApproved', true);
+      storage.set('isRegistered', true);
+      storage.set('branchId', branchId);
+
+      // Store user ID if not stored already
+      const currentUserId = useStore.getState().userId || branchId;
+      if (!useStore.getState().userId) {
+        storage.set('userId', currentUserId);
+        useStore.getState().setUserId(currentUserId);
+      }
+
+      // Clear any existing token to force a fresh login
+      storage.delete('accessToken');
+
+      // Show celebration modal instead of alert
+      setIsLoading(false);
+      setShowCongratulations(true);
+    } catch (error) {
+      console.error('Welcome button error:', error);
+      Alert.alert('Error', 'An unexpected error occurred. Please try again.');
+      setIsLoading(false);
     }
-    console.log('Navigating to HomeScreen with userId:', currentUserId);
-    navigation.replace('HomeScreen' as any);
   }, [navigation, branchId]);
+
+  const handleCongratulationsClose = useCallback(() => {
+    setShowCongratulations(false);
+    // Navigate to Authentication screen
+    navigation.reset({
+      index: 0,
+      routes: [{name: 'Authentication' as any}],
+    });
+  }, [navigation]);
 
   const handleRetry = useCallback(() => {
     console.log('Retry clicked');
@@ -161,41 +220,72 @@ const StatusScreen: React.FC<StatusScreenProps> = ({route, navigation}) => {
   }, [navigation, branchId]);
 
   const currentStatus = branchStatus || branch?.status;
+  const branchName = branch?.name || 'Your Branch';
 
   return (
     <View style={styles.container}>
       <Text style={styles.text}>
         {isLoading
-          ? 'Checking status...'
+          ? 'Processing, please wait...'
           : currentStatus === 'pending'
           ? 'Your branch is pending approval...'
-          : currentStatus
-          ? `Branch Registration Status: ${currentStatus}`
+          : currentStatus === 'approved'
+          ? 'Congratulations! Your branch has been approved!'
+          : currentStatus === 'rejected'
+          ? 'Your branch registration was rejected. Please update your information and resubmit.'
           : 'No status available'}
       </Text>
       <Button
-        title={isLoading ? 'Refreshing...' : 'Refresh'}
+        title={isLoading ? 'Please wait...' : 'Refresh'}
         onPress={handleRetry}
         disabled={isLoading}
       />
       {currentStatus === 'approved' && (
         <View style={styles.buttonSpacing}>
-          <Button title="Welcome to SyncMart" onPress={handleWelcomeClick} />
+          <Button
+            title={isLoading ? 'Preparing dashboard...' : 'Welcome to SyncMart'}
+            onPress={handleWelcomeClick}
+            disabled={isLoading}
+          />
         </View>
       )}
       {currentStatus === 'rejected' && (
         <View style={styles.buttonSpacing}>
-          <Button title="Resubmit" onPress={handleResubmit} />
+          <Button
+            title="Resubmit"
+            onPress={handleResubmit}
+            disabled={isLoading}
+          />
         </View>
       )}
+
+      {/* Congratulations Modal */}
+      <CongratulationsModal
+        visible={showCongratulations}
+        branchName={branchName}
+        onClose={handleCongratulationsClose}
+      />
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {padding: 20, alignItems: 'center', backgroundColor: '#f5f5f5'},
-  text: {fontSize: 16, marginBottom: 20},
-  buttonSpacing: {marginTop: 10},
+  container: {
+    padding: 20,
+    alignItems: 'center',
+    backgroundColor: '#f5f5f5',
+    flex: 1,
+    justifyContent: 'center',
+  },
+  text: {
+    fontSize: 18,
+    marginBottom: 20,
+    textAlign: 'center',
+    color: '#333',
+  },
+  buttonSpacing: {
+    marginTop: 10,
+  },
 });
 
 export default StatusScreen;

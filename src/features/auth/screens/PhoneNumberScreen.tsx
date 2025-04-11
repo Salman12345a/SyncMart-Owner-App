@@ -83,7 +83,7 @@ const PhoneNumberScreen: React.FC<PhoneNumberScreenProps> = ({
         <View style={styles.inputContainer}>
           <Icon name="phone" size={20} color="#7f8c8d" style={styles.icon} />
           <TextInput
-            placeholder="e.g., 1234567890"
+            placeholder="+91 1234567890"
             placeholderTextColor="#95a5a6"
             value={phone}
             onChangeText={setPhone}

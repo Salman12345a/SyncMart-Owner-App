@@ -9,22 +9,56 @@ const api: AxiosInstance = axios.create({
 api.interceptors.request.use(async config => {
   const token = storage.getString('accessToken'); // Use MMKV
   if (token) {
+    // Always include token in Authorization header when available
     config.headers.Authorization = `Bearer ${token}`;
-    console.log('Request Authorization Header:', `Bearer ${token}`);
+    console.log(
+      'Request Authorization Header:',
+      `Bearer ${token.substring(0, 15)}...`,
+    );
   } else {
-    console.log('No auth token available for request');
+    console.log('No auth token available for request:', config.url);
   }
-  console.log('Request Config:', config);
+
+  // Only log non-sensitive parts of the config
+  const safeConfig = {
+    url: config.url,
+    method: config.method,
+    baseURL: config.baseURL,
+    params: config.params,
+    hasAuth: !!token,
+  };
+  console.log('Request Config:', safeConfig);
+
   return config;
 });
 
 api.interceptors.response.use(
   response => {
-    console.log('Response Data:', response.data);
+    if (response.config.url !== '/orders/') {
+      // Avoid logging large order responses
+      console.log(
+        'Response Data for',
+        response.config.url,
+        ':',
+        typeof response.data === 'object'
+          ? Array.isArray(response.data)
+            ? `Array with ${response.data.length} items`
+            : Object.keys(response.data)
+          : response.data,
+      );
+    } else {
+      console.log('Orders fetched successfully');
+    }
     return response;
   },
   async (error: AxiosError) => {
-    console.error('API Error:', error.response?.data || error.message);
+    console.error(
+      'API Error:',
+      error.response?.status,
+      error.response?.statusText,
+      error.response?.data || error.message,
+    );
+
     if (
       error.response?.status === 401 &&
       error.config?.url !== '/auth/branch/login'
@@ -360,6 +394,36 @@ export const fetchOrderDetails = async (orderId: string) => {
       'Fetch Order Details Error:',
       error.response?.data || error.message,
     );
+    throw error;
+  }
+};
+
+export const validateToken = async () => {
+  try {
+    const token = storage.getString('accessToken');
+    if (!token) {
+      return false;
+    }
+
+    // Make a simple request to test the token
+    const response = await api.get('/syncmarts/status');
+    return true;
+  } catch (error) {
+    console.log('Token validation failed:', error);
+    return false;
+  }
+};
+
+export const login = async (phone: string) => {
+  try {
+    const response = await api.post('/auth/branch/login', {
+      phone: phone.trim(),
+    });
+    return {
+      token: response.data.accessToken,
+      branch: response.data.branch,
+    };
+  } catch (error: any) {
     throw error;
   }
 };

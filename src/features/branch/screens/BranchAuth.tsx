@@ -323,7 +323,7 @@ const BranchAuth: React.FC<BranchAuthProps> = ({navigation, route}) => {
         <View style={styles.inputContainer}>
           <Icon name="store" size={20} color="#7f8c8d" style={styles.icon} />
           <TextInput
-            placeholder="e.g., Ruby's Cafe"
+            placeholder="My Branch Name"
             placeholderTextColor="#95a5a6"
             value={form.name}
             onChangeText={text => setForm(prev => ({...prev, name: text}))}
@@ -394,7 +394,7 @@ const BranchAuth: React.FC<BranchAuthProps> = ({navigation, route}) => {
           <View style={styles.inputContainer}>
             <Icon name="home" size={20} color="#7f8c8d" style={styles.icon} />
             <TextInput
-              placeholder="e.g., 2-3-4 Main Street"
+              placeholder="Street"
               placeholderTextColor="#95a5a6"
               value={form.street}
               onChangeText={text => setForm(prev => ({...prev, street: text}))}
@@ -408,7 +408,7 @@ const BranchAuth: React.FC<BranchAuthProps> = ({navigation, route}) => {
           <View style={styles.inputContainer}>
             <Icon name="place" size={20} color="#7f8c8d" style={styles.icon} />
             <TextInput
-              placeholder="e.g., Nimboli Area"
+              placeholder="Area"
               placeholderTextColor="#95a5a6"
               value={form.area}
               onChangeText={text => setForm(prev => ({...prev, area: text}))}
@@ -427,7 +427,7 @@ const BranchAuth: React.FC<BranchAuthProps> = ({navigation, route}) => {
               style={styles.icon}
             />
             <TextInput
-              placeholder="e.g., Hyderabad"
+              placeholder="City,State"
               placeholderTextColor="#95a5a6"
               value={form.city}
               onChangeText={text => setForm(prev => ({...prev, city: text}))}
@@ -454,7 +454,7 @@ const BranchAuth: React.FC<BranchAuthProps> = ({navigation, route}) => {
       </View>
 
       <View style={styles.formGroup}>
-        <Text style={styles.label}>Branch Email (optional)</Text>
+        <Text style={styles.label}>Branch Email</Text>
         <View style={styles.inputContainer}>
           <Icon name="email" size={20} color="#7f8c8d" style={styles.icon} />
           <TextInput
@@ -547,7 +547,7 @@ const BranchAuth: React.FC<BranchAuthProps> = ({navigation, route}) => {
         <View style={styles.inputContainer}>
           <Icon name="badge" size={20} color="#7f8c8d" style={styles.icon} />
           <TextInput
-            placeholder="Enter government ID (min 5 chars)"
+            placeholder="Adhaar, PAN, etc."
             placeholderTextColor="#95a5a6"
             value={form.govId}
             onChangeText={text => setForm(prev => ({...prev, govId: text}))}
