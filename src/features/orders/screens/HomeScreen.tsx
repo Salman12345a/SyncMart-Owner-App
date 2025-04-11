@@ -15,6 +15,7 @@ import {useStore} from '../../../store/ordersStore';
 import api from '../../../services/api';
 import {StackNavigationProp} from '@react-navigation/stack';
 import {RootStackParamList} from '../../../navigation/AppNavigator';
+import {jwtDecode} from 'jwt-decode';
 
 type HomeScreenNavigationProp = StackNavigationProp<
   RootStackParamList,
@@ -23,6 +24,14 @@ type HomeScreenNavigationProp = StackNavigationProp<
 
 interface HomeScreenProps {
   navigation: HomeScreenNavigationProp;
+}
+
+// Custom token payload interface
+interface TokenPayload {
+  userId?: string;
+  branchId?: string;
+  exp?: number;
+  iat?: number;
 }
 
 const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
@@ -51,11 +60,15 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
       try {
         const storedUserId = storage.getString('userId');
         const storedAccessToken = storage.getString('accessToken');
+        const isApproved = storage.getBoolean('isApproved') || false;
+
         console.log(
           'HomeScreen mounted with userId:',
           storedUserId,
           'accessToken:',
           storedAccessToken,
+          'isApproved:',
+          isApproved,
         );
 
         if (!storedAccessToken) {
@@ -67,16 +80,33 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
           return;
         }
 
+        // If not approved, redirect to StatusScreen
+        if (!isApproved && storedUserId) {
+          console.error('Branch not approved - redirecting to StatusScreen');
+          navigation.reset({
+            index: 0,
+            routes: [{name: 'StatusScreen', params: {branchId: storedUserId}}],
+          });
+          return;
+        }
+
         let finalUserId = storedUserId;
         if (storedAccessToken) {
           try {
-            const tokenPayload = JSON.parse(
-              atob(storedAccessToken.split('.')[1]),
-            );
+            // Use our custom TokenPayload type
+            const tokenPayload = jwtDecode<TokenPayload>(storedAccessToken);
             console.log('Token Payload:', tokenPayload);
 
-            if (!tokenPayload.userId) {
-              console.error('No userId in token - redirecting to login');
+            // Try to get userId or branchId from token
+            const tokenId = tokenPayload.userId || tokenPayload.branchId || '';
+
+            if (!tokenId) {
+              console.error(
+                'No userId or branchId in token - redirecting to login',
+              );
+              // Clear invalid token data
+              storage.delete('userId');
+              storage.delete('accessToken');
               navigation.reset({
                 index: 0,
                 routes: [{name: 'Authentication'}],
@@ -84,22 +114,22 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
               return;
             }
 
-            if (storedUserId && storedUserId !== tokenPayload.userId) {
+            if (storedUserId && storedUserId !== tokenId) {
               console.warn(
-                'Mismatch between stored userId and token userId, updating storage',
+                'Mismatch between stored userId and token id, updating storage',
               );
-              finalUserId = tokenPayload.userId;
+              finalUserId = tokenId;
               storage.set('userId', finalUserId);
               console.log('Updated MMKV userId to:', finalUserId);
             } else if (!storedUserId) {
               console.log('No stored userId, setting from token');
-              finalUserId = tokenPayload.userId;
+              finalUserId = tokenId;
               storage.set('userId', finalUserId);
             }
           } catch (e) {
             console.warn('Failed to decode token:', e);
-            storage.removeItem('userId');
-            storage.removeItem('accessToken');
+            storage.delete('userId');
+            storage.delete('accessToken');
             navigation.reset({
               index: 0,
               routes: [{name: 'Authentication'}],
@@ -111,11 +141,18 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
         if (finalUserId) {
           socketService.connect(finalUserId);
           fetchOrders(finalUserId);
-        }
 
-        setLocalUserId(finalUserId);
-        setAccessToken(storedAccessToken);
-        setUserId(finalUserId);
+          // Set state with type safety
+          setLocalUserId(finalUserId);
+          setAccessToken(storedAccessToken);
+          setUserId(finalUserId);
+        } else {
+          console.error('No finalUserId available after token processing');
+          navigation.reset({
+            index: 0,
+            routes: [{name: 'Authentication'}],
+          });
+        }
       } catch (error) {
         console.error('Auth check error:', error);
         navigation.reset({

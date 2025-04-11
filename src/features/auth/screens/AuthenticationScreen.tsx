@@ -13,6 +13,14 @@ import {useNavigation} from '@react-navigation/native';
 import {useStore} from '../../../store/ordersStore';
 import {jwtDecode} from 'jwt-decode';
 
+// Define a custom interface for the JWT payload
+interface TokenPayload {
+  userId?: string;
+  branchId?: string;
+  exp?: number;
+  iat?: number;
+}
+
 const AuthenticationScreen: React.FC = () => {
   const [phone, setPhone] = useState('');
   const navigation = useNavigation<any>();
@@ -24,12 +32,19 @@ const AuthenticationScreen: React.FC = () => {
       const token = storage.getString('accessToken'); // Use MMKV
       if (token) {
         try {
-          const decoded: {userId: string} = jwtDecode(token);
-          setUserId(decoded.userId);
-          navigation.replace('HomeScreen'); // Navigate to HomeScreen
+          const decoded = jwtDecode<TokenPayload>(token);
+          // Check for userId or branchId in the token
+          const id = decoded.userId || decoded.branchId;
+          if (id) {
+            setUserId(id);
+            navigation.replace('HomeScreen'); // Navigate to HomeScreen
+          } else {
+            console.error('No userId or branchId in token');
+            storage.delete('accessToken');
+          }
         } catch (err) {
           console.error('Token decode error:', err);
-          storage.removeItem('accessToken'); // Use MMKV
+          storage.delete('accessToken'); // Use MMKV
         }
       }
 
@@ -49,15 +64,37 @@ const AuthenticationScreen: React.FC = () => {
       console.log('Login response:', response.data);
       const {accessToken} = response.data;
 
-      const decoded: {userId: string} = jwtDecode(accessToken);
-      storage.set('accessToken', accessToken); // Use MMKV
-      setUserId(decoded.userId);
+      const decoded = jwtDecode<TokenPayload>(accessToken);
+      // Get userId or branchId from token
+      const id = decoded.userId || decoded.branchId;
+      if (!id) {
+        throw new Error('Invalid token - no user ID found');
+      }
 
-      navigation.replace('HomeScreen'); // Navigate to HomeScreen
+      storage.set('accessToken', accessToken); // Use MMKV
+      storage.set('userId', id);
+      storage.set('branchId', id); // Store as branchId too for consistency
+      setUserId(id);
+
+      // Check if branch is approved
+      const isApproved =
+        storage.getBoolean('isApproved') ||
+        response.data.branch?.status === 'approved';
+      storage.set('isApproved', isApproved);
+      storage.set('isRegistered', true);
+
+      if (isApproved) {
+        navigation.replace('HomeScreen'); // Navigate to HomeScreen if approved
+      } else {
+        // If not approved, go to StatusScreen
+        navigation.replace('StatusScreen', {branchId: id});
+      }
     } catch (err) {
       console.error('Login Error:', err);
       const errorMessage =
-        (err as any).response?.data?.message || 'Invalid phone number';
+        (err as any).response?.data?.message ||
+        (err as Error).message ||
+        'Invalid phone number';
       Alert.alert('Login Failed', errorMessage);
     }
   };

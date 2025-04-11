@@ -137,11 +137,17 @@ const StatusScreen: React.FC<StatusScreenProps> = ({route, navigation}) => {
 
   const handleWelcomeClick = useCallback(() => {
     console.log('Welcome clicked');
+    // Set as approved in storage
     storage.set('isApproved', true);
-    const currentUserId = useStore.getState().userId;
+    // Store user ID if not stored already
+    const currentUserId = useStore.getState().userId || branchId;
+    if (!useStore.getState().userId) {
+      storage.set('userId', branchId);
+      useStore.getState().setUserId(branchId);
+    }
     console.log('Navigating to HomeScreen with userId:', currentUserId);
-    navigation.replace('HomeScreen', {userId: currentUserId});
-  }, [navigation]);
+    navigation.replace('HomeScreen' as any);
+  }, [navigation, branchId]);
 
   const handleRetry = useCallback(() => {
     console.log('Retry clicked');
@@ -151,7 +157,7 @@ const StatusScreen: React.FC<StatusScreenProps> = ({route, navigation}) => {
 
   const handleResubmit = useCallback(() => {
     console.log('Resubmit clicked');
-    navigation.navigate('BranchAuth', {branchId, isResubmit: true});
+    navigation.navigate('BranchAuth' as any, {branchId, isResubmit: true});
   }, [navigation, branchId]);
 
   const currentStatus = branchStatus || branch?.status;

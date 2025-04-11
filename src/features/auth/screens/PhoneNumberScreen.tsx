@@ -2,16 +2,18 @@ import React, {useState, useCallback, useEffect} from 'react';
 import {
   View,
   TextInput,
+  Text,
   StyleSheet,
   Alert,
-  Text,
+  ScrollView,
   TouchableOpacity,
+  ActivityIndicator,
 } from 'react-native';
-import {useStore} from '../../../store/ordersStore';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import {StackNavigationProp} from '@react-navigation/stack';
 import {RouteProp} from '@react-navigation/native';
-import {RootStackParamList} from '../../../navigation/AppNavigator';
+import {RootStackParamList} from '../../../navigation/AppNavigator'; // Adjust path
+import {useStore} from '../../../store/ordersStore';
 
 type PhoneNumberScreenNavigationProp = StackNavigationProp<
   RootStackParamList,
@@ -32,15 +34,20 @@ const PhoneNumberScreen: React.FC<PhoneNumberScreenProps> = ({
   route,
   navigation,
 }) => {
-  const {formData} = route.params;
+  const {formData, branchId, isResubmit} = route.params || {};
+  const {branches} = useStore();
+  const branch = isResubmit ? branches.find(b => b.id === branchId) : null;
+
   const [phone, setPhone] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    if (formData?.phone) {
+    if (isResubmit && branch) {
+      setPhone(branch.phone);
+    } else if (formData?.phone) {
       setPhone(formData.phone);
     }
-  }, [formData]);
+  }, [isResubmit, branch, formData]);
 
   const handleNext = useCallback(() => {
     if (!phone || phone.length !== 10 || !/^\d+$/.test(phone)) {
@@ -57,25 +64,26 @@ const PhoneNumberScreen: React.FC<PhoneNumberScreenProps> = ({
 
     navigation.navigate('UploadBranchDocs', {
       formData: updatedFormData,
-      initialFiles: {},
+      branchId: isResubmit ? branchId : undefined,
+      isResubmit: !!isResubmit,
     });
 
     setIsLoading(false);
-  }, [phone, formData, navigation]);
+  }, [phone, formData, branchId, isResubmit, navigation]);
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.header}>Phone Verification</Text>
+    <ScrollView contentContainerStyle={styles.container}>
+      <Text style={styles.header}>Enter Phone Number</Text>
       <Text style={styles.subheader}>
-        Please enter your branch's phone number
+        Please provide a contact number for the branch
       </Text>
 
       <View style={styles.formGroup}>
-        <Text style={styles.label}>Phone Number *</Text>
+        <Text style={styles.label}>Branch Phone Number *</Text>
         <View style={styles.inputContainer}>
           <Icon name="phone" size={20} color="#7f8c8d" style={styles.icon} />
           <TextInput
-            placeholder="Enter 10-digit phone number"
+            placeholder="e.g., 1234567890"
             placeholderTextColor="#95a5a6"
             value={phone}
             onChangeText={setPhone}
@@ -87,22 +95,31 @@ const PhoneNumberScreen: React.FC<PhoneNumberScreenProps> = ({
       </View>
 
       <TouchableOpacity
-        style={[styles.button, isLoading && styles.disabledButton]}
+        style={[
+          styles.button,
+          (isLoading || phone.length !== 10) && styles.buttonDisabled,
+        ]}
         onPress={handleNext}
         disabled={isLoading || phone.length !== 10}>
-        <Text style={styles.buttonText}>Next</Text>
-        <Icon name="arrow-forward" size={20} color="white" />
+        {isLoading ? (
+          <ActivityIndicator color="white" />
+        ) : (
+          <>
+            <Text style={styles.buttonText}>
+              {isResubmit ? 'Next (Resubmit)' : 'Next'}
+            </Text>
+            <Icon name="arrow-forward" size={20} color="white" />
+          </>
+        )}
       </TouchableOpacity>
-
-      {isLoading && <Text style={styles.loadingText}>Processing...</Text>}
-    </View>
+    </ScrollView>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
-    padding: 25,
+    flexGrow: 1,
+    padding: 20,
     backgroundColor: '#f8f9fa',
   },
   header: {
@@ -155,19 +172,13 @@ const styles = StyleSheet.create({
     marginTop: 20,
     gap: 10,
   },
-  disabledButton: {
+  buttonDisabled: {
     backgroundColor: '#95a5a6',
   },
   buttonText: {
     color: 'white',
     fontSize: 16,
     fontWeight: '600',
-  },
-  loadingText: {
-    textAlign: 'center',
-    marginTop: 20,
-    color: '#7f8c8d',
-    fontSize: 14,
   },
 });
 

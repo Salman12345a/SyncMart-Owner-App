@@ -55,18 +55,36 @@ const SplashScreen: React.FC = () => {
       const isApproved = storage.getBoolean('isApproved') || false;
       const isRegistered = storage.getBoolean('isRegistered') || false;
       const branchId = storage.getString('branchId');
+      const userId = storage.getString('userId');
 
-      if (token) {
-        // If token exists, user is logged in, go to HomeScreen
-        navigation.replace('HomeScreen');
-      } else if (isApproved) {
-        // If approved but no token (unlikely), still go to HomeScreen
-        navigation.replace('HomeScreen');
-      } else if (isRegistered && branchId) {
-        // If registered but not approved, go to StatusScreen
+      console.log('SplashScreen checking auth state:', {
+        token: !!token,
+        isApproved,
+        isRegistered,
+        branchId,
+        userId,
+      });
+
+      // First check if user is registered but not approved - highest priority
+      if (isRegistered && branchId && !isApproved) {
+        console.log(
+          'User is registered but not approved - going to StatusScreen',
+        );
         navigation.replace('StatusScreen', {branchId});
-      } else {
-        // Otherwise, go to EntryScreen
+      }
+      // If approved and token exists - go to HomeScreen
+      else if (token && (isApproved || userId)) {
+        console.log('User is logged in with token - going to HomeScreen');
+        navigation.replace('HomeScreen');
+      }
+      // If only approved but no token - try to login
+      else if (isApproved && !token) {
+        console.log('User is approved but no token - going to Authentication');
+        navigation.replace('Authentication');
+      }
+      // Otherwise go to EntryScreen for registration
+      else {
+        console.log('User is new - going to EntryScreen');
         navigation.replace('EntryScreen');
       }
     };

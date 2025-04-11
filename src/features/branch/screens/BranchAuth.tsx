@@ -18,6 +18,7 @@ import {RouteProp} from '@react-navigation/native';
 import {RootStackParamList} from '../../../navigation/AppNavigator';
 import Geolocation from '@react-native-community/geolocation';
 import {storage} from '../../../utils/storage';
+import DateTimePickerModal from 'react-native-modal-datetime-picker';
 
 type BranchAuthNavigationProp = StackNavigationProp<
   RootStackParamList,
@@ -31,7 +32,8 @@ interface BranchAuthProps {
   route: BranchAuthRouteProp;
 }
 
-const BranchAuth: React.FC<BranchAuthProps> = ({navigation}) => {
+const BranchAuth: React.FC<BranchAuthProps> = ({navigation, route}) => {
+  const {branchId, isResubmit} = route.params || {};
   const [form, setForm] = useState({
     name: '',
     branchLocation: '',
@@ -50,15 +52,60 @@ const BranchAuth: React.FC<BranchAuthProps> = ({navigation}) => {
 
   const [isFetchingLocation, setIsFetchingLocation] = useState(false);
   const [hasLocationPermission, setHasLocationPermission] = useState(false);
+  const [isLocationFetched, setIsLocationFetched] = useState(false);
+  const [isOpeningTimePickerVisible, setOpeningTimePickerVisible] =
+    useState(false);
+  const [isClosingTimePickerVisible, setClosingTimePickerVisible] =
+    useState(false);
 
   useEffect(() => {
-    // Check stored permission status
-    const storedPermission = storage.getString('locationPermission');
-    setHasLocationPermission(storedPermission === 'granted');
+    const checkLocationPermission = async () => {
+      if (Platform.OS === 'android') {
+        const granted = await PermissionsAndroid.check(
+          PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+        );
+        setHasLocationPermission(granted);
+        storage.set('locationPermission', granted ? 'granted' : 'denied');
+      } else {
+        const storedPermission = storage.getString('locationPermission');
+        setHasLocationPermission(storedPermission === 'granted');
+      }
+    };
+    checkLocationPermission();
   }, []);
 
-  const fetchCurrentLocation = useCallback(() => {
+  const requestLocationPermission = async (): Promise<boolean> => {
+    if (Platform.OS === 'android') {
+      try {
+        const granted = await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+          {
+            title: 'Location Permission',
+            message:
+              'SyncMart needs access to your location to fetch branch coordinates.',
+            buttonPositive: 'OK',
+            buttonNegative: 'Cancel',
+          },
+        );
+        const isGranted = granted === PermissionsAndroid.RESULTS.GRANTED;
+        storage.set('locationPermission', isGranted ? 'granted' : 'denied');
+        return isGranted;
+      } catch (err) {
+        console.warn(err);
+        return false;
+      }
+    }
+    return true;
+  };
+
+  const fetchCurrentLocation = useCallback(async () => {
+    let permissionGranted = hasLocationPermission;
     if (!hasLocationPermission) {
+      permissionGranted = await requestLocationPermission();
+      setHasLocationPermission(permissionGranted);
+    }
+
+    if (!permissionGranted) {
       Alert.alert(
         'Permission Required',
         'Please grant location permission in the app settings to fetch your current location.',
@@ -66,7 +113,6 @@ const BranchAuth: React.FC<BranchAuthProps> = ({navigation}) => {
           {
             text: 'OK',
             onPress: () => {
-              // Navigate to settings or show instructions
               Alert.alert(
                 'Location Permission',
                 'Please go to your device settings and enable location permission for SyncMart.',
@@ -78,38 +124,90 @@ const BranchAuth: React.FC<BranchAuthProps> = ({navigation}) => {
       return;
     }
 
-    setIsFetchingLocation(true);
-    Geolocation.getCurrentPosition(
-      position => {
-        const {latitude, longitude} = position.coords;
-        setForm(prev => ({
-          ...prev,
-          branchLocation: `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`,
-        }));
-        setIsFetchingLocation(false);
-      },
-      error => {
-        console.error('Error getting location:', error);
-        Alert.alert(
-          'Error',
-          'Could not fetch your location. Please make sure location services are enabled and try again.',
-        );
-        setIsFetchingLocation(false);
-      },
-      {
-        enableHighAccuracy: true,
-        timeout: 15000,
-        maximumAge: 10000,
-      },
+    if (isLocationFetched) {
+      Alert.alert('Info', 'Location has already been fetched.');
+      return;
+    }
+
+    Alert.alert(
+      'Confirm Location',
+      'Are you sure you are at your shop?',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Yes',
+          onPress: () => {
+            setIsFetchingLocation(true);
+            Geolocation.getCurrentPosition(
+              position => {
+                const {latitude, longitude} = position.coords;
+                setForm(prev => ({
+                  ...prev,
+                  branchLocation: `${latitude.toFixed(6)}, ${longitude.toFixed(
+                    6,
+                  )}`,
+                }));
+                setIsLocationFetched(true);
+                setIsFetchingLocation(false);
+              },
+              error => {
+                console.error('Error getting location:', error);
+                Alert.alert(
+                  'Error',
+                  'Could not fetch your location. Please ensure location services are enabled and try again.',
+                );
+                setIsFetchingLocation(false);
+              },
+              {
+                enableHighAccuracy: true,
+                timeout: 15000,
+                maximumAge: 10000,
+              },
+            );
+          },
+        },
+      ],
+      {cancelable: false},
     );
-  }, [hasLocationPermission]);
+  }, [hasLocationPermission, isLocationFetched]);
 
   const validateEmail = (email: string): boolean => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     return emailRegex.test(email);
   };
 
+  const validateGovId = (govId: string): boolean => {
+    const govIdRegex = /^[a-zA-Z0-9]{5,}$/;
+    return govIdRegex.test(govId);
+  };
+
+  const validatePincode = (pincode: string): boolean => {
+    const pincodeRegex = /^\d{6}$/;
+    return pincodeRegex.test(pincode);
+  };
+
+  const formatTime = (date: Date): string => {
+    return date.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
+  };
+
+  const handleOpeningTimeConfirm = (date: Date) => {
+    setForm(prev => ({...prev, openingTime: formatTime(date)}));
+    setOpeningTimePickerVisible(false);
+  };
+
+  const handleClosingTimeConfirm = (date: Date) => {
+    setForm(prev => ({...prev, closingTime: formatTime(date)}));
+    setClosingTimePickerVisible(false);
+  };
+
   const formatData = useCallback(() => {
+    if (!form.name.trim()) {
+      throw new Error('Branch name is required.');
+    }
+
     const locationParts = form.branchLocation
       .split(',')
       .map(part => part.trim());
@@ -127,32 +225,62 @@ const BranchAuth: React.FC<BranchAuthProps> = ({navigation}) => {
       longitude: Number(locationParts[1]),
     });
 
-    if (!form.street || !form.area || !form.city || !form.pincode) {
-      throw new Error('Please fill in all address fields.');
+    if (!form.street.trim()) {
+      throw new Error('Street is required.');
+    }
+
+    if (!form.area.trim()) {
+      throw new Error('Area is required.');
+    }
+
+    if (!form.city.trim()) {
+      throw new Error('City is required.');
+    }
+
+    if (!form.pincode.trim()) {
+      throw new Error('Pincode is required.');
+    }
+
+    if (!validatePincode(form.pincode)) {
+      throw new Error('Please enter a valid 6-digit pincode.');
     }
 
     const formattedAddress = JSON.stringify({
-      street: form.street,
-      area: form.area,
-      city: form.city,
-      pincode: form.pincode,
+      street: form.street.trim(),
+      area: form.area.trim(),
+      city: form.city.trim(),
+      pincode: form.pincode.trim(),
     });
 
     if (form.branchEmail && !validateEmail(form.branchEmail)) {
       throw new Error('Invalid email format.');
     }
 
+    if (!form.ownerName.trim()) {
+      throw new Error('Owner name is required.');
+    }
+
+    if (!form.govId || !validateGovId(form.govId)) {
+      throw new Error(
+        'Please provide a valid government ID (minimum 5 characters, alphanumeric).',
+      );
+    }
+
+    if (!form.openingTime || !form.closingTime) {
+      throw new Error('Please select opening and closing times.');
+    }
+
     return {
-      branchName: form.name,
+      name: form.name.trim(),
       branchLocation: formattedLocation,
       branchAddress: formattedAddress,
-      branchEmail: form.branchEmail,
+      branchEmail: form.branchEmail.trim(),
       openingTime: form.openingTime,
       closingTime: form.closingTime,
-      ownerName: form.ownerName,
-      govId: form.govId,
-      homeDelivery: form.deliveryServiceAvailable,
-      selfPickup: form.selfPickup,
+      ownerName: form.ownerName.trim(),
+      govId: form.govId.trim(),
+      deliveryServiceAvailable: form.deliveryServiceAvailable === 'yes',
+      selfPickup: form.selfPickup === 'yes',
     };
   }, [form]);
 
@@ -177,11 +305,13 @@ const BranchAuth: React.FC<BranchAuthProps> = ({navigation}) => {
       const formattedData = formatData();
       navigation.navigate('PhoneNumberScreen', {
         formData: formattedData,
+        branchId,
+        isResubmit,
       });
     } catch (error: any) {
       Alert.alert('Error', error.message || 'Invalid input format.');
     }
-  }, [formatData, navigation, form]);
+  }, [formatData, navigation, form, branchId, isResubmit]);
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
@@ -193,7 +323,7 @@ const BranchAuth: React.FC<BranchAuthProps> = ({navigation}) => {
         <View style={styles.inputContainer}>
           <Icon name="store" size={20} color="#7f8c8d" style={styles.icon} />
           <TextInput
-            placeholder="Enter branch name"
+            placeholder="e.g., Ruby's Cafe"
             placeholderTextColor="#95a5a6"
             value={form.name}
             onChangeText={text => setForm(prev => ({...prev, name: text}))}
@@ -219,18 +349,23 @@ const BranchAuth: React.FC<BranchAuthProps> = ({navigation}) => {
               placeholderTextColor="#95a5a6"
               value={form.branchLocation}
               onChangeText={text =>
+                !isLocationFetched &&
                 setForm(prev => ({...prev, branchLocation: text}))
               }
-              style={styles.input}
+              style={[styles.input, isLocationFetched && styles.inputDisabled]}
+              editable={!isLocationFetched}
             />
           </View>
           <TouchableOpacity
             style={[
               styles.fetchButton,
-              !hasLocationPermission && styles.fetchButtonDisabled,
+              (!hasLocationPermission || isLocationFetched) &&
+                styles.fetchButtonDisabled,
             ]}
             onPress={fetchCurrentLocation}
-            disabled={isFetchingLocation || !hasLocationPermission}>
+            disabled={
+              isFetchingLocation || !hasLocationPermission || isLocationFetched
+            }>
             {isFetchingLocation ? (
               <ActivityIndicator color="#2ecc71" />
             ) : (
@@ -244,78 +379,82 @@ const BranchAuth: React.FC<BranchAuthProps> = ({navigation}) => {
             Please enable it in your device settings.
           </Text>
         )}
+        {isLocationFetched && (
+          <Text style={styles.infoText}>
+            Location has been fetched and is now locked.
+          </Text>
+        )}
       </View>
 
       <View style={styles.formGroup}>
-        <Text style={styles.label}>Street Address *</Text>
-        <View style={styles.inputContainer}>
-          <Icon name="home" size={20} color="#7f8c8d" style={styles.icon} />
-          <TextInput
-            placeholder="Enter street address"
-            placeholderTextColor="#95a5a6"
-            value={form.street}
-            onChangeText={text => setForm(prev => ({...prev, street: text}))}
-            style={styles.input}
-          />
+        <Text style={styles.label}>Branch Address *</Text>
+
+        <View style={styles.addressFieldContainer}>
+          <Text style={styles.addressLabel}>Street *</Text>
+          <View style={styles.inputContainer}>
+            <Icon name="home" size={20} color="#7f8c8d" style={styles.icon} />
+            <TextInput
+              placeholder="e.g., 2-3-4 Main Street"
+              placeholderTextColor="#95a5a6"
+              value={form.street}
+              onChangeText={text => setForm(prev => ({...prev, street: text}))}
+              style={styles.input}
+            />
+          </View>
+        </View>
+
+        <View style={styles.addressFieldContainer}>
+          <Text style={styles.addressLabel}>Area *</Text>
+          <View style={styles.inputContainer}>
+            <Icon name="place" size={20} color="#7f8c8d" style={styles.icon} />
+            <TextInput
+              placeholder="e.g., Nimboli Area"
+              placeholderTextColor="#95a5a6"
+              value={form.area}
+              onChangeText={text => setForm(prev => ({...prev, area: text}))}
+              style={styles.input}
+            />
+          </View>
+        </View>
+
+        <View style={styles.addressFieldContainer}>
+          <Text style={styles.addressLabel}>City *</Text>
+          <View style={styles.inputContainer}>
+            <Icon
+              name="location-city"
+              size={20}
+              color="#7f8c8d"
+              style={styles.icon}
+            />
+            <TextInput
+              placeholder="e.g., Hyderabad"
+              placeholderTextColor="#95a5a6"
+              value={form.city}
+              onChangeText={text => setForm(prev => ({...prev, city: text}))}
+              style={styles.input}
+            />
+          </View>
+        </View>
+
+        <View style={styles.addressFieldContainer}>
+          <Text style={styles.addressLabel}>Pincode *</Text>
+          <View style={styles.inputContainer}>
+            <Icon name="pin" size={20} color="#7f8c8d" style={styles.icon} />
+            <TextInput
+              placeholder="e.g., 500027"
+              placeholderTextColor="#95a5a6"
+              value={form.pincode}
+              onChangeText={text => setForm(prev => ({...prev, pincode: text}))}
+              keyboardType="numeric"
+              maxLength={6}
+              style={styles.input}
+            />
+          </View>
         </View>
       </View>
 
       <View style={styles.formGroup}>
-        <Text style={styles.label}>Area/Locality *</Text>
-        <View style={styles.inputContainer}>
-          <Icon name="place" size={20} color="#7f8c8d" style={styles.icon} />
-          <TextInput
-            placeholder="Enter area or locality"
-            placeholderTextColor="#95a5a6"
-            value={form.area}
-            onChangeText={text => setForm(prev => ({...prev, area: text}))}
-            style={styles.input}
-          />
-        </View>
-      </View>
-
-      <View style={styles.formGroup}>
-        <Text style={styles.label}>City *</Text>
-        <View style={styles.inputContainer}>
-          <Icon
-            name="location-city"
-            size={20}
-            color="#7f8c8d"
-            style={styles.icon}
-          />
-          <TextInput
-            placeholder="Enter city"
-            placeholderTextColor="#95a5a6"
-            value={form.city}
-            onChangeText={text => setForm(prev => ({...prev, city: text}))}
-            style={styles.input}
-          />
-        </View>
-      </View>
-
-      <View style={styles.formGroup}>
-        <Text style={styles.label}>Pincode *</Text>
-        <View style={styles.inputContainer}>
-          <Icon
-            name="markunread-mailbox"
-            size={20}
-            color="#7f8c8d"
-            style={styles.icon}
-          />
-          <TextInput
-            placeholder="Enter pincode"
-            placeholderTextColor="#95a5a6"
-            value={form.pincode}
-            onChangeText={text => setForm(prev => ({...prev, pincode: text}))}
-            keyboardType="numeric"
-            maxLength={6}
-            style={styles.input}
-          />
-        </View>
-      </View>
-
-      <View style={styles.formGroup}>
-        <Text style={styles.label}>Branch Email</Text>
+        <Text style={styles.label}>Branch Email (optional)</Text>
         <View style={styles.inputContainer}>
           <Icon name="email" size={20} color="#7f8c8d" style={styles.icon} />
           <TextInput
@@ -340,16 +479,24 @@ const BranchAuth: React.FC<BranchAuthProps> = ({navigation}) => {
             color="#7f8c8d"
             style={styles.icon}
           />
-          <TextInput
-            placeholder="e.g., 09:00 AM"
-            placeholderTextColor="#95a5a6"
-            value={form.openingTime}
-            onChangeText={text =>
-              setForm(prev => ({...prev, openingTime: text}))
-            }
-            style={styles.input}
-          />
+          <TouchableOpacity
+            onPress={() => setOpeningTimePickerVisible(true)}
+            style={styles.timePickerButton}>
+            <Text
+              style={[
+                styles.input,
+                form.openingTime ? styles.inputText : styles.placeholderText,
+              ]}>
+              {form.openingTime || 'Select opening time'}
+            </Text>
+          </TouchableOpacity>
         </View>
+        <DateTimePickerModal
+          isVisible={isOpeningTimePickerVisible}
+          mode="time"
+          onConfirm={handleOpeningTimeConfirm}
+          onCancel={() => setOpeningTimePickerVisible(false)}
+        />
       </View>
 
       <View style={styles.formGroup}>
@@ -361,16 +508,24 @@ const BranchAuth: React.FC<BranchAuthProps> = ({navigation}) => {
             color="#7f8c8d"
             style={styles.icon}
           />
-          <TextInput
-            placeholder="e.g., 06:00 PM"
-            placeholderTextColor="#95a5a6"
-            value={form.closingTime}
-            onChangeText={text =>
-              setForm(prev => ({...prev, closingTime: text}))
-            }
-            style={styles.input}
-          />
+          <TouchableOpacity
+            onPress={() => setClosingTimePickerVisible(true)}
+            style={styles.timePickerButton}>
+            <Text
+              style={[
+                styles.input,
+                form.closingTime ? styles.inputText : styles.placeholderText,
+              ]}>
+              {form.closingTime || 'Select closing time'}
+            </Text>
+          </TouchableOpacity>
         </View>
+        <DateTimePickerModal
+          isVisible={isClosingTimePickerVisible}
+          mode="time"
+          onConfirm={handleClosingTimeConfirm}
+          onCancel={() => setClosingTimePickerVisible(false)}
+        />
       </View>
 
       <View style={styles.formGroup}>
@@ -392,7 +547,7 @@ const BranchAuth: React.FC<BranchAuthProps> = ({navigation}) => {
         <View style={styles.inputContainer}>
           <Icon name="badge" size={20} color="#7f8c8d" style={styles.icon} />
           <TextInput
-            placeholder="Enter government ID"
+            placeholder="Enter government ID (min 5 chars)"
             placeholderTextColor="#95a5a6"
             value={form.govId}
             onChangeText={text => setForm(prev => ({...prev, govId: text}))}
@@ -446,7 +601,9 @@ const BranchAuth: React.FC<BranchAuthProps> = ({navigation}) => {
       </View>
 
       <TouchableOpacity style={styles.button} onPress={handleNext}>
-        <Text style={styles.buttonText}>Next</Text>
+        <Text style={styles.buttonText}>
+          {isResubmit ? 'Next (Resubmit)' : 'Next'}
+        </Text>
         <Icon name="arrow-forward" size={20} color="white" />
       </TouchableOpacity>
     </ScrollView>
@@ -481,6 +638,16 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     fontWeight: '500',
   },
+  addressFieldContainer: {
+    marginBottom: 10,
+  },
+  addressLabel: {
+    fontSize: 12,
+    color: '#34495e',
+    marginBottom: 4,
+    fontWeight: '500',
+    marginLeft: 4,
+  },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -498,6 +665,21 @@ const styles = StyleSheet.create({
     height: 50,
     color: '#2c3e50',
     fontSize: 16,
+  },
+  inputDisabled: {
+    backgroundColor: '#f0f0f0',
+    color: '#7f8c8d',
+  },
+  placeholderText: {
+    color: '#95a5a6',
+  },
+  inputText: {
+    color: '#2c3e50',
+  },
+  timePickerButton: {
+    flex: 1,
+    height: 50,
+    justifyContent: 'center',
   },
   pickerContainer: {
     height: 50,
@@ -553,6 +735,11 @@ const styles = StyleSheet.create({
   permissionText: {
     fontSize: 12,
     color: '#e74c3c',
+    marginTop: 5,
+  },
+  infoText: {
+    fontSize: 12,
+    color: '#2c3e50',
     marginTop: 5,
   },
 });

@@ -1,5 +1,14 @@
 import React, {useState, useCallback, useEffect} from 'react';
-import {View, Button, Text, StyleSheet, Alert} from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  Alert,
+  ScrollView,
+  TouchableOpacity,
+  ActivityIndicator,
+} from 'react-native';
+import Icon from 'react-native-vector-icons/MaterialIcons';
 import {launchImageLibrary} from 'react-native-image-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {StackNavigationProp} from '@react-navigation/stack';
@@ -10,7 +19,6 @@ import api from '../../../services/api';
 import {useStore} from '../../../store/ordersStore';
 import {storage} from '../../../utils/storage';
 
-// Type definitions remain the same until UploadBranchDocsProps
 type UploadBranchDocsNavigationProp = StackNavigationProp<
   RootStackParamList,
   'UploadBranchDocs'
@@ -29,7 +37,7 @@ interface UploadBranchDocsProps {
 interface Asset {
   uri: string;
   type?: string;
-  fileName?: string; // Changed from name to fileName to match first code
+  fileName?: string;
   size?: number;
 }
 
@@ -57,27 +65,7 @@ interface Branch {
   ownerPhoto: string;
   deliveryServiceAvailable: boolean;
   selfPickup: boolean;
-  branchEmail?: string; // Added from first code
-}
-
-interface UploadBranchDocsRouteParams {
-  formData: any; // Made more flexible to handle both string and object
-  branchId?: string;
-  isResubmit?: boolean;
-}
-
-interface BranchFormData {
-  name: string; // Updated to match first code's field names
-  branchLocation: string;
-  branchAddress: string;
   branchEmail?: string;
-  openingTime: string;
-  closingTime: string;
-  ownerName: string;
-  govId: string;
-  phone: string;
-  deliveryServiceAvailable: 'yes' | 'no';
-  selfPickup: 'yes' | 'no';
 }
 
 const UploadBranchDocs: React.FC<UploadBranchDocsProps> = ({
@@ -127,7 +115,7 @@ const UploadBranchDocs: React.FC<UploadBranchDocsProps> = ({
     try {
       const result = await launchImageLibrary({
         mediaType: 'photo',
-        quality: 0.7, // Added from first code
+        quality: 0.7,
       });
 
       if (!result.didCancel && result.assets?.[0]) {
@@ -241,6 +229,12 @@ const UploadBranchDocs: React.FC<UploadBranchDocsProps> = ({
       if (!isResubmit) {
         storage.set('isRegistered', true);
         storage.set('branchId', response.branch._id);
+
+        if (response.branch.status === 'approved') {
+          storage.set('isApproved', true);
+        } else {
+          storage.set('isApproved', false);
+        }
       }
 
       navigation.navigate('StatusScreen', {branchId: response.branch._id});
@@ -267,51 +261,95 @@ const UploadBranchDocs: React.FC<UploadBranchDocsProps> = ({
   ]);
 
   return (
-    <View style={styles.container}>
-      <Button
-        title="Pick Branch Front Image"
-        onPress={() => pickImage('branchfrontImage')}
-        disabled={isLoading}
-      />
-      <Text style={styles.text}>
-        {files.branchfrontImage
-          ? files.branchfrontImage.fileName || 'Branch Front Uploaded'
-          : 'No Branch Front Uploaded'}
+    <ScrollView contentContainerStyle={styles.container}>
+      <Text style={styles.header}>Upload Branch Documents</Text>
+      <Text style={styles.subheader}>
+        Please upload the required documents for branch registration
       </Text>
 
-      <Button
-        title="Pick Owner ID Proof"
-        onPress={() => pickImage('ownerIdProof')}
-        disabled={isLoading}
-      />
-      <Text style={styles.text}>
-        {files.ownerIdProof
-          ? files.ownerIdProof.fileName || 'Owner ID Proof Uploaded'
-          : 'No Owner ID Proof Uploaded'}
-      </Text>
+      <View style={styles.formGroup}>
+        <Text style={styles.label}>Branch Front Image *</Text>
+        <TouchableOpacity
+          style={[
+            styles.uploadButton,
+            isLoading && styles.buttonDisabled,
+            files.branchfrontImage && styles.uploadButtonSelected,
+          ]}
+          onPress={() => pickImage('branchfrontImage')}
+          disabled={isLoading}>
+          <Icon
+            name="storefront"
+            size={20}
+            color={files.branchfrontImage ? '#2ecc71' : '#7f8c8d'}
+            style={styles.icon}
+          />
+          <Text
+            style={[
+              styles.uploadButtonText,
+              files.branchfrontImage && styles.uploadButtonTextSelected,
+            ]}>
+            {files.branchfrontImage
+              ? files.branchfrontImage.fileName || 'Branch Front Uploaded'
+              : 'Pick Branch Front Image'}
+          </Text>
+        </TouchableOpacity>
+      </View>
 
-      <Button
-        title="Pick Owner Photo"
-        onPress={() => pickImage('ownerPhoto')}
-        disabled={isLoading}
-      />
-      <Text style={styles.text}>
-        {files.ownerPhoto
-          ? files.ownerPhoto.fileName || 'Owner Photo Uploaded'
-          : 'No Owner Photo Uploaded'}
-      </Text>
+      <View style={styles.formGroup}>
+        <Text style={styles.label}>Owner ID Proof *</Text>
+        <TouchableOpacity
+          style={[
+            styles.uploadButton,
+            isLoading && styles.buttonDisabled,
+            files.ownerIdProof && styles.uploadButtonSelected,
+          ]}
+          onPress={() => pickImage('ownerIdProof')}
+          disabled={isLoading}>
+          <Icon
+            name="badge"
+            size={20}
+            color={files.ownerIdProof ? '#2ecc71' : '#7f8c8d'}
+            style={styles.icon}
+          />
+          <Text
+            style={[
+              styles.uploadButtonText,
+              files.ownerIdProof && styles.uploadButtonTextSelected,
+            ]}>
+            {files.ownerIdProof
+              ? files.ownerIdProof.fileName || 'Owner ID Proof Uploaded'
+              : 'Pick Owner ID Proof'}
+          </Text>
+        </TouchableOpacity>
+      </View>
 
-      <Button
-        title={isResubmit ? 'Resubmit' : 'Submit'}
-        onPress={handleSubmit}
-        disabled={isLoading}
-      />
-
-      {isLoading && (
-        <Text style={styles.text}>
-          {isResubmit ? 'Resubmitting...' : 'Uploading...'}
-        </Text>
-      )}
+      <View style={styles.formGroup}>
+        <Text style={styles.label}>Owner Photo *</Text>
+        <TouchableOpacity
+          style={[
+            styles.uploadButton,
+            isLoading && styles.buttonDisabled,
+            files.ownerPhoto && styles.uploadButtonSelected,
+          ]}
+          onPress={() => pickImage('ownerPhoto')}
+          disabled={isLoading}>
+          <Icon
+            name="person"
+            size={20}
+            color={files.ownerPhoto ? '#2ecc71' : '#7f8c8d'}
+            style={styles.icon}
+          />
+          <Text
+            style={[
+              styles.uploadButtonText,
+              files.ownerPhoto && styles.uploadButtonTextSelected,
+            ]}>
+            {files.ownerPhoto
+              ? files.ownerPhoto.fileName || 'Owner Photo Uploaded'
+              : 'Pick Owner Photo'}
+          </Text>
+        </TouchableOpacity>
+      </View>
 
       {isResubmit && (
         <Text style={styles.warning}>
@@ -319,14 +357,101 @@ const UploadBranchDocs: React.FC<UploadBranchDocsProps> = ({
           fields will be updated.
         </Text>
       )}
-    </View>
+
+      <TouchableOpacity
+        style={[styles.submitButton, isLoading && styles.buttonDisabled]}
+        onPress={handleSubmit}
+        disabled={isLoading}>
+        {isLoading ? (
+          <ActivityIndicator color="white" />
+        ) : (
+          <>
+            <Text style={styles.submitButtonText}>
+              {isResubmit ? 'Resubmit' : 'Submit'}
+            </Text>
+            <Icon name="arrow-forward" size={20} color="white" />
+          </>
+        )}
+      </TouchableOpacity>
+    </ScrollView>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {padding: 20, backgroundColor: '#f5f5f5'},
-  text: {marginVertical: 10},
-  warning: {marginVertical: 10, color: 'red'},
+  container: {
+    flexGrow: 1,
+    padding: 20,
+    backgroundColor: '#f8f9fa',
+  },
+  header: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#2c3e50',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  subheader: {
+    fontSize: 16,
+    color: '#7f8c8d',
+    marginBottom: 30,
+    textAlign: 'center',
+  },
+  formGroup: {
+    marginBottom: 20,
+  },
+  label: {
+    fontSize: 14,
+    color: '#34495e',
+    marginBottom: 8,
+    fontWeight: '500',
+  },
+  uploadButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'white',
+    borderRadius: 8,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#ecf0f1',
+  },
+  uploadButtonSelected: {
+    borderColor: '#2ecc71',
+  },
+  uploadButtonText: {
+    flex: 1,
+    fontSize: 16,
+    color: '#7f8c8d',
+  },
+  uploadButtonTextSelected: {
+    color: '#2ecc71',
+  },
+  icon: {
+    marginRight: 10,
+  },
+  submitButton: {
+    flexDirection: 'row',
+    backgroundColor: '#2ecc71',
+    borderRadius: 8,
+    padding: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 20,
+    gap: 10,
+  },
+  buttonDisabled: {
+    backgroundColor: '#95a5a6',
+  },
+  submitButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  warning: {
+    fontSize: 12,
+    color: '#e74c3c',
+    marginBottom: 20,
+    textAlign: 'center',
+  },
 });
 
 export default UploadBranchDocs;

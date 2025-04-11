@@ -11,6 +11,8 @@ api.interceptors.request.use(async config => {
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
     console.log('Request Authorization Header:', `Bearer ${token}`);
+  } else {
+    console.log('No auth token available for request');
   }
   console.log('Request Config:', config);
   return config;
@@ -21,16 +23,17 @@ api.interceptors.response.use(
     console.log('Response Data:', response.data);
     return response;
   },
-  async error => {
+  async (error: AxiosError) => {
     console.error('API Error:', error.response?.data || error.message);
     if (
       error.response?.status === 401 &&
-      error.config.url !== '/auth/branch/login'
+      error.config?.url !== '/auth/branch/login'
     ) {
       console.log(
         'Unauthorized: Clearing token and redirecting to Authentication',
       );
-      storage.removeItem('accessToken'); // Use MMKV
+      storage.delete('accessToken'); // Use MMKV delete instead of removeItem
+      storage.delete('userId'); // Also clear userId for consistency
       if (navigationRef.current) {
         navigationRef.current.reset({
           index: 0,
