@@ -1,5 +1,7 @@
 import React from 'react';
 import {createStackNavigator} from '@react-navigation/stack';
+import {Easing} from 'react-native';
+import {TransitionSpecs, CardStyleInterpolators} from '@react-navigation/stack';
 // Common screens
 import SplashScreen from '../features/common/screens/SplashScreen';
 // Auth screens
@@ -118,9 +120,60 @@ interface BranchForm {
 
 const Stack = createStackNavigator<RootStackParamList>();
 
+// Animation configurations
+const slideFromRightConfig = {
+  animation: 'timing',
+  config: {
+    duration: 300,
+    easing: Easing.out(Easing.poly(4)),
+  },
+};
+
+const fadeConfig = {
+  animation: 'timing',
+  config: {
+    duration: 200,
+    easing: Easing.inOut(Easing.ease),
+  },
+};
+
+// Screens that use fade transition
+const fadeScreens = [
+  'OrderHasPacked',
+  'AssignDeliveryPartner',
+  'StatusScreen',
+  'HomeScreen',
+  'DeliveryService',
+  'DeliveryStatus',
+  'OrderDetail',
+  'EntryScreen',
+];
+
 const AppNavigator: React.FC = () => (
   <Stack.Navigator
-    screenOptions={{headerShown: false}}
+    screenOptions={({route}) => ({
+      headerShown: false,
+      // Apply different transition animations based on screen name
+      ...(fadeScreens.includes(route.name)
+        ? {
+            transitionSpec: {
+              open: fadeConfig,
+              close: fadeConfig,
+            },
+            cardStyleInterpolator: ({current}) => ({
+              cardStyle: {
+                opacity: current.progress,
+              },
+            }),
+          }
+        : {
+            transitionSpec: {
+              open: slideFromRightConfig,
+              close: slideFromRightConfig,
+            },
+            cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
+          }),
+    })}
     initialRouteName="SplashScreen">
     {/* Common screens */}
     <Stack.Screen name="SplashScreen" component={SplashScreen} />
