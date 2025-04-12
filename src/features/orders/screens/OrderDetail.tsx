@@ -11,7 +11,7 @@ import {StackScreenProps} from '@react-navigation/stack';
 import {RootStackParamList} from '../../../navigation/AppNavigator';
 import UniversalAdd from '../../../components/common/UniversalAdd';
 import api from '../../../services/api';
-import {useStore} from '../../../store/ordersStore';
+import {useStore, Order} from '../../../store/ordersStore';
 import socketService from '../../../services/socket';
 
 interface Item {
@@ -20,14 +20,19 @@ interface Item {
   price: number;
 }
 
+// Extended Order type with deliveryEnabled property which exists at runtime
+interface ExtendedOrder extends Order {
+  deliveryEnabled?: boolean;
+}
+
 interface OrderDetailProps
   extends StackScreenProps<RootStackParamList, 'OrderDetail'> {}
 
 const OrderDetail: React.FC<OrderDetailProps> = ({route, navigation}) => {
   const {order: initialOrder, fromPackedTab} = route.params || {};
   const {updateOrder, orders} = useStore();
-  const currentOrder =
-    orders.find(o => o._id === initialOrder._id) || initialOrder;
+  const currentOrder = (orders.find(o => o._id === initialOrder._id) ||
+    initialOrder) as ExtendedOrder;
   const [updatedItems, setUpdatedItems] = useState(currentOrder.items);
   const [hasModified, setHasModified] = useState(false);
   const [totalAmountState, setTotalAmountState] = useState(
@@ -41,7 +46,7 @@ const OrderDetail: React.FC<OrderDetailProps> = ({route, navigation}) => {
         const response = await api.get(`/orders/${currentOrder._id}`);
         setUpdatedItems(response.data.items);
         setTotalAmountState(response.data.totalPrice || 0);
-      } catch (error) {
+      } catch (error: any) {
         console.error('Fetch Order Details Error:', error);
         Alert.alert('Error', 'Failed to load order details');
       }
@@ -65,6 +70,14 @@ const OrderDetail: React.FC<OrderDetailProps> = ({route, navigation}) => {
     socketService.connectCustomer(customerId);
     return () => socketService.disconnect();
   }, [currentOrder.customer]);
+
+  // Update total amount when items are modified
+  useEffect(() => {
+    const newTotal = updatedItems.reduce((sum, item) => {
+      return sum + item.item.price * item.count;
+    }, 0);
+    setTotalAmountState(newTotal);
+  }, [updatedItems]);
 
   // Check for modifications
   useEffect(() => {
@@ -120,7 +133,7 @@ const OrderDetail: React.FC<OrderDetailProps> = ({route, navigation}) => {
               );
               updateOrder(currentOrder._id, response.data);
               navigation.goBack();
-            } catch (error) {
+            } catch (error: any) {
               console.error('Cancel Order Error:', error);
               Alert.alert('Error', 'Failed to cancel order');
             }
@@ -135,7 +148,7 @@ const OrderDetail: React.FC<OrderDetailProps> = ({route, navigation}) => {
       await api.patch(`/orders/${currentOrder._id}/accept`);
       const updatedOrder = {...currentOrder, status: 'accepted'};
       updateOrder(currentOrder._id, updatedOrder);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Accept Order Error:', error);
       Alert.alert('Error', 'Failed to accept order');
     }
@@ -153,7 +166,7 @@ const OrderDetail: React.FC<OrderDetailProps> = ({route, navigation}) => {
       await api.patch(`/orders/${currentOrder._id}/modify`, {modifiedItems});
       setHasModified(false);
       updateOrder(currentOrder._id, {...currentOrder, items: updatedItems});
-    } catch (error) {
+    } catch (error: any) {
       console.error(
         'Modify Order Error:',
         error.response?.data || error.message,
@@ -173,7 +186,7 @@ const OrderDetail: React.FC<OrderDetailProps> = ({route, navigation}) => {
         await handleAccept();
       }
       const response = await api.patch(`/orders/${currentOrder._id}/pack`);
-      const updatedOrder = response.data;
+      const updatedOrder = response.data as ExtendedOrder;
       updateOrder(currentOrder._id, updatedOrder);
 
       // Navigate based on deliveryEnabled after packing
@@ -181,9 +194,20 @@ const OrderDetail: React.FC<OrderDetailProps> = ({route, navigation}) => {
         console.log('Navigating to AssignDeliveryPartner:', updatedOrder);
         navigation.replace('AssignDeliveryPartner', {order: updatedOrder});
       } else {
-        navigation.replace('OrderHasPacked', {order: updatedOrder});
+        // Show success message for orders with deliveryEnabled = false
+        Alert.alert(
+          'Success',
+          'Notified to Customer that the order status is updated to packed',
+          [
+            {
+              text: 'OK',
+              onPress: () =>
+                navigation.replace('OrderHasPacked', {order: updatedOrder}),
+            },
+          ],
+        );
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error(
         'Packed Order Error:',
         error.response?.data || error.message,

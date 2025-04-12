@@ -1,4 +1,4 @@
-import React, {useState, useEffect} from 'react';
+import React, {useState, useEffect, useMemo} from 'react';
 import {
   View,
   Text,
@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import {StackScreenProps} from '@react-navigation/stack';
 import {RootStackParamList} from '../../../navigation/AppNavigator';
-import {useStore} from '../../../store/ordersStore';
+import {useStore, Order} from '../../../store/ordersStore';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import api from '../../../services/api';
 
@@ -18,10 +18,21 @@ type OrderHasPackedProps = StackScreenProps<
   'OrderHasPacked'
 >;
 
+// Extended Order type with deliveryEnabled property which exists at runtime
+interface ExtendedOrder extends Order {
+  deliveryEnabled?: boolean;
+}
+
+// Helper function to calculate platform charges based on order value
+const calculatePlatformCharge = (orderValue: number): number => {
+  // ₹1 for every ₹1000 of order value, rounded up
+  return Math.ceil(orderValue / 1000);
+};
+
 const OrderHasPacked: React.FC<OrderHasPackedProps> = ({route, navigation}) => {
   const {order: initialOrder} = route.params;
   const {updateOrder} = useStore();
-  const [orderState, setOrderState] = useState(initialOrder);
+  const [orderState, setOrderState] = useState(initialOrder as ExtendedOrder);
 
   // Fetch latest order data on mount to ensure item details are present
   useEffect(() => {
@@ -32,7 +43,7 @@ const OrderHasPacked: React.FC<OrderHasPackedProps> = ({route, navigation}) => {
           'Fetched Order Data:',
           JSON.stringify(response.data, null, 2),
         );
-        setOrderState(response.data);
+        setOrderState(response.data as ExtendedOrder);
         updateOrder(initialOrder._id, response.data);
       } catch (error) {
         console.error('Fetch Order Error:', error);
@@ -40,6 +51,29 @@ const OrderHasPacked: React.FC<OrderHasPackedProps> = ({route, navigation}) => {
     };
     fetchOrderDetails();
   }, [initialOrder._id, updateOrder]);
+
+  // Calculate platform charges and final amounts
+  const orderCalculations = useMemo(() => {
+    const orderTotal = orderState.totalPrice || 0;
+    // Check if it's a pickup order (deliveryEnabled is false)
+    // For non-pickup orders (delivery enabled), no platform charges
+    const isPickupOrder = orderState.deliveryEnabled === false;
+    const customerPlatformCharge = isPickupOrder
+      ? calculatePlatformCharge(orderTotal)
+      : 0;
+    const branchPlatformCharge = isPickupOrder
+      ? calculatePlatformCharge(orderTotal)
+      : 0;
+
+    return {
+      orderTotal,
+      customerPlatformCharge,
+      finalCustomerTotal: orderTotal + customerPlatformCharge,
+      branchPlatformCharge,
+      branchReceives: orderTotal - branchPlatformCharge,
+      isPickupOrder,
+    };
+  }, [orderState.totalPrice, orderState.deliveryEnabled]);
 
   const handleCollectCash = () => {
     if (!orderState.deliveryServiceAvailable) {
@@ -91,7 +125,45 @@ const OrderHasPacked: React.FC<OrderHasPackedProps> = ({route, navigation}) => {
       </View>
 
       <View style={styles.summaryCard}>
-        <Text style={styles.total}>Total: ₹{orderState.totalPrice || 0}</Text>
+        {orderCalculations.isPickupOrder ? (
+          <>
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Order Total</Text>
+              <Text style={styles.summaryValue}>
+                ₹{orderCalculations.orderTotal}
+              </Text>
+            </View>
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Customer Platform Fee</Text>
+              <Text style={styles.summaryValue}>
+                +₹{orderCalculations.customerPlatformCharge}
+              </Text>
+            </View>
+            <View style={styles.divider} />
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabelBold}>Customer Pays</Text>
+              <Text style={styles.finalTotal}>
+                ₹{orderCalculations.finalCustomerTotal}
+              </Text>
+            </View>
+            <View style={styles.divider} />
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Branch Platform Fee</Text>
+              <Text style={styles.summaryValue}>
+                -₹{orderCalculations.branchPlatformCharge}
+              </Text>
+            </View>
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabelBold}>Branch Receives</Text>
+              <Text style={styles.branchTotal}>
+                ₹{orderCalculations.branchReceives}
+              </Text>
+            </View>
+          </>
+        ) : (
+          <Text style={styles.total}>Total: ₹{orderState.totalPrice || 0}</Text>
+        )}
+
         {orderState.modificationHistory &&
           orderState.modificationHistory.length > 0 && (
             <View style={styles.changes}>
@@ -212,6 +284,39 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 6,
     elevation: 3,
+  },
+  summaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 8,
+  },
+  summaryLabel: {
+    fontSize: 16,
+    color: '#2c3e50',
+  },
+  summaryLabelBold: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#2c3e50',
+  },
+  summaryValue: {
+    fontSize: 16,
+    color: '#2c3e50',
+  },
+  finalTotal: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#2ecc71',
+  },
+  branchTotal: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#3498db',
+  },
+  divider: {
+    height: 1,
+    backgroundColor: '#ecf0f1',
+    marginVertical: 10,
   },
   total: {
     fontSize: 20,
