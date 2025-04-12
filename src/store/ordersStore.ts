@@ -72,7 +72,7 @@ const initialDeliveryServiceAvailable =
 
 export const useStore = create<StoreState>((set, get) => ({
   storeStatus: 'open',
-  deliveryServiceAvailable: initialDeliveryServiceAvailable, // Set from MMKV
+  deliveryServiceAvailable: initialDeliveryServiceAvailable || false, // Ensure it's a boolean
   userId: null,
   sessionExpiredMessage: null,
   orders: [],
@@ -85,12 +85,92 @@ export const useStore = create<StoreState>((set, get) => ({
   },
   setUserId: id => set({userId: id}),
   setSessionExpiredMessage: message => set({sessionExpiredMessage: message}),
-  addOrder: order => set(state => ({orders: [...state.orders, order]})),
+  addOrder: order =>
+    set(state => {
+      // Avoid adding duplicate orders (with same _id)
+      if (!order._id) {
+        return {orders: [...state.orders, order]};
+      }
+
+      // Check if order with this _id already exists
+      const existingOrderIndex = state.orders.findIndex(
+        o => o._id === order._id,
+      );
+      if (existingOrderIndex >= 0) {
+        // Order already exists, don't add it
+        console.log(
+          'Order already exists in store, not adding duplicate:',
+          order._id,
+          'orderId:',
+          order.orderId,
+        );
+        return state;
+      }
+
+      // New order, add it to state
+      console.log(
+        'Adding NEW order to store:',
+        order._id,
+        'orderId:',
+        order.orderId,
+      );
+      return {orders: [...state.orders, order]};
+    }),
   updateOrder: (orderId, updatedOrder) =>
     set(state => ({
       orders: state.orders.map(o => (o._id === orderId ? updatedOrder : o)),
     })),
-  setOrders: orders => set({orders}),
+  setOrders: orders =>
+    set(state => {
+      // First, filter out duplicates from the new orders array itself
+      const uniqueNewOrders = orders.filter(
+        (order, index, self) =>
+          index === self.findIndex(o => o._id === order._id),
+      );
+
+      // Check for duplicate orders and log them
+      if (uniqueNewOrders.length < orders.length) {
+        console.log(
+          'Removed',
+          orders.length - uniqueNewOrders.length,
+          'internal duplicate orders',
+        );
+      }
+
+      // Handle the case where we're doing a full refresh vs. adding new orders
+      if (state.orders.length === 0) {
+        // First load - just set the orders directly
+        console.log('Initial load of', uniqueNewOrders.length, 'orders');
+        return {orders: uniqueNewOrders};
+      } else {
+        // We already have orders - merge them carefully to avoid duplicates
+        const currentOrderIds = new Set(state.orders.map(o => o._id));
+        const updatedOrders = [...state.orders];
+
+        // Count new orders added
+        let newOrdersAdded = 0;
+
+        // Add only orders that don't exist in current state
+        uniqueNewOrders.forEach(order => {
+          if (!currentOrderIds.has(order._id)) {
+            updatedOrders.push(order);
+            newOrdersAdded++;
+            console.log(
+              'Adding order via setOrders:',
+              order._id,
+              'orderId:',
+              order.orderId,
+            );
+          }
+        });
+
+        if (newOrdersAdded > 0) {
+          console.log('Added', newOrdersAdded, 'new orders from API');
+        }
+
+        return {orders: updatedOrders};
+      }
+    }),
   setDeliveryPartners: partners => set({deliveryPartners: partners}),
   addDeliveryPartner: partner =>
     set(state => ({deliveryPartners: [...state.deliveryPartners, partner]})),

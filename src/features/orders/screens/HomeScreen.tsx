@@ -86,6 +86,8 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
           response.data?.length || 0,
           'orders',
         );
+
+        // Let the store handle de-duplication now
         setOrders(response.data || []);
       } catch (error: any) {
         console.error(
@@ -352,6 +354,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
               onCancelItem={handleCancelItem}
               onAssignDeliveryPartner={() => handleAssignDeliveryPartner(item)}
               navigation={navigation}
+              onPress={() => navigation.navigate('OrderDetail', {order: item})}
             />
           )}
           keyExtractor={item => item._id}

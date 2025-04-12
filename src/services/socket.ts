@@ -25,7 +25,7 @@ class SocketService {
 
   connect(branchId: string) {
     if (this.socket && this.socket.connected) {
-      console.log('Socket already connected');
+      console.log('Socket already connected, not reconnecting');
       return;
     }
 
@@ -36,6 +36,14 @@ class SocketService {
         // Don't show error, just log info
         console.log('No access token available for main socket connection');
         return;
+      }
+
+      // Clean up any existing socket before creating a new one
+      if (this.socket) {
+        console.log('Cleaning up existing socket before reconnection');
+        this.socket.removeAllListeners();
+        this.socket.disconnect();
+        this.socket = null;
       }
 
       // Initialize socket with auth
@@ -67,16 +75,52 @@ class SocketService {
         this.isConnected = false;
       });
 
-      this.socket.on('newOrder', (order: any) => {
-        console.log('New order received:', order);
-        const {addOrder} = useStore.getState();
-        addOrder(order);
-      });
+      // Dedicated handler for new orders
+      this.setupOrderHandler(branchId);
 
       // Removed 'syncmart:status' listener to let StoreStatusToggle handle it
     } catch (error) {
       console.log('Socket Connection Setup Error:', error);
     }
+  }
+
+  // Extract order handling to a separate method to better manage it
+  private setupOrderHandler(branchId: string) {
+    if (!this.socket) return;
+
+    // Handle new orders from socket
+    this.socket.on('newOrder', (order: any) => {
+      console.log(
+        'New order received via socket:',
+        order._id,
+        'orderId:',
+        order.orderId,
+        'status:',
+        order.status,
+      );
+      const {orders, addOrder} = useStore.getState();
+
+      // Check if the order already exists in our store
+      const orderExists = orders.some(o => o._id === order._id);
+      if (orderExists) {
+        console.log(
+          'Order already exists in store, not adding duplicate:',
+          order._id,
+          'branch:',
+          branchId,
+        );
+        return;
+      }
+
+      // Add this unique new order
+      console.log(
+        'Adding NEW socket order to store:',
+        order._id,
+        'orderId:',
+        order.orderId,
+      );
+      addOrder(order);
+    });
   }
 
   connectCustomer(customerId: string) {

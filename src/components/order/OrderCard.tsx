@@ -2,8 +2,19 @@ import React, {useState, useEffect} from 'react';
 import {View, Text, TouchableOpacity, StyleSheet} from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons'; // For delivery icon
 import api from '../../services/api';
+import {Order} from '../../store/ordersStore';
 
-const OrderCard = ({
+interface OrderCardProps {
+  order: Order;
+  onAccept: (orderId: string) => void;
+  onReject: (orderId: string) => void;
+  onCancelItem: (orderId: string, itemId: string) => void;
+  onAssignDeliveryPartner: () => void;
+  navigation: any;
+  onPress?: () => void;
+}
+
+const OrderCard: React.FC<OrderCardProps> = ({
   order: initialOrder,
   onAccept,
   onReject,
@@ -32,7 +43,9 @@ const OrderCard = ({
     // Check if any item lacks name or price
     if (
       !initialOrder.items ||
-      initialOrder.items.some(item => !item.item?.name || !item.item?.price)
+      initialOrder.items.some(
+        (item: any) => !item.item?.name || !item.item?.price,
+      )
     ) {
       fetchOrderDetails();
     }
@@ -79,8 +92,7 @@ const OrderCard = ({
   };
 
   // Log order.items for debugging
-  console.log('OrderCard order:', order);
-  console.log('OrderCard items:', order?.items);
+  console.log('OrderCard rendering:', order._id, 'orderId:', order.orderId);
 
   // Ensure items exist before slicing, default to empty array if not
   const displayedItems = (order?.items || []).slice(0, 2);
@@ -112,7 +124,7 @@ const OrderCard = ({
         </Text>
       )}
       <View style={styles.footerContainer}>
-        {order.deliveryEnabled && (
+        {order.deliveryServiceAvailable && (
           <Icon
             name="delivery-dining"
             size={20}
@@ -158,7 +170,7 @@ const styles = StyleSheet.create({
   itemText: {
     fontSize: 14,
     color: '#555',
-    flex: 1, // Ensures item name doesn’t overlap price
+    flex: 1, // Ensures item name doesn't overlap price
   },
   priceText: {
     fontSize: 14,
