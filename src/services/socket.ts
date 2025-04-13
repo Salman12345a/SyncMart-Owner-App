@@ -1,7 +1,28 @@
 import {io, Socket} from 'socket.io-client';
-import {useStore} from '../store/ordersStore';
-import {navigationRef} from '../../App';
 import {storage} from '../utils/storage';
+import {config} from '../config'; // Import config for SOCKET_URL
+import {navigationRef} from '../../App';
+
+// Types from ordersStore.ts
+interface Order {
+  _id: string;
+  orderId: string;
+  status: string;
+  totalPrice: number;
+  items: {_id: string; item: {name: string; price: number}; count: number}[];
+  deliveryServiceAvailable?: boolean;
+  modificationHistory?: {changes: string[]}[];
+  customer?: string;
+}
+
+interface WalletTransaction {
+  amount: number;
+  type: 'platform_charge' | 'payment';
+  timestamp: string;
+  _id?: string;
+  orderNumber?: string;
+  status?: 'pending' | 'settled';
+}
 
 class SocketService {
   private socket: Socket | null = null;
@@ -9,12 +30,10 @@ class SocketService {
   private connectionAttempts = 0;
   private maxConnectionAttempts = 3;
 
-  // Get current socket instance
   getSocket(): Socket | null {
     return this.socket;
   }
 
-  // Emit event
   emit(event: string, data: any): void {
     if (this.socket && this.socket.connected) {
       this.socket.emit(event, data);
@@ -23,22 +42,28 @@ class SocketService {
     }
   }
 
-  connect(branchId: string) {
+  connect(
+    branchId: string,
+    handlers: {
+      addOrder: (order: Order) => void;
+      updateOrder: (orderId: string, order: Order) => void;
+      setWalletBalance: (balance: number) => void;
+      addWalletTransaction: (transaction: WalletTransaction) => void;
+      orders: Order[];
+    },
+  ) {
     if (this.socket && this.socket.connected) {
       console.log('Socket already connected, not reconnecting');
       return;
     }
 
     try {
-      // Get token from storage
       const token = storage.getString('accessToken');
       if (!token) {
-        // Don't show error, just log info
-        console.log('No access token available for main socket connection');
+        console.log('No access token available for socket connection');
         return;
       }
 
-      // Clean up any existing socket before creating a new one
       if (this.socket) {
         console.log('Cleaning up existing socket before reconnection');
         this.socket.removeAllListeners();
@@ -46,8 +71,7 @@ class SocketService {
         this.socket = null;
       }
 
-      // Initialize socket with auth
-      this.socket = io('http://10.0.2.2:3000', {
+      this.socket = io(config.SOCKET_URL, {
         query: {userId: branchId},
         extraHeaders: {
           Authorization: `Bearer ${token}`,
@@ -60,9 +84,16 @@ class SocketService {
         console.log('Socket Connected, ID:', this.socket?.id);
         if (this.socket) {
           this.socket.emit('joinBranch', `branch_${branchId}`);
+          this.socket.emit('joinWalletRoom', {branchId}); // Join wallet room
+          console.log(`Joined branch_${branchId} and wallet_${branchId}`);
+          // Join existing order rooms
+          handlers.orders.forEach(order => {
+            this.socket?.emit('joinRoom', order._id);
+            console.log(`Joined order room: ${order._id}`);
+          });
         }
         this.isConnected = true;
-        this.connectionAttempts = 0; // Reset counter on successful connection
+        this.connectionAttempts = 0;
       });
 
       this.socket.on('disconnect', () => {
@@ -75,58 +106,80 @@ class SocketService {
         this.isConnected = false;
       });
 
-      // Dedicated handler for new orders
-      this.setupOrderHandler(branchId);
-
-      // Removed 'syncmart:status' listener to let StoreStatusToggle handle it
+      this.setupOrderHandler(handlers.addOrder, handlers.updateOrder);
+      this.setupWalletHandler(
+        handlers.setWalletBalance,
+        handlers.addWalletTransaction,
+      );
     } catch (error) {
       console.log('Socket Connection Setup Error:', error);
     }
   }
 
-  // Extract order handling to a separate method to better manage it
-  private setupOrderHandler(branchId: string) {
+  private setupOrderHandler(
+    addOrder: (order: Order) => void,
+    updateOrder: (orderId: string, order: Order) => void,
+  ) {
     if (!this.socket) return;
 
-    // Handle new orders from socket
-    this.socket.on('newOrder', (order: any) => {
+    this.socket.on('newOrder', (order: Order) => {
       console.log(
         'New order received via socket:',
         order._id,
         'orderId:',
         order.orderId,
-        'status:',
-        order.status,
       );
-      const {orders, addOrder} = useStore.getState();
+      addOrder({
+        ...order,
+        deliveryServiceAvailable: order.deliveryEnabled,
+      });
+      this.socket?.emit('joinRoom', order._id);
+      console.log(`Joined new order room: ${order._id}`);
+    });
 
-      // Check if the order already exists in our store
-      const orderExists = orders.some(o => o._id === order._id);
-      if (orderExists) {
-        console.log(
-          'Order already exists in store, not adding duplicate:',
-          order._id,
-          'branch:',
-          branchId,
-        );
-        return;
-      }
-
-      // Add this unique new order
-      console.log(
-        'Adding NEW socket order to store:',
-        order._id,
-        'orderId:',
-        order.orderId,
-      );
-      addOrder(order);
+    this.socket.on('orderStatusUpdate', (order: Order) => {
+      console.log('Order status updated:', order._id, order.status);
+      updateOrder(order._id, {
+        ...order,
+        deliveryServiceAvailable: order.deliveryEnabled,
+      });
     });
   }
 
-  connectCustomer(customerId: string) {
+  private setupWalletHandler(
+    setWalletBalance: (balance: number) => void,
+    addWalletTransaction: (transaction: WalletTransaction) => void,
+  ) {
+    if (!this.socket) return;
+
+    this.socket.on('walletUpdated', ({branchId, newBalance, transaction}) => {
+      console.log(`Wallet updated for branch ${branchId}:`, {
+        newBalance,
+        transaction,
+      });
+      setWalletBalance(newBalance);
+      addWalletTransaction({
+        ...transaction,
+        timestamp: transaction.timestamp,
+        status: transaction.type === 'platform_charge' ? 'settled' : 'pending',
+        orderNumber: transaction.orderId || undefined, // If backend adds orderId
+      });
+    });
+
+    this.socket.on('walletUpdateTrigger', ({branchId, orderId, totalPrice}) => {
+      console.log(
+        `Wallet update triggered for branch ${branchId}, order ${orderId}`,
+      );
+    });
+  }
+
+  connectCustomer(
+    customerId: string,
+    updateOrder: (orderId: string, order: Order) => void,
+  ) {
     if (this.socket && this.socket.connected) return;
 
-    this.socket = io('http://10.0.2.2:3000', {
+    this.socket = io(config.SOCKET_URL, {
       transports: ['websocket'],
       reconnection: true,
     });
@@ -144,7 +197,6 @@ class SocketService {
 
     this.socket.on('orderPackedWithUpdates', data => {
       console.log('Packed order received:', data);
-      const {updateOrder} = useStore.getState();
       updateOrder(data.orderId, {
         _id: data.orderId,
         orderId: data.orderId,
@@ -162,14 +214,16 @@ class SocketService {
     });
   }
 
-  connectBranchRegistration(phone: string) {
-    // Check if already connected
+  connectBranchRegistration(
+    phone: string,
+    addBranch: (branch: any) => void,
+    updateBranchStatus: (branchId: string, status: string) => void,
+  ) {
     if (this.socket && this.socket.connected) {
       console.log('Socket already connected for branch registration');
       return;
     }
 
-    // If we've already attempted too many times, don't keep trying
     if (this.connectionAttempts >= this.maxConnectionAttempts) {
       console.log('Max socket connection attempts reached, giving up');
       return;
@@ -178,25 +232,21 @@ class SocketService {
     this.connectionAttempts++;
 
     try {
-      // Always connect for branch registration, with or without token
       console.log(
         `Connecting branch registration socket (attempt ${this.connectionAttempts})`,
       );
 
-      this.socket = io('http://10.0.2.2:3000', {
+      this.socket = io(config.SOCKET_URL, {
         transports: ['websocket'],
         reconnection: true,
         query: {phone},
-        // No extraHeaders needed for this connection type
       });
 
       this.socket.on('connect', () => {
         console.log('Socket connected (branch registration):', this.socket?.id);
-        if (this.socket) {
-          this.socket.emit('joinSyncmartRoom', phone);
-        }
+        this.socket?.emit('joinSyncmartRoom', phone);
         this.isConnected = true;
-        this.connectionAttempts = 0; // Reset counter on successful connection
+        this.connectionAttempts = 0;
       });
 
       this.socket.on('disconnect', () => {
@@ -214,8 +264,6 @@ class SocketService {
 
       this.socket.on('branchRegistered', (data: any) => {
         console.log('Branch registered:', data);
-        const {addBranch} = useStore.getState();
-        // Create a minimal branch object with required fields
         addBranch({
           id: data.branchId,
           status: data.status,
@@ -242,13 +290,11 @@ class SocketService {
 
       this.socket.on('branchStatusUpdated', data => {
         console.log('Branch status updated:', data);
-        const {updateBranchStatus} = useStore.getState();
         updateBranchStatus(data.branchId, data.status);
       });
 
       this.socket.on('branchResubmitted', data => {
         console.log('Branch resubmitted:', data);
-        const {updateBranchStatus} = useStore.getState();
         updateBranchStatus(data.branchId, data.status);
         if (navigationRef.current) {
           navigationRef.current.navigate('StatusScreen', {
@@ -272,7 +318,6 @@ class SocketService {
     }
   }
 
-  // Add method to check connection status
   getConnectionStatus() {
     return {
       isConnected: this.isConnected,

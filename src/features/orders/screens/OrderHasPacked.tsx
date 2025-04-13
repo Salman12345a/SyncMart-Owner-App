@@ -6,6 +6,7 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  Alert,
 } from 'react-native';
 import {StackScreenProps} from '@react-navigation/stack';
 import {RootStackParamList} from '../../../navigation/AppNavigator';
@@ -21,6 +22,7 @@ type OrderHasPackedProps = StackScreenProps<
 // Extended Order type with deliveryEnabled property which exists at runtime
 interface ExtendedOrder extends Order {
   deliveryEnabled?: boolean;
+  deliveryServiceAvailable?: boolean;
 }
 
 // Helper function to calculate platform charges based on order value
@@ -31,7 +33,7 @@ const calculatePlatformCharge = (orderValue: number): number => {
 
 const OrderHasPacked: React.FC<OrderHasPackedProps> = ({route, navigation}) => {
   const {order: initialOrder} = route.params;
-  const {updateOrder} = useStore();
+  const {updateOrder, addWalletTransaction} = useStore();
   const [orderState, setOrderState] = useState(initialOrder as ExtendedOrder);
 
   // Fetch latest order data on mount to ensure item details are present
@@ -74,17 +76,6 @@ const OrderHasPacked: React.FC<OrderHasPackedProps> = ({route, navigation}) => {
       isPickupOrder,
     };
   }, [orderState.totalPrice, orderState.deliveryEnabled]);
-
-  const handleCollectCash = () => {
-    if (!orderState.deliveryServiceAvailable) {
-      // Update store synchronously
-      updateOrder(orderState._id, {...orderState});
-      // Navigate back after update
-      navigation.goBack();
-    } else {
-      console.log('Error: Collect Cash is only for pickup orders');
-    }
-  };
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
@@ -186,14 +177,6 @@ const OrderHasPacked: React.FC<OrderHasPackedProps> = ({route, navigation}) => {
           Informed Customer! To visit the Dk mart to collect their items.
         </Text>
       </View>
-
-      {!orderState.deliveryServiceAvailable && (
-        <TouchableOpacity
-          onPress={handleCollectCash}
-          style={styles.collectCashButton}>
-          <Text style={styles.collectCashButtonText}>Collect Cash</Text>
-        </TouchableOpacity>
-      )}
     </ScrollView>
   );
 };

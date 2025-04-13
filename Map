@@ -8,6 +8,7 @@ src/
 ├── components
 │   ├── common
 │   │   ├── Header.tsx
+│   │   ├── CongratulationsModel.tsx
 │   │   └── UniversalAdd.tsx
 │   ├── dashboard
 │   │   ├── Header.tsx
@@ -35,9 +36,13 @@ src/
 │   │       └── UserDetailsScreen.tsx
 │   ├── branch
 │   │   └── screens
-│   │       ├── BranchAuth.tsx
-│   │       |── StatusScreen.tsx
-│   │       └── UploadBranchDocs.tsx
+│   │   |   |── BranchAuth.tsx
+│   │   |   |── StatusScreen.tsx
+│   │   |   └── UploadBranchDocs.tsx
+│   |   |
+|   |   └── components
+│   |       ├── CelebrationAnimation.tsx
+|   |
 │   ├── common
 │   │   └── screens
 │   │       ├── HelpScreen.tsx

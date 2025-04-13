@@ -24,7 +24,11 @@ const Sidebar: React.FC = () => {
         component={HomeScreen}
         options={{headerShown: false}}
       />
-      <Drawer.Screen name="Wallet" component={WalletScreen} />
+      <Drawer.Screen
+        name="Wallet"
+        component={WalletScreen}
+        options={{headerShown: false}}
+      />
       <Drawer.Screen
         name="StoreManagement"
         component={StoreManagement}

@@ -26,7 +26,6 @@ const OrderHistory: React.FC<OrderHistoryProps> = ({navigation}) => {
     return unsubscribe;
   }, [navigation]);
 
-  // Only render when focused and store is ready
   if (!isFocused || !orders) {
     return (
       <View style={styles.container}>
@@ -35,11 +34,15 @@ const OrderHistory: React.FC<OrderHistoryProps> = ({navigation}) => {
     );
   }
 
-  // Filter orders based on active tab
+  // Updated filters for Delivery and Pickup tabs
   const filteredOrders =
     activeTab === 'delivery'
-      ? orders.filter(order => order.status === 'delivered')
-      : orders.filter(order => order.deliveryServiceAvailable === false);
+      ? orders.filter(
+          order => order.status === 'delivered' && order.deliveryEnabled,
+        )
+      : orders.filter(
+          order => order.status === 'delivered' && !order.deliveryEnabled,
+        );
 
   return (
     <View style={styles.container}>
