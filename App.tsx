@@ -12,7 +12,15 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 export const navigationRef = React.createRef<NavigationContainerRef<any>>();
 
 const App = () => {
-  const {userId, setUserId} = useStore();
+  const {
+    userId,
+    setUserId,
+    addOrder,
+    updateOrder,
+    setWalletBalance,
+    addWalletTransaction,
+    orders,
+  } = useStore();
 
   useEffect(() => {
     const restoreUserId = async () => {
@@ -31,10 +39,24 @@ const App = () => {
 
   useEffect(() => {
     if (userId) {
-      socketService.connect(userId);
+      // Connect socket with all required handlers
+      socketService.connect(userId, {
+        addOrder,
+        updateOrder,
+        setWalletBalance,
+        addWalletTransaction,
+        orders,
+      });
       console.log('Socket connected with userId:', userId);
     }
-  }, [userId]);
+  }, [
+    userId,
+    addOrder,
+    updateOrder,
+    setWalletBalance,
+    addWalletTransaction,
+    orders,
+  ]);
 
   return (
     <NavigationContainer ref={navigationRef}>

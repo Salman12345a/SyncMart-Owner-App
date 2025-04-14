@@ -1,16 +1,45 @@
 import {create} from 'zustand';
 import {MMKV} from 'react-native-mmkv';
+import io, {Socket} from 'socket.io-client';
+import socketService from '../services/socket';
+
+export interface OrderItem {
+  item: string;
+  count: number;
+  price: number;
+  _id: string;
+}
+
+export interface StatusHistoryItem {
+  status: string;
+  _id: string;
+  timestamp: string;
+}
+
+export interface Location {
+  latitude: number;
+  longitude: number;
+  address: string;
+}
 
 export interface Order {
   _id: string;
-  orderId: string;
+  branchId: string;
+  customer: string;
+  items: OrderItem[];
+  branch: string;
   status: string;
+  deliveryEnabled: boolean;
+  statusHistory: StatusHistoryItem[];
   totalPrice: number;
-  items: {_id: string; item: {name: string; price: number}; count: number}[];
-  deliveryEnabled?: boolean; // Changed from deliveryServiceAvailable
-  modificationHistory?: {changes: string[]}[];
-  customer?: string;
-  modificationLocked?: boolean; // Flag to prevent further modifications
+  deliveryLocation: Location;
+  pickupLocation?: Location;
+  orderID: string;
+  manuallyCollected?: boolean;
+  modificationHistory: any[];
+  createdAt: string;
+  updatedAt: string;
+  __v: number;
 }
 
 interface DeliveryPartner {
@@ -59,6 +88,7 @@ export interface WalletPayment {
 }
 
 interface StoreState {
+  socket: Socket | null;
   storeStatus: 'open' | 'closed';
   deliveryServiceAvailable: boolean;
   userId: string | null;
@@ -92,6 +122,9 @@ interface StoreState {
   addWalletTransaction: (transaction: WalletTransaction) => void;
   setWalletPayments: (payments: WalletPayment[]) => void;
   addWalletPayment: (payment: WalletPayment) => void;
+  // Socket related functions
+  initializeSocket: (branchPhone: string) => void;
+  disconnectSocket: () => void;
 }
 
 const storage = new MMKV();
@@ -103,7 +136,8 @@ const initialDeliveryServiceAvailable =
     : false;
 
 export const useStore = create<StoreState>((set, get) => ({
-  storeStatus: 'open',
+  socket: null,
+  storeStatus: 'closed',
   deliveryServiceAvailable: initialDeliveryServiceAvailable || false,
   userId: null,
   sessionExpiredMessage: null,
@@ -119,7 +153,35 @@ export const useStore = create<StoreState>((set, get) => ({
     set({deliveryServiceAvailable: available});
     storage.set(STORAGE_KEY, available);
   },
-  setUserId: id => set({userId: id}),
+  setUserId: (id: string | null) => {
+    set({userId: id});
+    if (id) {
+      // Connect socket when userId is set
+      socketService.connect(id, {
+        addOrder: (order: Order) => get().addOrder(order),
+        updateOrder: (orderId: string, order: Order) =>
+          get().updateOrder(orderId, order),
+        setWalletBalance: (balance: number) => get().setWalletBalance(balance),
+        addWalletTransaction: (transaction: any) => {
+          // Transform the socket transaction to match our WalletTransaction interface
+          const walletTransaction: WalletTransaction = {
+            _id: transaction._id,
+            orderId: transaction.orderId || '',
+            orderNumber: transaction.orderNumber || '',
+            amount: transaction.amount,
+            type: 'charge',
+            date: transaction.timestamp || new Date().toISOString(),
+            status:
+              transaction.type === 'platform_charge' ? 'settled' : 'pending',
+          };
+          get().addWalletTransaction(walletTransaction);
+        },
+        orders: get().orders,
+      });
+    } else {
+      socketService.disconnect();
+    }
+  },
   setSessionExpiredMessage: message => set({sessionExpiredMessage: message}),
   addOrder: order =>
     set(state => {
@@ -134,8 +196,8 @@ export const useStore = create<StoreState>((set, get) => ({
         console.log(
           'Order already exists in store, not adding duplicate:',
           order._id,
-          'orderId:',
-          order.orderId,
+          'orderID:',
+          order.orderID,
         );
         return state;
       }
@@ -143,8 +205,8 @@ export const useStore = create<StoreState>((set, get) => ({
       console.log(
         'Adding NEW order to store:',
         order._id,
-        'orderId:',
-        order.orderId,
+        'orderID:',
+        order.orderID,
       );
       return {orders: [...state.orders, order]};
     }),
@@ -183,8 +245,8 @@ export const useStore = create<StoreState>((set, get) => ({
             console.log(
               'Adding order via setOrders:',
               order._id,
-              'orderId:',
-              order.orderId,
+              'orderID:',
+              order.orderID,
             );
           }
         });
@@ -224,4 +286,33 @@ export const useStore = create<StoreState>((set, get) => ({
     set(state => ({
       walletPayments: [...state.walletPayments, payment],
     })),
+  // Socket initialization
+  initializeSocket: (branchPhone: string) => {
+    const socket = io('YOUR_BACKEND_URL'); // Replace with your actual backend URL
+
+    // Join branch-specific room
+    socket.emit('joinSyncmartRoom', branchPhone);
+
+    // Listen for new orders
+    socket.on('newOrder', (order: Order) => {
+      console.log('New order received via socket:', order._id);
+      get().addOrder(order);
+    });
+
+    // Listen for order status updates
+    socket.on('orderStatusUpdate', (updatedOrder: Order) => {
+      console.log('Order update received via socket:', updatedOrder._id);
+      get().updateOrder(updatedOrder._id, updatedOrder);
+    });
+
+    set({socket});
+  },
+
+  disconnectSocket: () => {
+    const {socket} = get();
+    if (socket) {
+      socket.disconnect();
+      set({socket: null});
+    }
+  },
 }));

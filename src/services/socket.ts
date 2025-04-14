@@ -2,33 +2,20 @@ import {io, Socket} from 'socket.io-client';
 import {storage} from '../utils/storage';
 import {config} from '../config'; // Import config for SOCKET_URL
 import {navigationRef} from '../../App';
-
-// Types from ordersStore.ts
-interface Order {
-  _id: string;
-  orderId: string;
-  status: string;
-  totalPrice: number;
-  items: {_id: string; item: {name: string; price: number}; count: number}[];
-  deliveryServiceAvailable?: boolean;
-  modificationHistory?: {changes: string[]}[];
-  customer?: string;
-}
-
-interface WalletTransaction {
-  amount: number;
-  type: 'platform_charge' | 'payment';
-  timestamp: string;
-  _id?: string;
-  orderNumber?: string;
-  status?: 'pending' | 'settled';
-}
+import {Order, WalletTransaction} from '../store/ordersStore';
 
 class SocketService {
   private socket: Socket | null = null;
   private isConnected = false;
   private connectionAttempts = 0;
   private maxConnectionAttempts = 3;
+  private handlers: {
+    addOrder?: (order: Order) => void;
+    updateOrder?: (orderId: string, order: Order) => void;
+    setWalletBalance?: (balance: number) => void;
+    addWalletTransaction?: (transaction: WalletTransaction) => void;
+    orders?: Order[];
+  } = {};
 
   getSocket(): Socket | null {
     return this.socket;
@@ -52,98 +39,195 @@ class SocketService {
       orders: Order[];
     },
   ) {
+    // Store handlers at class level
+    this.handlers = {...handlers};
+
     if (this.socket && this.socket.connected) {
-      console.log('Socket already connected, not reconnecting');
+      console.log('[Socket] Already connected, socket ID:', this.socket.id);
       return;
     }
 
     try {
       const token = storage.getString('accessToken');
       if (!token) {
-        console.log('No access token available for socket connection');
+        console.log('[Socket] No access token available for socket connection');
         return;
       }
 
       if (this.socket) {
-        console.log('Cleaning up existing socket before reconnection');
+        console.log('[Socket] Cleaning up existing socket before reconnection');
         this.socket.removeAllListeners();
         this.socket.disconnect();
         this.socket = null;
       }
 
-      this.socket = io(config.SOCKET_URL, {
-        query: {userId: branchId},
+      // Remove /api from socket URL
+      const socketUrl = config.SOCKET_URL.replace('/api', '');
+      console.log('[Socket] Attempting connection to:', socketUrl);
+
+      this.socket = io(socketUrl, {
+        query: {branchId},
         extraHeaders: {
           Authorization: `Bearer ${token}`,
         },
         transports: ['websocket'],
         reconnection: true,
+        reconnectionAttempts: 5,
+        reconnectionDelay: 1000,
       });
 
       this.socket.on('connect', () => {
-        console.log('Socket Connected, ID:', this.socket?.id);
+        console.log(
+          '[Socket] Connected successfully. Socket ID:',
+          this.socket?.id,
+        );
+
         if (this.socket) {
-          this.socket.emit('joinBranch', `branch_${branchId}`);
-          this.socket.emit('joinWalletRoom', {branchId}); // Join wallet room
-          console.log(`Joined branch_${branchId} and wallet_${branchId}`);
+          // Join branch-specific room
+          this.socket.emit('joinBranch', branchId);
+          console.log('[Socket] Joined branch room:', branchId);
+
           // Join existing order rooms
-          handlers.orders.forEach(order => {
-            this.socket?.emit('joinRoom', order._id);
-            console.log(`Joined order room: ${order._id}`);
-          });
+          if (this.handlers.orders) {
+            this.handlers.orders.forEach(order => {
+              if (order._id) {
+                this.socket?.emit('joinRoom', order._id);
+                console.log('[Socket] Joined existing order room:', order._id);
+              }
+            });
+          }
         }
         this.isConnected = true;
         this.connectionAttempts = 0;
       });
 
-      this.socket.on('disconnect', () => {
-        console.log('Socket Disconnected');
+      this.socket.on('disconnect', reason => {
+        console.log('[Socket] Disconnected. Reason:', reason);
         this.isConnected = false;
       });
 
       this.socket.on('connect_error', error => {
-        console.log('Socket Connection Error:', error.message);
+        console.log('[Socket] Connection Error:', error.message);
         this.isConnected = false;
       });
 
-      this.setupOrderHandler(handlers.addOrder, handlers.updateOrder);
-      this.setupWalletHandler(
-        handlers.setWalletBalance,
-        handlers.addWalletTransaction,
-      );
+      // Debug all incoming events
+      this.socket.onAny((eventName, ...args) => {
+        console.log(
+          '[Socket] Received event:',
+          eventName,
+          'Data:',
+          JSON.stringify(args),
+        );
+      });
+
+      // Handle new orders
+      this.socket.on('newOrder', (orderData: any) => {
+        console.log('[Socket] New order received:', orderData);
+        try {
+          if (!this.handlers.addOrder) {
+            console.error('[Socket] addOrder handler is not defined');
+            return;
+          }
+
+          // Transform the order data to match our interface
+          const order: Order = {
+            _id: orderData._id,
+            branchId: orderData.branchId,
+            customer: orderData.customer,
+            items: orderData.items.map((item: any) => ({
+              _id: item._id,
+              item: item.item,
+              count: item.count,
+              price: item.price,
+            })),
+            branch: orderData.branch,
+            status: orderData.status,
+            deliveryEnabled: orderData.deliveryEnabled || false,
+            statusHistory: orderData.statusHistory || [],
+            totalPrice: orderData.totalPrice,
+            deliveryLocation: orderData.deliveryLocation || {
+              latitude: 0,
+              longitude: 0,
+              address: '',
+            },
+            pickupLocation: orderData.pickupLocation,
+            orderID: orderData.orderID || orderData._id,
+            manuallyCollected: orderData.manuallyCollected || false,
+            modificationHistory: orderData.modificationHistory || [],
+            createdAt: orderData.createdAt || new Date().toISOString(),
+            updatedAt: orderData.updatedAt || new Date().toISOString(),
+            __v: orderData.__v || 0,
+          };
+
+          // Join the order room
+          this.socket?.emit('joinRoom', order._id);
+          console.log('[Socket] Joined new order room:', order._id);
+
+          // Add the order to the store
+          this.handlers.addOrder(order);
+          console.log('[Socket] Order added to store successfully');
+        } catch (error) {
+          console.error('[Socket] Error processing new order:', error);
+        }
+      });
+
+      // Handle order updates
+      this.socket.on('orderStatusUpdate', (orderData: any) => {
+        console.log('[Socket] Order status update received:', orderData);
+        try {
+          if (!this.handlers.updateOrder) {
+            console.error('[Socket] updateOrder handler is not defined');
+            return;
+          }
+
+          const order: Order = {
+            _id: orderData._id,
+            branchId: orderData.branchId,
+            customer: orderData.customer,
+            items: orderData.items.map((item: any) => ({
+              _id: item._id,
+              item: item.item,
+              count: item.count,
+              price: item.price,
+            })),
+            branch: orderData.branch,
+            status: orderData.status,
+            deliveryEnabled: orderData.deliveryEnabled || false,
+            statusHistory: orderData.statusHistory || [],
+            totalPrice: orderData.totalPrice,
+            deliveryLocation: orderData.deliveryLocation || {
+              latitude: 0,
+              longitude: 0,
+              address: '',
+            },
+            pickupLocation: orderData.pickupLocation,
+            orderID: orderData.orderID || orderData._id,
+            manuallyCollected: orderData.manuallyCollected || false,
+            modificationHistory: orderData.modificationHistory || [],
+            createdAt: orderData.createdAt || new Date().toISOString(),
+            updatedAt: orderData.updatedAt || new Date().toISOString(),
+            __v: orderData.__v || 0,
+          };
+          this.handlers.updateOrder(order._id, order);
+        } catch (error) {
+          console.error('[Socket] Error processing order update:', error);
+        }
+      });
+
+      // Handle wallet updates only if wallet handlers are provided
+      if (
+        this.handlers.setWalletBalance &&
+        this.handlers.addWalletTransaction
+      ) {
+        this.setupWalletHandler(
+          this.handlers.setWalletBalance,
+          this.handlers.addWalletTransaction,
+        );
+      }
     } catch (error) {
-      console.log('Socket Connection Setup Error:', error);
+      console.error('[Socket] Connection Setup Error:', error);
     }
-  }
-
-  private setupOrderHandler(
-    addOrder: (order: Order) => void,
-    updateOrder: (orderId: string, order: Order) => void,
-  ) {
-    if (!this.socket) return;
-
-    this.socket.on('newOrder', (order: Order) => {
-      console.log(
-        'New order received via socket:',
-        order._id,
-        'orderId:',
-        order.orderId,
-      );
-      addOrder({
-        ...order,
-        deliveryServiceAvailable: order.deliveryEnabled,
-      });
-      this.socket?.emit('joinRoom', order._id);
-      console.log(`Joined new order room: ${order._id}`);
-    });
-
-    this.socket.on('orderStatusUpdate', (order: Order) => {
-      console.log('Order status updated:', order._id, order.status);
-      updateOrder(order._id, {
-        ...order,
-        deliveryServiceAvailable: order.deliveryEnabled,
-      });
-    });
   }
 
   private setupWalletHandler(
