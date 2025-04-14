@@ -312,7 +312,7 @@ const OrderDetail: React.FC<OrderDetailProps> = ({route, navigation}) => {
               {
                 backgroundColor:
                   hasModified && !currentOrder.modificationLocked
-                    ? '#007AFF'
+                    ? '#ff6347'
                     : '#28a745',
               },
             ]}>
@@ -337,7 +337,7 @@ const OrderDetail: React.FC<OrderDetailProps> = ({route, navigation}) => {
 };
 
 const styles = StyleSheet.create({
-  container: {flex: 1, padding: 20, backgroundColor: '#f5f5f5'},
+  container: {flex: 1, padding: 20, backgroundColor: '#ffff'},
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',

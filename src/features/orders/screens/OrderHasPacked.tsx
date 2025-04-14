@@ -174,7 +174,7 @@ const OrderHasPacked: React.FC<OrderHasPackedProps> = ({route, navigation}) => {
       <View style={styles.notice}>
         <Icon name="info" size={24} color="#3498db" />
         <Text style={styles.message}>
-          Informed Customer! To visit the Dk mart to collect their items.
+          Informed Customer! To visit the Branch to collect their items.
         </Text>
       </View>
     </ScrollView>
@@ -185,7 +185,7 @@ const styles = StyleSheet.create({
   container: {
     flexGrow: 1,
     padding: 20,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: '#ffff',
   },
   header: {
     alignItems: 'center',

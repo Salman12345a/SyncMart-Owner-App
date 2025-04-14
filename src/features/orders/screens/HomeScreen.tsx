@@ -380,7 +380,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
 };
 
 const styles = StyleSheet.create({
-  container: {flex: 1},
+  container: {flex: 1, backgroundColor: '#f8f8f8'},
   content: {padding: 20, flex: 1},
   titleRow: {
     flexDirection: 'row',

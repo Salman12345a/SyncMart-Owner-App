@@ -6,6 +6,10 @@ import {
   StyleSheet,
   TouchableOpacity,
   Alert,
+  ActivityIndicator,
+  SafeAreaView,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import {useNavigation} from '@react-navigation/native';
 import {StackNavigationProp} from '@react-navigation/stack';
@@ -118,67 +122,105 @@ const AuthenticationScreen: React.FC = () => {
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>SyncMart Branch Login</Text>
-      <TextInput
-        style={styles.input}
-        value={phone}
-        onChangeText={setPhone}
-        placeholder="Phone Number"
-        keyboardType="phone-pad"
-        autoCapitalize="none"
-        editable={!isLoading}
-      />
-      <TouchableOpacity
-        style={[styles.button, isLoading && styles.buttonDisabled]}
-        onPress={handleLogin}
-        disabled={isLoading}>
-        <Text style={styles.buttonText}>
-          {isLoading ? 'Logging in...' : 'Login'}
-        </Text>
-      </TouchableOpacity>
-    </View>
+    <SafeAreaView style={styles.container}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.keyboardAvoidingView}>
+        <View style={styles.contentContainer}>
+          <Text style={styles.title}>Branch Login</Text>
+
+          <View style={styles.formContainer}>
+            <Text style={styles.label}>Phone Number</Text>
+            <TextInput
+              style={styles.input}
+              value={phone}
+              onChangeText={setPhone}
+              placeholder="Enter 10-digit phone number"
+              keyboardType="phone-pad"
+              maxLength={10}
+              editable={!isLoading}
+            />
+
+            <TouchableOpacity
+              style={[styles.button]}
+              onPress={handleLogin}
+              disabled={!isValidPhone(phone) || isLoading}>
+              {isLoading ? (
+                <ActivityIndicator color="#ffffff" />
+              ) : (
+                <Text style={styles.buttonText}>Login</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#f8f9fa',
+  },
+  keyboardAvoidingView: {
+    flex: 1,
+  },
+  contentContainer: {
+    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
-    backgroundColor: '#f5f5f5',
+    padding: 24,
   },
   title: {
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: 'bold',
-    marginBottom: 30,
+    marginBottom: 40,
+    color: '#340e5c',
+    textAlign: 'center',
+  },
+  formContainer: {
+    width: '100%',
+    maxWidth: 400,
+  },
+  label: {
+    fontSize: 16,
+    fontWeight: '500',
+    marginBottom: 8,
     color: '#333',
   },
   input: {
     width: '100%',
-    height: 50,
+    height: 56,
     borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    marginBottom: 20,
-    paddingHorizontal: 15,
+    borderColor: '#e0e0e0',
+    borderRadius: 10,
+    marginBottom: 24,
+    paddingHorizontal: 16,
     backgroundColor: 'white',
+    fontSize: 16,
+    color: '#333',
   },
   button: {
     width: '100%',
-    height: 50,
-    backgroundColor: '#2ecc71',
-    borderRadius: 8,
+    height: 56,
+    backgroundColor: '#340e5c',
+    borderRadius: 10,
     justifyContent: 'center',
     alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 2,
   },
-  buttonDisabled: {
-    backgroundColor: '#a8e6c1',
-  },
+
   buttonText: {
     color: 'white',
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '600',
   },
 });

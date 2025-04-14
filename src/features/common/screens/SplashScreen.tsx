@@ -1,5 +1,5 @@
 import React, {useEffect} from 'react';
-import {View, Image, StyleSheet, Platform} from 'react-native';
+import {View, Image, StyleSheet, Platform, StatusBar} from 'react-native';
 import {useNavigation} from '@react-navigation/native';
 import {storage} from '../../../utils/storage'; // MMKV
 import {request, PERMISSIONS, RESULTS} from 'react-native-permissions';
@@ -97,6 +97,11 @@ const SplashScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
+      <StatusBar
+        backgroundColor="#340e5c"
+        barStyle="light-content"
+        translucent={false}
+      />
       <Image
         source={require('../../../assets/images/Logo.png')}
         style={styles.logo}

@@ -33,7 +33,7 @@ const Header: React.FC<HeaderProps> = ({
 const styles = StyleSheet.create({
   header: {
     height: 60,
-    backgroundColor: '#007AFF',
+    backgroundColor: '#340e5c',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',

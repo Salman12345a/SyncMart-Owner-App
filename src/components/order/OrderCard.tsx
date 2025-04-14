@@ -1,6 +1,6 @@
 import React, {useState, useEffect} from 'react';
 import {View, Text, TouchableOpacity, StyleSheet} from 'react-native';
-import Icon from 'react-native-vector-icons/MaterialIcons'; // For delivery icon
+import Icon from 'react-native-vector-icons/MaterialIcons';
 import api from '../../services/api';
 import {Order} from '../../store/ordersStore';
 
@@ -86,8 +86,31 @@ const OrderCard: React.FC<OrderCardProps> = ({
         return styles.statusPacked;
       case 'cancelled':
         return styles.statusCancelled;
+      case 'delivering':
+        return styles.statusDelivering;
+      case 'delivered':
+        return styles.statusDelivered;
       default:
         return styles.statusDefault;
+    }
+  };
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'placed':
+        return 'receipt';
+      case 'accepted':
+        return 'check-circle';
+      case 'packed':
+        return 'inventory';
+      case 'delivering':
+        return 'local-shipping';
+      case 'delivered':
+        return 'done-all';
+      case 'cancelled':
+        return 'cancel';
+      default:
+        return 'help';
     }
   };
 
@@ -97,46 +120,82 @@ const OrderCard: React.FC<OrderCardProps> = ({
   // Ensure items exist before slicing, default to empty array if not
   const displayedItems = (order?.items || []).slice(0, 2);
 
+  // Calculate total items
+  const totalItems =
+    order?.items?.reduce((sum, item) => sum + (item.count || 0), 0) || 0;
+
   return (
     <TouchableOpacity onPress={handlePress} style={styles.card}>
-      <Text style={styles.orderId}>Order ID: {order.orderId}</Text>
-      {displayedItems.length > 0 ? (
-        displayedItems.map(item => (
-          <View key={item._id} style={styles.item}>
-            <Text style={styles.itemText}>
-              {item.item?.name || 'Unknown Item'} x {item.count || 0}
-            </Text>
-            <Text style={styles.priceText}>
-              ₹
-              {item.item?.price
-                ? (item.item.price * (item.count || 0)).toFixed(2)
-                : '0.00'}
-            </Text>
-          </View>
-        ))
-      ) : (
-        <Text style={styles.noItemsText}>No items available</Text>
-      )}
-      {order.items && order.items.length > 2 && (
-        <Text style={styles.moreItemsText}>
-          +{order.items.length - 2} more item
-          {order.items.length - 2 > 1 ? 's' : ''}
-        </Text>
-      )}
-      <View style={styles.footerContainer}>
-        {order.deliveryServiceAvailable && (
+      <View style={styles.header}>
+        <View style={styles.orderIdContainer}>
+          <Text style={styles.orderIdLabel}>ORDER</Text>
+          <Text style={styles.orderId}>#{order.orderId}</Text>
+        </View>
+        <View style={[styles.statusChip, getStatusStyle(order.status)]}>
           <Icon
-            name="delivery-dining"
-            size={20}
-            color="#007AFF"
-            style={styles.deliveryIcon}
+            name={getStatusIcon(order.status)}
+            size={14}
+            color="#FFF"
+            style={styles.statusIcon}
           />
-        )}
-        <View style={styles.statusContainer}>
-          <Text style={[styles.status, getStatusStyle(order.status)]}>
-            {order.status}
+          <Text style={styles.statusText}>
+            {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
           </Text>
         </View>
+      </View>
+
+      <View style={styles.divider} />
+
+      <View style={styles.itemsContainer}>
+        {displayedItems.length > 0 ? (
+          displayedItems.map(item => (
+            <View key={item._id} style={styles.item}>
+              <View style={styles.itemDetails}>
+                <View style={styles.itemCountCircle}>
+                  <Text style={styles.itemCountText}>{item.count || 0}</Text>
+                </View>
+                <Text
+                  style={styles.itemText}
+                  numberOfLines={1}
+                  ellipsizeMode="tail">
+                  {item.item?.name || 'Unknown Item'}
+                </Text>
+              </View>
+              <Text style={styles.priceText}>
+                ₹
+                {item.item?.price
+                  ? (item.item.price * (item.count || 0)).toFixed(0)
+                  : '0'}
+              </Text>
+            </View>
+          ))
+        ) : (
+          <Text style={styles.noItemsText}>No items available</Text>
+        )}
+
+        {order.items && order.items.length > 2 && (
+          <View style={styles.moreItemsContainer}>
+            <Text style={styles.moreItemsText}>
+              +{order.items.length - 2} more item
+              {order.items.length - 2 > 1 ? 's' : ''}
+            </Text>
+            <Icon name="chevron-right" size={16} color="#888" />
+          </View>
+        )}
+      </View>
+
+      <View style={styles.footer}>
+        {order.deliveryServiceAvailable && (
+          <View style={styles.deliveryInfoContainer}>
+            <Icon
+              name="delivery-dining"
+              size={16}
+              color="#5E60CE"
+              style={styles.deliveryIcon}
+            />
+            <Text style={styles.deliveryText}>Express Delivery</Text>
+          </View>
+        )}
       </View>
     </TouchableOpacity>
   );
@@ -144,110 +203,155 @@ const OrderCard: React.FC<OrderCardProps> = ({
 
 const styles = StyleSheet.create({
   card: {
-    padding: 15,
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
-    borderRadius: 8,
-    marginVertical: 5,
+    padding: 16,
+    borderRadius: 16,
+    marginVertical: 8,
     backgroundColor: '#fff',
+    // Lighter, simpler shadow for iOS
     shadowColor: '#000',
     shadowOffset: {width: 0, height: 2},
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    // Lighter elevation for Android
     elevation: 3,
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  orderIdContainer: {
+    flexDirection: 'column',
+  },
+  orderIdLabel: {
+    fontSize: 11,
+    color: '#888',
+    fontWeight: '600',
+    letterSpacing: 0.5,
   },
   orderId: {
     fontSize: 16,
+    fontWeight: '700',
+    color: '#222',
+    marginTop: 2,
+  },
+  statusChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  statusIcon: {
+    marginRight: 4,
+  },
+  statusText: {
+    fontSize: 12,
     fontWeight: '600',
-    color: '#333',
-    marginBottom: 8,
+    color: '#fff',
+  },
+  divider: {
+    height: 1,
+    backgroundColor: '#F0F0F0',
+    marginBottom: 12,
+  },
+  itemsContainer: {
+    marginBottom: 12,
   },
   item: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingVertical: 5,
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  itemDetails: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  itemCountCircle: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: '#F2F3FF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 10,
+  },
+  itemCountText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#5E60CE',
   },
   itemText: {
     fontSize: 14,
-    color: '#555',
-    flex: 1, // Ensures item name doesn't overlap price
+    color: '#333',
+    flex: 1,
   },
   priceText: {
     fontSize: 14,
-    color: '#555',
-    fontWeight: '600', // Makes price slightly prominent
+    color: '#333',
+    fontWeight: '600',
   },
   noItemsText: {
     fontSize: 14,
     color: '#888',
     fontStyle: 'italic',
+    paddingVertical: 10,
+    textAlign: 'center',
+  },
+  moreItemsContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    paddingVertical: 6,
   },
   moreItemsText: {
-    fontSize: 12,
+    fontSize: 13,
     color: '#888',
-    marginTop: 5,
-    fontStyle: 'italic',
+    marginRight: 4,
   },
-  buttonContainer: {
+  footer: {
+    borderTopWidth: 1,
+    borderTopColor: '#F0F0F0',
+    paddingTop: 12,
+    marginTop: 4,
+  },
+  totalContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: 10,
-  },
-  button: {
-    backgroundColor: '#007AFF',
-    paddingVertical: 8,
-    paddingHorizontal: 15,
-    borderRadius: 5,
-    flex: 1,
-    marginHorizontal: 5,
     alignItems: 'center',
+    marginBottom: 8,
   },
-  buttonText: {
-    color: '#fff',
+  totalItemsText: {
     fontSize: 14,
-    fontWeight: '600',
+    color: '#666',
   },
-  assignButton: {
-    backgroundColor: '#007AFF',
-    paddingVertical: 8,
-    paddingHorizontal: 15,
-    borderRadius: 5,
-    alignItems: 'center',
-    marginTop: 10,
+  totalAmountText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#222',
   },
-  assignButtonText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  footerContainer: {
+  deliveryInfoContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 10,
-    position: 'relative',
   },
-  statusContainer: {
-    flex: 1,
-    alignItems: 'flex-end',
-  },
-  status: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#fff',
-    paddingVertical: 4,
-    paddingHorizontal: 10,
-    borderRadius: 12,
-    textTransform: 'capitalize',
-    overflow: 'hidden',
-  },
-  statusPlaced: {backgroundColor: '#28a745'},
-  statusAccepted: {backgroundColor: '#007AFF'},
-  statusPacked: {backgroundColor: '#17a2b8'},
-  statusCancelled: {backgroundColor: '#6c757d'},
-  statusDefault: {backgroundColor: '#6c757d'},
   deliveryIcon: {
-    marginRight: 8,
+    marginRight: 6,
   },
+  deliveryText: {
+    fontSize: 13,
+    color: '#5E60CE',
+    fontWeight: '600',
+  },
+  statusPlaced: {backgroundColor: '#FF9800'}, // Orange
+  statusAccepted: {backgroundColor: '#5E60CE'}, // Purple
+  statusPacked: {backgroundColor: '#00BFA6'}, // Teal
+  statusDelivering: {backgroundColor: '#4361EE'}, // Blue
+  statusDelivered: {backgroundColor: '#10B981'}, // Green
+  statusCancelled: {backgroundColor: '#F43F5E'}, // Red
+  statusDefault: {backgroundColor: '#6B7280'}, // Gray
 });
 
 export default OrderCard;
