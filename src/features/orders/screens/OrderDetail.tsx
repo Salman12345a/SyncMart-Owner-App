@@ -67,7 +67,7 @@ const OrderDetail: React.FC<OrderDetailProps> = ({route, navigation}) => {
   // Socket connection for customer
   useEffect(() => {
     const customerId = currentOrder.customer || '67b4dd5abe2479aa2cfe45a0';
-    socketService.connectCustomer(customerId);
+    socketService.connectCustomer(customerId, updateOrder);
     return () => socketService.disconnect();
   }, [currentOrder.customer]);
 
@@ -156,16 +156,47 @@ const OrderDetail: React.FC<OrderDetailProps> = ({route, navigation}) => {
 
   const handleModifyOrder = async () => {
     try {
-      if (currentOrder.status !== 'accepted') {
-        await handleAccept();
-      }
-      const modifiedItems = updatedItems.map(item => ({
-        item: (item.item as Item)._id || item.item,
-        count: item.count,
-      }));
-      await api.patch(`/orders/${currentOrder._id}/modify`, {modifiedItems});
-      setHasModified(false);
-      updateOrder(currentOrder._id, {...currentOrder, items: updatedItems});
+      Alert.alert(
+        'Confirm Modification',
+        'After modifying this order, you will not be able to modify it again. Are you sure?',
+        [
+          {
+            text: 'Cancel',
+            style: 'cancel',
+          },
+          {
+            text: 'OK',
+            onPress: async () => {
+              if (currentOrder.status !== 'accepted') {
+                await handleAccept();
+              }
+              const modifiedItems = updatedItems.map(item => ({
+                item: (item.item as Item)._id || item.item,
+                count: item.count,
+              }));
+              await api.patch(`/orders/${currentOrder._id}/modify`, {
+                modifiedItems,
+                totalPrice: totalAmountState,
+              });
+              setHasModified(false);
+
+              // Update order with a flag to prevent further modifications
+              updateOrder(currentOrder._id, {
+                ...currentOrder,
+                items: updatedItems,
+                totalPrice: totalAmountState,
+                modificationLocked: true, // Add a flag to prevent further modifications
+              });
+
+              // Show success message
+              Alert.alert(
+                'Success',
+                'Order has been modified successfully. No further modifications are allowed.',
+              );
+            },
+          },
+        ],
+      );
     } catch (error: any) {
       console.error(
         'Modify Order Error:',
@@ -241,14 +272,15 @@ const OrderDetail: React.FC<OrderDetailProps> = ({route, navigation}) => {
                 ₹{item.item.price} x {getItemCount(item._id)}
               </Text>
             </View>
-            {currentOrder.status !== 'packed' && (
-              <UniversalAdd
-                item={item}
-                count={getItemCount}
-                addItem={addItem}
-                removeItem={removeItem}
-              />
-            )}
+            {currentOrder.status !== 'packed' &&
+              !currentOrder.modificationLocked && (
+                <UniversalAdd
+                  item={item}
+                  count={getItemCount}
+                  addItem={addItem}
+                  removeItem={removeItem}
+                />
+              )}
           </View>
         )}
         keyExtractor={item => item._id}
@@ -270,16 +302,35 @@ const OrderDetail: React.FC<OrderDetailProps> = ({route, navigation}) => {
       ) : (
         currentOrder.status !== 'packed' && (
           <TouchableOpacity
-            onPress={hasModified ? handleModifyOrder : handlePackedOrder}
+            onPress={
+              hasModified && !currentOrder.modificationLocked
+                ? handleModifyOrder
+                : handlePackedOrder
+            }
             style={[
               styles.packButton,
-              {backgroundColor: hasModified ? '#007AFF' : '#28a745'},
+              {
+                backgroundColor:
+                  hasModified && !currentOrder.modificationLocked
+                    ? '#007AFF'
+                    : '#28a745',
+              },
             ]}>
             <Text style={styles.packButtonText}>
-              {hasModified ? 'Modify Order' : 'Packed Order'}
+              {hasModified && !currentOrder.modificationLocked
+                ? 'Modify Order'
+                : 'Packed Order'}
             </Text>
           </TouchableOpacity>
         )
+      )}
+
+      {currentOrder.modificationLocked && currentOrder.status !== 'packed' && (
+        <View style={styles.disabledNote}>
+          <Text style={styles.disabledNoteText}>
+            This order has been modified and cannot be modified again.
+          </Text>
+        </View>
       )}
     </View>
   );
@@ -345,6 +396,14 @@ const styles = StyleSheet.create({
     marginTop: 20,
   },
   deliveryButtonText: {color: '#fff', fontSize: 16, fontWeight: 'bold'},
+  disabledNote: {
+    padding: 15,
+    borderRadius: 5,
+    alignItems: 'center',
+    marginTop: 20,
+    backgroundColor: '#f0f0f0',
+  },
+  disabledNoteText: {color: '#333', fontSize: 14, fontWeight: '600'},
 });
 
 export default OrderDetail;

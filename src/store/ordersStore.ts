@@ -10,6 +10,7 @@ export interface Order {
   deliveryEnabled?: boolean; // Changed from deliveryServiceAvailable
   modificationHistory?: {changes: string[]}[];
   customer?: string;
+  modificationLocked?: boolean; // Flag to prevent further modifications
 }
 
 interface DeliveryPartner {
