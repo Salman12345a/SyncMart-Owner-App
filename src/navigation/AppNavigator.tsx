@@ -35,6 +35,7 @@ import MainPackedScreen from '../features/orders/screens/MainPackedScreen';
 import BranchAuth from '../features/branch/screens/BranchAuth';
 import UploadBranchDocs from '../features/branch/screens/UploadBranchDocs';
 import StatusScreen from '../features/branch/screens/StatusScreen';
+import SalesSummary from '../features/orders/screens/SalesSummaryScreen';
 
 export type RootStackParamList = {
   SplashScreen: undefined;
@@ -52,6 +53,7 @@ export type RootStackParamList = {
   AssignDeliveryPartner: {order: Order};
   OrderHasPacked: {order: Order};
   MainPackedScreen: undefined;
+  SalesSummary: undefined;
   DeliveryPartnerAuth: undefined;
   DeliveryStatus: {
     partner: {
@@ -244,6 +246,7 @@ const AppNavigator: React.FC = () => (
       name="AssignDeliveryPartner"
       component={AssignDeliveryPartner as React.ComponentType<any>}
     />
+    <Stack.Screen name="SalesSummary" component={SalesSummary} />
 
     {/* Branch screens */}
     <Stack.Screen name="BranchAuth" component={BranchAuth} />

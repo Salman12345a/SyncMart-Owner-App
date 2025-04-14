@@ -88,6 +88,16 @@ const WalletScreen = () => {
       }));
       setWalletPayments(payments);
     } catch (error: any) {
+      // Check if it's a new branch (no wallet data yet)
+      if (error.response?.status === 404) {
+        // Initialize with empty data for new branch
+        setWalletBalance(0);
+        setWalletTransactions([]);
+        setWalletPayments([]);
+        storage.set('walletBalance', 0);
+        return;
+      }
+
       const message =
         error.response?.data?.error ||
         error.message ||
@@ -284,7 +294,9 @@ const WalletScreen = () => {
       ) : (
         <FlatList
           data={
-            activeTab === 'transactions' ? walletTransactions : walletPayments
+            activeTab === 'transactions'
+              ? walletTransactions.filter(t => t.status === 'settled')
+              : walletPayments
           }
           renderItem={
             activeTab === 'transactions'

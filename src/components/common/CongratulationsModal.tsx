@@ -1,4 +1,4 @@
-import React, {useEffect, useRef} from 'react';
+import React from 'react';
 import {
   View,
   Text,
@@ -6,9 +6,7 @@ import {
   StyleSheet,
   TouchableOpacity,
   Dimensions,
-  ImageBackground,
 } from 'react-native';
-import LottieView from 'lottie-react-native';
 
 const {width, height} = Dimensions.get('window');
 
@@ -23,14 +21,6 @@ const CongratulationsModal: React.FC<CongratulationsModalProps> = ({
   branchName,
   onClose,
 }) => {
-  const animationRef = useRef<LottieView>(null);
-
-  useEffect(() => {
-    if (visible && animationRef.current) {
-      animationRef.current.play();
-    }
-  }, [visible]);
-
   return (
     <Modal
       transparent
@@ -59,15 +49,6 @@ const CongratulationsModal: React.FC<CongratulationsModalProps> = ({
           <TouchableOpacity style={styles.button} onPress={onClose}>
             <Text style={styles.buttonText}>Proceed to Login</Text>
           </TouchableOpacity>
-
-          {/* Animation positioned as overlay */}
-          <LottieView
-            ref={animationRef}
-            source={require('../../assets/animations/party.json')}
-            style={styles.animation}
-            autoPlay
-            loop={false}
-          />
         </View>
       </View>
     </Modal>
@@ -94,16 +75,6 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     overflow: 'visible',
     position: 'relative',
-  },
-  animation: {
-    width: width,
-    height: height,
-    position: 'absolute',
-    top: -height / 2,
-    left: -width / 4,
-    right: 0,
-    zIndex: 10,
-    pointerEvents: 'none',
   },
   congratsText: {
     fontSize: 28,

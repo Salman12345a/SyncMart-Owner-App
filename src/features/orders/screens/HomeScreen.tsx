@@ -6,6 +6,7 @@ import {
   Alert,
   FlatList,
   TouchableOpacity,
+  ActivityIndicator,
 } from 'react-native';
 import {storage} from '../../../utils/storage';
 import socketService from '../../../services/socket';
@@ -26,7 +27,6 @@ interface HomeScreenProps {
   navigation: HomeScreenNavigationProp;
 }
 
-// Custom token payload interface
 interface TokenPayload {
   userId?: string;
   branchId?: string;
@@ -40,14 +40,13 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
   const [userId, setLocalUserId] = useState<string | null>(null);
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const fetchOrders = useCallback(
     async (branchId: string) => {
       try {
-        // Log fetch attempt
         console.log('Fetching orders for branchId:', branchId);
 
-        // Check if we have a token before making the request
         const token = storage.getString('accessToken');
         if (!token) {
           console.error(
@@ -60,10 +59,8 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
           return;
         }
 
-        // Log the token being used (partially redacted)
         console.log('Using token for fetch:', token.substring(0, 10) + '...');
 
-        // Check if branch is approved
         const isApproved = storage.getBoolean('isApproved');
         if (!isApproved) {
           console.error('Branch not approved - redirecting to StatusScreen');
@@ -87,7 +84,6 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
           'orders',
         );
 
-        // Let the store handle de-duplication now
         setOrders(response.data || []);
       } catch (error: any) {
         console.error(
@@ -96,7 +92,6 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
           error?.response?.data || error?.message || error,
         );
 
-        // Handle unauthorized errors
         if (error?.response?.status === 401) {
           console.log('Unauthorized during order fetch - redirecting to login');
           storage.delete('accessToken');
@@ -144,7 +139,6 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
           isApproved,
         );
 
-        // In case we're coming from StatusScreen approval, ensure userId = branchId
         if (storedBranchId && !storedUserId) {
           console.log('Setting userId from branchId for consistency');
           storage.set('userId', storedBranchId);
@@ -160,7 +154,6 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
           return;
         }
 
-        // If not approved, redirect to StatusScreen
         if (!isApproved) {
           const idToUse = storedUserId || storedBranchId;
           if (idToUse) {
@@ -171,7 +164,6 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
             });
             return;
           } else {
-            // If no ID is available, go to Authentication
             navigation.reset({
               index: 0,
               routes: [{name: 'Authentication'}],
@@ -183,18 +175,15 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
         let finalUserId = storedUserId || storedBranchId;
         if (storedAccessToken) {
           try {
-            // Use our custom TokenPayload type
             const tokenPayload = jwtDecode<TokenPayload>(storedAccessToken);
             console.log('Token Payload:', tokenPayload);
 
-            // Try to get userId or branchId from token
             const tokenId = tokenPayload.userId || tokenPayload.branchId || '';
 
             if (!tokenId) {
               console.error(
                 'No userId or branchId in token - redirecting to login',
               );
-              // Clear invalid token data
               storage.delete('userId');
               storage.delete('accessToken');
               navigation.reset({
@@ -232,7 +221,6 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
           socketService.connect(finalUserId);
           fetchOrders(finalUserId);
 
-          // Set state with type safety
           setLocalUserId(finalUserId);
           setAccessToken(storedAccessToken);
           setUserId(finalUserId);
@@ -325,6 +313,15 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
     [navigation],
   );
 
+  const navigateToSalesSummary = useCallback(() => {
+    setIsRefreshing(true);
+    // Simulate a refresh process before navigation
+    setTimeout(() => {
+      setIsRefreshing(false);
+      navigation.navigate('SalesSummary');
+    }, 800);
+  }, [navigation]);
+
   if (isLoading) {
     return <Text>Loading authentication...</Text>;
   }
@@ -337,7 +334,19 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
     <View style={styles.container}>
       <Header navigation={navigation} showStoreStatus />
       <View style={styles.content}>
-        <Text style={styles.title}>Welcome to the Dashboard!</Text>
+        <View style={styles.titleRow}>
+          <Text style={styles.title}>Check Today's Sales</Text>
+          <TouchableOpacity
+            style={styles.viewButton}
+            disabled={isRefreshing}
+            onPress={navigateToSalesSummary}>
+            {isRefreshing ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <Text style={styles.viewButtonText}>View</Text>
+            )}
+          </TouchableOpacity>
+        </View>
         <FlatList
           data={orders.filter(
             o =>
@@ -373,7 +382,27 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
 const styles = StyleSheet.create({
   container: {flex: 1},
   content: {padding: 20, flex: 1},
-  title: {fontSize: 20, marginBottom: 10, color: '#333'},
+  titleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  title: {fontSize: 20, color: '#333'},
+  viewButton: {
+    backgroundColor: '#28a745',
+    paddingVertical: 8,
+    paddingHorizontal: 15,
+    borderRadius: 4,
+    minWidth: 70,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  viewButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
   orderList: {paddingBottom: 20},
   orderCard: {
     backgroundColor: '#fff',
