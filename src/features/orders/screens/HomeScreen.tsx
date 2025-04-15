@@ -1,4 +1,4 @@
-import React, {useEffect, useCallback, useState} from 'react';
+import React, {useEffect, useCallback, useState, useMemo} from 'react';
 import {
   View,
   StyleSheet,
@@ -9,7 +9,6 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import {storage} from '../../../utils/storage';
-import socketService from '../../../services/socket';
 import Header from '../../../components/dashboard/Header';
 import OrderCard from '../../../components/order/OrderCard';
 import {useStore, Order} from '../../../store/ordersStore';
@@ -17,6 +16,11 @@ import api from '../../../services/api';
 import {StackNavigationProp} from '@react-navigation/stack';
 import {RootStackParamList} from '../../../navigation/AppNavigator';
 import {jwtDecode} from 'jwt-decode';
+import {
+  OrderSocket,
+  OrderSocketEventEmitter,
+  OrderSocketEvents,
+} from '../../../native/OrderSocket';
 
 type HomeScreenNavigationProp = StackNavigationProp<
   RootStackParamList,
@@ -181,7 +185,8 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
   }, [userId, fetchOrders]);
 
   useEffect(() => {
-    let refreshInterval: NodeJS.Timeout;
+    let isMounted = true;
+
     const checkAuth = async () => {
       try {
         const storedUserId = storage.getString('userId');
@@ -266,8 +271,18 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
               finalUserId = tokenId;
               storage.set('userId', finalUserId);
             }
-          } catch (e) {
-            console.warn('Failed to decode token:', e);
+
+            if (finalUserId) {
+              // Initial fetch and state setup
+              if (isMounted) {
+                fetchOrders(finalUserId);
+                setLocalUserId(finalUserId);
+                setAccessToken(storedAccessToken);
+                setUserId(finalUserId);
+              }
+            }
+          } catch (error) {
+            console.error('Token processing error:', error);
             storage.delete('userId');
             storage.delete('accessToken');
             navigation.reset({
@@ -276,74 +291,6 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
             });
             return;
           }
-        }
-
-        if (finalUserId) {
-          // Setup socket connection and event handlers
-          socketService.connect(finalUserId, {
-            setWalletBalance: () => {}, // Not needed for orders
-            addWalletTransaction: () => {}, // Not needed for orders
-          });
-
-          // Listen for new orders
-          const socket = socketService.getSocket();
-          if (socket) {
-            socket.on('newOrder', (orderData: any) => {
-              console.log('New order received in HomeScreen:', orderData);
-              try {
-                const order =
-                  typeof orderData === 'string'
-                    ? JSON.parse(orderData)
-                    : orderData;
-                const newOrder = order as Order;
-                // Sort orders after adding the new one
-                const updatedOrders = sortOrdersByFIFO([newOrder, ...orders]);
-                console.log(
-                  'Updating orders with new order:',
-                  newOrder.orderID,
-                );
-                setOrders(updatedOrders);
-              } catch (error) {
-                console.error('Error handling new order:', error);
-              }
-            });
-
-            // Listen for order updates
-            socket.on(
-              'orderUpdated',
-              ({
-                orderId,
-                ...updatedData
-              }: {
-                orderId: string;
-                [key: string]: any;
-              }) => {
-                console.log(
-                  'Order update received in HomeScreen:',
-                  orderId,
-                  updatedData,
-                );
-                const updatedOrders = orders.map((order: Order) =>
-                  order._id === orderId ? {...order, ...updatedData} : order,
-                );
-                // Sort orders after updating
-                const sortedOrders = sortOrdersByFIFO(updatedOrders);
-                setOrders(sortedOrders);
-              },
-            );
-          }
-
-          fetchOrders(finalUserId);
-          setLocalUserId(finalUserId);
-          setAccessToken(storedAccessToken);
-          setUserId(finalUserId);
-
-          // Set up periodic refresh
-          refreshInterval = setInterval(() => {
-            if (finalUserId) {
-              fetchOrders(finalUserId);
-            }
-          }, 30000); // Refresh every 30 seconds
         } else {
           console.error('No finalUserId available after token processing');
           navigation.reset({
@@ -365,20 +312,117 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
     checkAuth();
 
     return () => {
-      const socket = socketService.getSocket();
-      if (socket) {
-        socket.off('newOrder');
-        socket.off('orderUpdated');
-      }
-      socketService.disconnect();
-      if (refreshInterval) {
-        clearInterval(refreshInterval);
-      }
-      console.log(
-        'HomeScreen unmounted, socket disconnected and events cleaned up',
-      );
+      isMounted = false;
     };
-  }, [navigation, fetchOrders, setUserId, orders, sortOrdersByFIFO]);
+  }, [navigation, fetchOrders, setUserId]);
+
+  // Separate useEffect for socket listeners
+  useEffect(() => {
+    if (!userId) return;
+
+    const handleNewOrder = (orderData: any) => {
+      try {
+        console.log('[Socket] Processing new order:', orderData);
+        const order =
+          typeof orderData.orderData === 'string'
+            ? JSON.parse(orderData.orderData)
+            : orderData.orderData;
+
+        // Ensure we have the required fields
+        if (!order?._id || !Array.isArray(order?.items) || !order?.createdAt) {
+          console.warn('[Socket] Invalid order data received:', order);
+          return;
+        }
+
+        // Use functional update to ensure we're working with latest state
+        setOrders((prevOrders: Order[]) => {
+          // Check if order already exists
+          const exists = prevOrders.some(o => o._id === order._id);
+          if (exists) {
+            console.log('[Socket] Order already exists:', order._id);
+            return prevOrders;
+          }
+
+          const newOrders = sortOrdersByFIFO([order, ...prevOrders]);
+          console.log('[Socket] Added new order:', order._id);
+          return newOrders;
+        });
+      } catch (error) {
+        console.error('[Socket] Error handling new order:', error);
+      }
+    };
+
+    const handleOrderUpdate = (data: any) => {
+      try {
+        console.log('[Socket] Processing order update:', data);
+        const updatedOrder =
+          typeof data.orderData === 'string'
+            ? JSON.parse(data.orderData)
+            : data.orderData;
+
+        setOrders((prevOrders: Order[]) => {
+          const updatedOrders = prevOrders.map((order: Order) =>
+            order._id === data.orderId ? {...order, ...updatedOrder} : order,
+          );
+          const sortedOrders = sortOrdersByFIFO(updatedOrders);
+          console.log('[Socket] Updated order:', data.orderId);
+          return sortedOrders;
+        });
+      } catch (error) {
+        console.error('[Socket] Error handling order update:', error);
+      }
+    };
+
+    // Set up socket listeners
+    const newOrderSubscription = OrderSocketEventEmitter.addListener(
+      OrderSocketEvents.NEW_ORDER,
+      handleNewOrder,
+    );
+
+    const orderUpdateSubscription = OrderSocketEventEmitter.addListener(
+      OrderSocketEvents.ORDER_UPDATE,
+      handleOrderUpdate,
+    );
+
+    // Set up fallback refresh every 1 minute
+    const refreshInterval = setInterval(() => {
+      console.log('[Fallback] Checking for new orders...');
+      fetchOrders(userId);
+    }, 60 * 1000); // 1 minute
+
+    return () => {
+      newOrderSubscription.remove();
+      orderUpdateSubscription.remove();
+      clearInterval(refreshInterval);
+      console.log('[Socket] Cleaned up socket listeners and refresh interval');
+    };
+  }, [userId, sortOrdersByFIFO, fetchOrders]);
+
+  // Memoize the filtered and sorted orders to prevent unnecessary re-renders
+  const filteredOrders = useMemo(() => {
+    const filtered = orders.filter(
+      o =>
+        o.status !== 'delivered' &&
+        o.status !== 'cancelled' &&
+        o.status !== 'packed' &&
+        o.status !== 'assigned',
+    );
+    return sortOrdersByFIFO(filtered);
+  }, [orders, sortOrdersByFIFO]);
+
+  // Add pull-to-refresh functionality for manual updates
+  const handleRefresh = useCallback(async () => {
+    setIsRefreshing(true);
+    try {
+      if (userId) {
+        await fetchOrders(userId);
+      }
+    } catch (error) {
+      console.error('Manual refresh failed:', error);
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [userId, fetchOrders]);
 
   const handleAccept = useCallback(
     async (orderId: string) => {
@@ -478,15 +522,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
           </TouchableOpacity>
         </View>
         <FlatList
-          data={sortOrdersByFIFO(
-            orders.filter(
-              o =>
-                o.status !== 'delivered' &&
-                o.status !== 'cancelled' &&
-                o.status !== 'packed' &&
-                o.status !== 'assigned',
-            ),
-          )}
+          data={filteredOrders}
           renderItem={({item}) => (
             <OrderCard
               order={item}
@@ -500,10 +536,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
           )}
           keyExtractor={item => item._id}
           contentContainerStyle={styles.orderList}
-          onRefresh={() => {
-            setIsRefreshing(true);
-            fetchOrders(userId || '').finally(() => setIsRefreshing(false));
-          }}
+          onRefresh={handleRefresh}
           refreshing={isRefreshing}
         />
       </View>

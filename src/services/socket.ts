@@ -19,7 +19,7 @@ class SocketService {
 
   emit(event: string, data: any): void {
     if (this.socket && this.socket.connected) {
-      this.socket.send(event, data);
+      this.socket.emit(event, data);
     } else {
       console.warn(`Socket not connected, cannot emit ${event}`);
     }
@@ -32,13 +32,17 @@ class SocketService {
       addWalletTransaction: (transaction: WalletTransaction) => void;
     },
   ) {
-    // Store handlers at class level
-    this.handlers = {...handlers};
-
-    if (this.socket && this.socket.connected) {
-      console.log('[Socket] Already connected, socket ID:', this.socket.id);
+    if (
+      this.socket?.connected &&
+      this.socket.io.opts.query?.branchId === branchId
+    ) {
+      console.log(
+        '[Socket] Already connected with same branchId, skipping reconnection',
+      );
       return;
     }
+
+    this.handlers = {...handlers};
 
     try {
       const token = storage.getString('accessToken');
@@ -47,12 +51,7 @@ class SocketService {
         return;
       }
 
-      if (this.socket) {
-        console.log('[Socket] Cleaning up existing socket before reconnection');
-        this.socket.removeAllListeners();
-        this.socket.disconnect();
-        this.socket = null;
-      }
+      this.disconnect();
 
       const socketUrl = config.SOCKET_URL.replace('/api', '');
       console.log('[Socket] Attempting connection to:', socketUrl);
@@ -66,38 +65,13 @@ class SocketService {
         reconnection: true,
         reconnectionAttempts: 5,
         reconnectionDelay: 1000,
+        reconnectionDelayMax: 5000,
+        timeout: 20000,
+        forceNew: true,
       });
 
-      this.socket.on('connect', () => {
-        console.log(
-          '[Socket] Connected successfully. Socket ID:',
-          this.socket?.id,
-        );
-        this.isConnected = true;
-        this.connectionAttempts = 0;
-      });
+      this.setupBasicEventHandlers();
 
-      this.socket.on('disconnect', reason => {
-        console.log('[Socket] Disconnected. Reason:', reason);
-        this.isConnected = false;
-      });
-
-      this.socket.on('connect_error', error => {
-        console.log('[Socket] Connection Error:', error.message);
-        this.isConnected = false;
-      });
-
-      // Debug all incoming events
-      this.socket.onAny((eventName, ...args) => {
-        console.log(
-          '[Socket] Received event:',
-          eventName,
-          'Data:',
-          JSON.stringify(args),
-        );
-      });
-
-      // Handle wallet updates
       if (
         this.handlers.setWalletBalance &&
         this.handlers.addWalletTransaction
@@ -107,11 +81,51 @@ class SocketService {
           this.handlers.addWalletTransaction,
         );
       }
-
-      // Add other feature-specific socket handlers here
-      this.setupOtherFeatureHandlers();
     } catch (error) {
       console.error('[Socket] Connection Setup Error:', error);
+    }
+  }
+
+  private setupBasicEventHandlers() {
+    if (!this.socket) return;
+
+    this.socket.on('connect', () => {
+      console.log(
+        '[Socket] Connected successfully. Socket ID:',
+        this.socket?.id,
+      );
+      this.isConnected = true;
+      this.connectionAttempts = 0;
+    });
+
+    this.socket.on('disconnect', reason => {
+      console.log('[Socket] Disconnected. Reason:', reason);
+      this.isConnected = false;
+    });
+
+    this.socket.on('connect_error', error => {
+      console.log('[Socket] Connection Error:', error.message);
+      this.isConnected = false;
+    });
+
+    if (process.env.NODE_ENV === 'development') {
+      const ignoredEvents = new Set([
+        'ping',
+        'pong',
+        'connect',
+        'disconnect',
+        'connect_error',
+      ]);
+      this.socket.onAny((eventName, ...args) => {
+        if (!ignoredEvents.has(eventName)) {
+          console.log(
+            '[Socket] Event:',
+            eventName,
+            'Data:',
+            typeof args[0] === 'object' ? JSON.stringify(args[0]) : args[0],
+          );
+        }
+      });
     }
   }
 
@@ -122,28 +136,18 @@ class SocketService {
     if (!this.socket) return;
 
     this.socket.on('walletUpdated', ({branchId, newBalance, transaction}) => {
-      console.log(`Wallet updated for branch ${branchId}:`, {
-        newBalance,
-        transaction,
-      });
+      console.log(`[Socket] Wallet updated for branch ${branchId}`);
       setWalletBalance(newBalance);
-      addWalletTransaction({
-        ...transaction,
-        timestamp: transaction.timestamp,
-        status: transaction.type === 'platform_charge' ? 'settled' : 'pending',
-        orderNumber: transaction.orderId || undefined,
-      });
+      if (transaction) {
+        addWalletTransaction({
+          ...transaction,
+          timestamp: transaction.timestamp,
+          status:
+            transaction.type === 'platform_charge' ? 'settled' : 'pending',
+          orderNumber: transaction.orderId || undefined,
+        });
+      }
     });
-  }
-
-  private setupOtherFeatureHandlers() {
-    if (!this.socket) return;
-
-    // Add handlers for other features here
-    // Example:
-    // this.socket.on('featureEvent', (data) => {
-    //   // Handle feature event
-    // });
   }
 
   connectCustomer(
@@ -201,8 +205,9 @@ class SocketService {
       this.socket.removeAllListeners();
       this.socket.disconnect();
       this.socket = null;
+      this.isConnected = false;
+      console.log('[Socket] Disconnected and cleaned up');
     }
-    this.isConnected = false;
   }
 }
 

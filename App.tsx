@@ -27,12 +27,11 @@ const App = () => {
 
   const handleNewOrder = useCallback(
     (orderData: any) => {
-      console.log('New order received:', orderData);
       try {
         const order = JSON.parse(orderData.orderData);
         addOrder(order);
       } catch (error) {
-        console.error('Error parsing new order:', error);
+        console.error('[Socket] Error parsing new order:', error);
       }
     },
     [addOrder],
@@ -40,12 +39,11 @@ const App = () => {
 
   const handleOrderUpdate = useCallback(
     (data: any) => {
-      console.log('Order update received:', data);
       try {
         const order = JSON.parse(data.orderData);
         updateOrder(data.orderId, order);
       } catch (error) {
-        console.error('Error parsing order update:', error);
+        console.error('[Socket] Error parsing order update:', error);
       }
     },
     [updateOrder],
@@ -69,44 +67,53 @@ const App = () => {
           });
         }
       } catch (error) {
-        console.error('Error handling wallet update:', error);
+        console.error('[Socket] Error handling wallet update:', error);
       }
     },
     [setWalletBalance, addWalletTransaction],
   );
 
   useEffect(() => {
+    let isInitialConnection = true;
+
     const restoreUserId = async () => {
       try {
         const storedBranchId = await AsyncStorage.getItem('branchId');
         const token = await AsyncStorage.getItem('accessToken');
-        console.log('Restoring userId from AsyncStorage:', storedBranchId);
+
         if (storedBranchId && token && !userId) {
           setUserId(storedBranchId);
-          // Initialize socket connection with token
-          try {
-            await OrderSocket.connect(storedBranchId, token);
-            console.log('Native socket connected with userId:', storedBranchId);
-            const recentOrders = await OrderSocket.getRecentOrders(
-              storedBranchId,
-            );
-            console.log('Fetched recent orders:', recentOrders);
-            recentOrders.forEach(order => {
-              try {
-                const parsedOrder = JSON.parse(order.orderData);
-                addOrder(parsedOrder);
-              } catch (error) {
-                console.error('Error parsing stored order:', error);
-              }
-            });
-          } catch (error) {
-            console.error('Failed to connect socket or fetch orders:', error);
+
+          // Only connect socket and fetch orders on initial mount
+          if (isInitialConnection) {
+            try {
+              await OrderSocket.connect(storedBranchId, token);
+              const recentOrders = await OrderSocket.getRecentOrders(
+                storedBranchId,
+              );
+
+              recentOrders.forEach(order => {
+                try {
+                  const parsedOrder = JSON.parse(order.orderData);
+                  addOrder(parsedOrder);
+                } catch (error) {
+                  console.error('[Socket] Error parsing stored order:', error);
+                }
+              });
+            } catch (error) {
+              console.error(
+                '[Socket] Failed to connect or fetch orders:',
+                error,
+              );
+            }
+            isInitialConnection = false;
           }
         }
       } catch (error) {
-        console.error('Failed to restore userId from AsyncStorage:', error);
+        console.error('[Socket] Failed to restore userId:', error);
       }
     };
+
     restoreUserId();
   }, [userId, setUserId, addOrder]);
 
