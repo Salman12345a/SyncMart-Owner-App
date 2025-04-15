@@ -4,7 +4,6 @@ import android.app.*
 import android.content.Intent
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
-import com.syncmart.R
 import com.syncmart.socket.OrderSocketManager
 import com.syncmart.socket.data.AppDatabase
 import kotlinx.coroutines.CoroutineScope
@@ -24,8 +23,12 @@ class OrderSocketService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        intent?.getStringExtra(EXTRA_BRANCH_ID)?.let { branchId ->
+        val branchId = intent?.getStringExtra(EXTRA_BRANCH_ID)
+        val token = intent?.getStringExtra(EXTRA_TOKEN)
+        
+        if (branchId != null && token != null) {
             serviceScope.launch {
+                socketManager.setToken(token)
                 socketManager.connect(branchId)
             }
         }
@@ -51,7 +54,7 @@ class OrderSocketService : Service() {
         return NotificationCompat.Builder(this, channelId)
             .setContentTitle("SyncMart Order Service")
             .setContentText("Listening for new orders")
-            .setSmallIcon(R.drawable.ic_notification)
+            .setSmallIcon(android.R.drawable.ic_dialog_info)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .build()
     }
@@ -64,5 +67,6 @@ class OrderSocketService : Service() {
     companion object {
         private const val NOTIFICATION_ID = 1
         const val EXTRA_BRANCH_ID = "branch_id"
+        const val EXTRA_TOKEN = "token"
     }
 } 
