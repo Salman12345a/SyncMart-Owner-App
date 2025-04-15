@@ -12,7 +12,7 @@ import {storage} from '../../../utils/storage';
 import socketService from '../../../services/socket';
 import Header from '../../../components/dashboard/Header';
 import OrderCard from '../../../components/order/OrderCard';
-import {useStore} from '../../../store/ordersStore';
+import {useStore, Order} from '../../../store/ordersStore';
 import api from '../../../services/api';
 import {StackNavigationProp} from '@react-navigation/stack';
 import {RootStackParamList} from '../../../navigation/AppNavigator';
@@ -41,6 +41,21 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Add a function to sort orders by ID in FIFO order
+  const sortOrdersByFIFO = useCallback((ordersToSort: Order[]) => {
+    try {
+      return [...ordersToSort].sort((a, b) => {
+        // Sort by creation timestamp first
+        const aTime = new Date(a.createdAt).getTime();
+        const bTime = new Date(b.createdAt).getTime();
+        return aTime - bTime; // Ascending order (FIFO)
+      });
+    } catch (error) {
+      console.error('Error sorting orders:', error);
+      return ordersToSort; // Return unsorted array if sorting fails
+    }
+  }, []);
 
   const fetchOrders = useCallback(
     async (branchId: string) => {
@@ -78,13 +93,51 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
           },
         });
 
+        if (!response?.data) {
+          console.error('No data received from orders API');
+          return;
+        }
+
         console.log(
           'Orders fetched successfully:',
           response.data?.length || 0,
           'orders',
         );
 
-        setOrders(response.data || []);
+        // Validate and clean the orders data
+        const validOrders = response.data.filter((order: any) => {
+          // Check for minimum required fields
+          if (!order?._id) {
+            console.warn('Order missing _id:', order);
+            return false;
+          }
+
+          // Check if order has items
+          if (!Array.isArray(order?.items)) {
+            console.warn('Order has no items array:', order._id);
+            return false;
+          }
+
+          // Check if order has required timestamps
+          if (!order?.createdAt) {
+            console.warn('Order missing createdAt:', order._id);
+            return false;
+          }
+
+          return true;
+        });
+
+        // Sort orders before setting them
+        const sortedOrders = sortOrdersByFIFO(validOrders);
+        console.log(
+          'Setting sorted orders:',
+          sortedOrders.map(o => ({
+            id: o._id,
+            created: o.createdAt,
+            status: o.status,
+          })),
+        );
+        setOrders(sortedOrders);
       } catch (error: any) {
         console.error(
           'Fetch Orders Error:',
@@ -117,10 +170,18 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
         Alert.alert('Error', 'Failed to load orders. Please try again.');
       }
     },
-    [setOrders, navigation],
+    [setOrders, navigation, sortOrdersByFIFO],
   );
 
+  // Add a refresh function
+  const refreshOrders = useCallback(() => {
+    if (userId) {
+      fetchOrders(userId);
+    }
+  }, [userId, fetchOrders]);
+
   useEffect(() => {
+    let refreshInterval: NodeJS.Timeout;
     const checkAuth = async () => {
       try {
         const storedUserId = storage.getString('userId');
@@ -218,12 +279,71 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
         }
 
         if (finalUserId) {
-          socketService.connect(finalUserId);
-          fetchOrders(finalUserId);
+          // Setup socket connection and event handlers
+          socketService.connect(finalUserId, {
+            setWalletBalance: () => {}, // Not needed for orders
+            addWalletTransaction: () => {}, // Not needed for orders
+          });
 
+          // Listen for new orders
+          const socket = socketService.getSocket();
+          if (socket) {
+            socket.on('newOrder', (orderData: any) => {
+              console.log('New order received in HomeScreen:', orderData);
+              try {
+                const order =
+                  typeof orderData === 'string'
+                    ? JSON.parse(orderData)
+                    : orderData;
+                const newOrder = order as Order;
+                // Sort orders after adding the new one
+                const updatedOrders = sortOrdersByFIFO([newOrder, ...orders]);
+                console.log(
+                  'Updating orders with new order:',
+                  newOrder.orderID,
+                );
+                setOrders(updatedOrders);
+              } catch (error) {
+                console.error('Error handling new order:', error);
+              }
+            });
+
+            // Listen for order updates
+            socket.on(
+              'orderUpdated',
+              ({
+                orderId,
+                ...updatedData
+              }: {
+                orderId: string;
+                [key: string]: any;
+              }) => {
+                console.log(
+                  'Order update received in HomeScreen:',
+                  orderId,
+                  updatedData,
+                );
+                const updatedOrders = orders.map((order: Order) =>
+                  order._id === orderId ? {...order, ...updatedData} : order,
+                );
+                // Sort orders after updating
+                const sortedOrders = sortOrdersByFIFO(updatedOrders);
+                setOrders(sortedOrders);
+              },
+            );
+          }
+
+          fetchOrders(finalUserId);
           setLocalUserId(finalUserId);
           setAccessToken(storedAccessToken);
           setUserId(finalUserId);
+
+          // Set up periodic refresh
+          refreshInterval = setInterval(() => {
+            if (finalUserId) {
+              fetchOrders(finalUserId);
+            }
+          }, 30000); // Refresh every 30 seconds
         } else {
           console.error('No finalUserId available after token processing');
           navigation.reset({
@@ -245,10 +365,20 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
     checkAuth();
 
     return () => {
+      const socket = socketService.getSocket();
+      if (socket) {
+        socket.off('newOrder');
+        socket.off('orderUpdated');
+      }
       socketService.disconnect();
-      console.log('HomeScreen unmounted, socket disconnected');
+      if (refreshInterval) {
+        clearInterval(refreshInterval);
+      }
+      console.log(
+        'HomeScreen unmounted, socket disconnected and events cleaned up',
+      );
     };
-  }, [navigation, fetchOrders, setUserId]);
+  }, [navigation, fetchOrders, setUserId, orders, sortOrdersByFIFO]);
 
   const handleAccept = useCallback(
     async (orderId: string) => {
@@ -348,12 +478,14 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
           </TouchableOpacity>
         </View>
         <FlatList
-          data={orders.filter(
-            o =>
-              o.status !== 'delivered' &&
-              o.status !== 'cancelled' &&
-              o.status !== 'packed' &&
-              o.status !== 'assigned',
+          data={sortOrdersByFIFO(
+            orders.filter(
+              o =>
+                o.status !== 'delivered' &&
+                o.status !== 'cancelled' &&
+                o.status !== 'packed' &&
+                o.status !== 'assigned',
+            ),
           )}
           renderItem={({item}) => (
             <OrderCard
@@ -368,6 +500,11 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
           )}
           keyExtractor={item => item._id}
           contentContainerStyle={styles.orderList}
+          onRefresh={() => {
+            setIsRefreshing(true);
+            fetchOrders(userId || '').finally(() => setIsRefreshing(false));
+          }}
+          refreshing={isRefreshing}
         />
       </View>
       <TouchableOpacity
