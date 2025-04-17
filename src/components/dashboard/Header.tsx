@@ -8,12 +8,14 @@ interface HeaderProps {
   navigation: DrawerNavigationProp<any>;
   showStoreStatus?: boolean;
   socket?: any;
+  setShowLowBalanceModal?: (show: boolean) => void;
 }
 
 const Header: React.FC<HeaderProps> = ({
   navigation,
   showStoreStatus,
   socket,
+  setShowLowBalanceModal,
 }) => (
   <View style={styles.header}>
     <TouchableOpacity
@@ -23,7 +25,7 @@ const Header: React.FC<HeaderProps> = ({
     </TouchableOpacity>
 
     {showStoreStatus ? (
-      <StoreStatusToggle socket={socket} />
+      <StoreStatusToggle setShowLowBalanceModal={setShowLowBalanceModal!} />
     ) : (
       <Text style={styles.headerText}>SyncMart</Text>
     )}

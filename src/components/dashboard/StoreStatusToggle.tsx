@@ -1,12 +1,22 @@
-import React, {useCallback, useEffect, useRef} from 'react';
-import {View, StyleSheet} from 'react-native';
+import React, {useCallback, useEffect, useRef, useState} from 'react';
+import {View, StyleSheet, Text, Alert} from 'react-native';
 import SwitchSelector from 'react-native-switch-selector';
 import {useStore} from '../../store/ordersStore';
-import api from '../../services/api';
+import {getStoreStatus, updateStoreStatus} from '../../services/api';
 import socketService from '../../services/socket';
 
-const StoreStatusToggle: React.FC = () => {
-  const {storeStatus, setStoreStatus} = useStore();
+const MINIMUM_BALANCE = -100;
+
+interface StoreStatusToggleProps {
+  setShowLowBalanceModal: (show: boolean) => void;
+}
+
+const StoreStatusToggle: React.FC<StoreStatusToggleProps> = ({
+  setShowLowBalanceModal,
+}) => {
+  const {storeStatus, setStoreStatus, walletBalance} = useStore();
+  const [isDisabled, setIsDisabled] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const isToggling = useRef(false);
   const switchRef = useRef<any>(null);
 
@@ -14,35 +24,49 @@ const StoreStatusToggle: React.FC = () => {
   useEffect(() => {
     const syncStoreStatus = async () => {
       try {
-        const response = await api.get('/syncmarts/status');
-        const {storeStatus: serverStatus} = response.data;
-        if (serverStatus === 'open' || serverStatus === 'closed') {
-          setStoreStatus(serverStatus);
+        const response = await getStoreStatus();
+        setStoreStatus(response.storeStatus);
+
+        // Check wallet balance
+        if (response.balance < MINIMUM_BALANCE) {
+          setIsDisabled(true);
+          setErrorMessage('Store cannot be opened: Balance below -₹100');
+        } else {
+          setIsDisabled(false);
+          setErrorMessage(null);
         }
       } catch (error) {
-        console.error(
-          'Error fetching storeStatus:',
-          error.response?.data || error.message,
-        );
+        console.error('Error fetching storeStatus:', error);
+        setErrorMessage('Failed to fetch store status');
       }
     };
 
     syncStoreStatus();
   }, [setStoreStatus]);
 
-  // Socket setup for syncmart:status
+  // Socket setup for syncmart:status and wallet updates
   useEffect(() => {
     const socket = socketService.getSocket();
     if (!socket) return;
 
-    const handleStatusUpdate = (data: {storeStatus: string}) => {
+    const handleStatusUpdate = (data: {
+      storeStatus: string;
+      balance?: number;
+    }) => {
       if (isToggling.current) return;
+
       if (data.storeStatus !== storeStatus) {
         setStoreStatus(data.storeStatus);
         // Force update switch position without triggering onPress
         if (switchRef.current) {
           switchRef.current.setValue(data.storeStatus === 'open' ? 0 : 1);
         }
+      }
+
+      // Handle balance updates
+      if (data.balance !== undefined && data.balance < MINIMUM_BALANCE) {
+        setIsDisabled(true);
+        setErrorMessage('Store cannot be opened: Balance below -₹100');
       }
     };
 
@@ -52,20 +76,53 @@ const StoreStatusToggle: React.FC = () => {
     };
   }, [storeStatus, setStoreStatus]);
 
+  // Watch wallet balance changes
+  useEffect(() => {
+    if (walletBalance < MINIMUM_BALANCE) {
+      setIsDisabled(true);
+      setErrorMessage('Store cannot be opened: Balance below -₹100');
+
+      // Auto-close store if it's open
+      if (storeStatus === 'open') {
+        toggleSyncMartStatus(1);
+      }
+    } else {
+      setIsDisabled(false);
+      setErrorMessage(null);
+    }
+  }, [walletBalance, storeStatus]);
+
   const toggleSyncMartStatus = useCallback(
     async (value: number) => {
-      // Only proceed if this is a user-initiated change
-      const newStatus = value === 0 ? 'open' : 'closed';
+      const newStatus = value === 0 ? ('open' as const) : ('closed' as const);
       if (newStatus === storeStatus) return;
+
+      // Prevent opening store with low balance
+      if (newStatus === 'open' && walletBalance < MINIMUM_BALANCE) {
+        Alert.alert(
+          'Cannot Open Store',
+          'Your wallet balance is below -₹100. Please add funds to open the store.',
+        );
+        // Revert switch position
+        if (switchRef.current) {
+          switchRef.current.setValue(1);
+        }
+        return;
+      }
 
       isToggling.current = true;
       try {
-        const response = await api.post('/syncmarts/status', {
-          storeStatus: newStatus,
-        });
-        setStoreStatus(response.data.storeStatus);
-      } catch (err) {
-        console.error('Toggle Error:', err.response?.data || err.message);
+        const response = await updateStoreStatus(newStatus);
+        setStoreStatus(response.storeStatus);
+
+        if (response.reason) {
+          setErrorMessage(response.reason);
+        } else {
+          setErrorMessage(null);
+        }
+      } catch (err: any) {
+        console.error('Toggle Error:', err);
+        Alert.alert('Error', err.message || 'Failed to update store status');
         // Revert switch position if API call fails
         if (switchRef.current) {
           switchRef.current.setValue(storeStatus === 'open' ? 0 : 1);
@@ -76,7 +133,19 @@ const StoreStatusToggle: React.FC = () => {
         }, 1500);
       }
     },
-    [storeStatus, setStoreStatus],
+    [storeStatus, setStoreStatus, walletBalance],
+  );
+
+  const handleTogglePress = useCallback(
+    (value: number) => {
+      if (isDisabled) {
+        // Show low balance modal when disabled toggle is tapped
+        setShowLowBalanceModal(true);
+        return;
+      }
+      toggleSyncMartStatus(value);
+    },
+    [isDisabled, toggleSyncMartStatus, setShowLowBalanceModal],
   );
 
   return (
@@ -89,20 +158,33 @@ const StoreStatusToggle: React.FC = () => {
         ]}
         initial={storeStatus === 'open' ? 0 : 1}
         value={storeStatus === 'open' ? 0 : 1}
-        onPress={toggleSyncMartStatus}
+        onPress={handleTogglePress}
         buttonColor="#FFFFFF"
-        backgroundColor="rgba(255, 255, 255, 0.3)"
-        borderColor="#007AFF"
-        selectedColor="#007AFF"
+        backgroundColor={isDisabled ? '#E0E0E0' : 'rgba(255, 255, 255, 0.3)'}
+        borderColor={isDisabled ? '#CCCCCC' : '#007AFF'}
+        selectedColor={isDisabled ? '#999999' : '#007AFF'}
         style={styles.switch}
+        disabled={false} // Remove disabled prop to allow tap events
       />
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {width: 150},
-  switch: {paddingVertical: 5},
+  container: {
+    width: 150,
+    alignItems: 'center',
+  },
+  switch: {
+    paddingVertical: 5,
+  },
+  errorMessage: {
+    color: '#FF3B30',
+    fontSize: 12,
+    marginTop: 5,
+    textAlign: 'center',
+    maxWidth: 200,
+  },
 });
 
 export default StoreStatusToggle;

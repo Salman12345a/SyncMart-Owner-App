@@ -29,6 +29,15 @@ interface WalletPaymentResponse {
   newBalance: number;
 }
 
+// Store Status Response Types
+interface StoreStatusResponse {
+  message: string;
+  storeStatus: 'open' | 'closed';
+  deliveryServiceAvailable: boolean;
+  balance: number;
+  reason?: string;
+}
+
 const api: AxiosInstance = axios.create({
   baseURL: config.BASE_URL, // Use BASE_URL from config
 });
@@ -513,6 +522,51 @@ export const login = async (phone: string) => {
     };
   } catch (error: any) {
     throw error;
+  }
+};
+
+// Store Status Functions
+export const getStoreStatus = async (): Promise<StoreStatusResponse> => {
+  try {
+    const branchId = storage.getString('userId');
+    if (!branchId) throw new Error('Branch ID not found');
+    const response = await api.get('/syncmarts/status');
+    console.log('Get Store Status Success:', response.data);
+    return response.data;
+  } catch (error: any) {
+    console.error(
+      'Get Store Status Error:',
+      error.response?.data || error.message,
+    );
+    const message =
+      error.response?.data?.error ||
+      error.message ||
+      'Failed to get store status';
+    throw new Error(message);
+  }
+};
+
+export const updateStoreStatus = async (
+  newStatus: 'open' | 'closed',
+): Promise<StoreStatusResponse> => {
+  try {
+    const branchId = storage.getString('userId');
+    if (!branchId) throw new Error('Branch ID not found');
+    const response = await api.post('/syncmarts/status', {
+      storeStatus: newStatus,
+    });
+    console.log('Update Store Status Success:', response.data);
+    return response.data;
+  } catch (error: any) {
+    console.error(
+      'Update Store Status Error:',
+      error.response?.data || error.message,
+    );
+    const message =
+      error.response?.data?.error ||
+      error.message ||
+      'Failed to update store status';
+    throw new Error(message);
   }
 };
 

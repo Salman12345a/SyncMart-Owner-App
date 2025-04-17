@@ -138,6 +138,15 @@ class SocketService {
     this.socket.on('walletUpdated', ({branchId, newBalance, transaction}) => {
       console.log(`[Socket] Wallet updated for branch ${branchId}`);
       setWalletBalance(newBalance);
+
+      // Check if store needs to be auto-closed due to low balance
+      if (newBalance < 100) {
+        this.socket?.emit('syncmart:status', {
+          storeStatus: 'closed',
+          reason: 'Wallet balance below minimum threshold',
+        });
+      }
+
       if (transaction) {
         addWalletTransaction({
           ...transaction,
@@ -148,6 +157,21 @@ class SocketService {
         });
       }
     });
+
+    // Listen for store status updates
+    this.socket.on(
+      'syncmart:status',
+      (data: {
+        storeStatus: 'open' | 'closed';
+        balance?: number;
+        reason?: string;
+      }) => {
+        console.log('[Socket] Store status update:', data);
+        if (data.balance !== undefined) {
+          setWalletBalance(data.balance);
+        }
+      },
+    );
   }
 
   connectCustomer(

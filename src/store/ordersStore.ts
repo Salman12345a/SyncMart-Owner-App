@@ -24,22 +24,11 @@ export interface Location {
 
 export interface Order {
   _id: string;
-  branchId: string;
-  customer: string;
-  items: OrderItem[];
-  branch: string;
+  orderId: string;
+  items: any[];
   status: string;
-  deliveryEnabled: boolean;
-  statusHistory: StatusHistoryItem[];
-  totalPrice: number;
-  deliveryLocation: Location;
-  pickupLocation?: Location;
-  orderID: string;
-  manuallyCollected?: boolean;
-  modificationHistory: any[];
   createdAt: string;
-  updatedAt: string;
-  __v: number;
+  // Add other order properties as needed
 }
 
 interface DeliveryPartner {
@@ -70,10 +59,10 @@ interface Branch {
 export interface WalletTransaction {
   _id: string;
   orderId: string;
-  orderNumber: string;
+  orderNumber?: string;
   amount: number;
-  type: 'charge';
-  date: string;
+  type: 'platform_charge' | 'payment';
+  timestamp: string;
   status: 'pending' | 'settled';
 }
 
@@ -81,9 +70,7 @@ export interface WalletTransaction {
 export interface WalletPayment {
   _id: string;
   amount: number;
-  date: string;
-  method: string;
-  reference: string;
+  timestamp: string;
   status: 'pending' | 'completed';
 }
 
@@ -96,18 +83,16 @@ interface StoreState {
   orders: Order[];
   deliveryPartners: DeliveryPartner[];
   branches: Branch[];
-  // Wallet state
   walletBalance: number;
   walletTransactions: WalletTransaction[];
   walletPayments: WalletPayment[];
-  // Existing functions
   setStoreStatus: (status: 'open' | 'closed') => void;
   setDeliveryServiceAvailable: (available: boolean) => void;
   setUserId: (id: string | null) => void;
   setSessionExpiredMessage: (message: string | null) => void;
   addOrder: (order: Order) => void;
   updateOrder: (orderId: string, updatedOrder: Order) => void;
-  setOrders: (orders: Order[]) => void;
+  setOrders: (orders: Order[] | ((prevOrders: Order[]) => Order[])) => void;
   setDeliveryPartners: (partners: DeliveryPartner[]) => void;
   addDeliveryPartner: (partner: DeliveryPartner) => void;
   hasApprovedDeliveryPartner: () => boolean;
@@ -116,13 +101,11 @@ interface StoreState {
     branchId: string,
     status: 'pending' | 'approved' | 'rejected',
   ) => void;
-  // Wallet functions
   setWalletBalance: (balance: number) => void;
   setWalletTransactions: (transactions: WalletTransaction[]) => void;
   addWalletTransaction: (transaction: WalletTransaction) => void;
   setWalletPayments: (payments: WalletPayment[]) => void;
   addWalletPayment: (payment: WalletPayment) => void;
-  // Socket related functions
   initializeSocket: (branchPhone: string) => void;
   disconnectSocket: () => void;
 }
@@ -144,7 +127,6 @@ export const useStore = create<StoreState>((set, get) => ({
   orders: [],
   deliveryPartners: [],
   branches: [],
-  // Initialize wallet state
   walletBalance: 0,
   walletTransactions: [],
   walletPayments: [],
@@ -214,50 +196,13 @@ export const useStore = create<StoreState>((set, get) => ({
     set(state => ({
       orders: state.orders.map(o => (o._id === orderId ? updatedOrder : o)),
     })),
-  setOrders: orders =>
-    set(state => {
-      const uniqueNewOrders = orders.filter(
-        (order, index, self) =>
-          index === self.findIndex(o => o._id === order._id),
-      );
-
-      if (uniqueNewOrders.length < orders.length) {
-        console.log(
-          'Removed',
-          orders.length - uniqueNewOrders.length,
-          'internal duplicate orders',
-        );
-      }
-
-      if (state.orders.length === 0) {
-        console.log('Initial load of', uniqueNewOrders.length, 'orders');
-        return {orders: uniqueNewOrders};
-      } else {
-        const currentOrderIds = new Set(state.orders.map(o => o._id));
-        const updatedOrders = [...state.orders];
-
-        let newOrdersAdded = 0;
-
-        uniqueNewOrders.forEach(order => {
-          if (!currentOrderIds.has(order._id)) {
-            updatedOrders.push(order);
-            newOrdersAdded++;
-            console.log(
-              'Adding order via setOrders:',
-              order._id,
-              'orderID:',
-              order.orderID,
-            );
-          }
-        });
-
-        if (newOrdersAdded > 0) {
-          console.log('Added', newOrdersAdded, 'new orders from API');
-        }
-
-        return {orders: updatedOrders};
-      }
-    }),
+  setOrders: ordersOrFn => {
+    if (typeof ordersOrFn === 'function') {
+      set(state => ({orders: ordersOrFn(state.orders)}));
+    } else {
+      set({orders: ordersOrFn});
+    }
+  },
   setDeliveryPartners: partners => set({deliveryPartners: partners}),
   addDeliveryPartner: partner =>
     set(state => ({deliveryPartners: [...state.deliveryPartners, partner]})),
@@ -273,7 +218,6 @@ export const useStore = create<StoreState>((set, get) => ({
         b.id === branchId ? {...b, status} : b,
       ),
     })),
-  // Wallet functions
   setWalletBalance: balance => set({walletBalance: balance}),
   setWalletTransactions: transactions =>
     set({walletTransactions: transactions}),
@@ -286,7 +230,6 @@ export const useStore = create<StoreState>((set, get) => ({
     set(state => ({
       walletPayments: [...state.walletPayments, payment],
     })),
-  // Socket initialization
   initializeSocket: (branchPhone: string) => {
     const socket = io('YOUR_BACKEND_URL'); // Replace with your actual backend URL
 

@@ -11,10 +11,12 @@ import {
 import {storage} from '../../../utils/storage';
 import Header from '../../../components/dashboard/Header';
 import OrderCard from '../../../components/order/OrderCard';
+import LowBalanceModal from '../../../components/common/LowBalanceModal';
 import {useStore, Order} from '../../../store/ordersStore';
 import api from '../../../services/api';
 import {StackNavigationProp} from '@react-navigation/stack';
-import {RootStackParamList} from '../../../navigation/AppNavigator';
+import {RootStackParamList} from '../../../navigation/types';
+import {DrawerNavigationProp} from '@react-navigation/drawer';
 import {jwtDecode} from 'jwt-decode';
 import {
   OrderSocket,
@@ -25,7 +27,8 @@ import {
 type HomeScreenNavigationProp = StackNavigationProp<
   RootStackParamList,
   'HomeScreen'
->;
+> &
+  DrawerNavigationProp<any>;
 
 interface HomeScreenProps {
   navigation: HomeScreenNavigationProp;
@@ -39,12 +42,19 @@ interface TokenPayload {
 }
 
 const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
-  const {storeStatus, orders, setStoreStatus, setOrders, setUserId} =
-    useStore();
+  const {
+    storeStatus,
+    orders,
+    setStoreStatus,
+    setOrders,
+    setUserId,
+    walletBalance,
+  } = useStore();
   const [userId, setLocalUserId] = useState<string | null>(null);
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [showLowBalanceModal, setShowLowBalanceModal] = useState(false);
 
   // Add a function to sort orders by ID in FIFO order
   const sortOrdersByFIFO = useCallback((ordersToSort: Order[]) => {
@@ -61,6 +71,57 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
     }
   }, []);
 
+  // Update the setOrders call to handle duplicates
+  const setOrdersWithDuplicateCheck = useCallback(
+    (newOrders: Order[]) => {
+      setOrders((prevOrders: Order[]) => {
+        const uniqueNewOrders = newOrders.filter(
+          (order, index, self) =>
+            index === self.findIndex(o => o._id === order._id),
+        );
+
+        if (uniqueNewOrders.length < newOrders.length) {
+          console.log(
+            'Removed',
+            newOrders.length - uniqueNewOrders.length,
+            'internal duplicate orders',
+          );
+        }
+
+        if (prevOrders.length === 0) {
+          console.log('Initial load of', uniqueNewOrders.length, 'orders');
+          return uniqueNewOrders;
+        } else {
+          const currentOrderIds = new Set(prevOrders.map(o => o._id));
+          const updatedOrders = [...prevOrders];
+
+          let newOrdersAdded = 0;
+
+          uniqueNewOrders.forEach(order => {
+            if (!currentOrderIds.has(order._id)) {
+              updatedOrders.push(order);
+              newOrdersAdded++;
+              console.log(
+                'Adding order via setOrders:',
+                order._id,
+                'orderId:',
+                order.orderId,
+              );
+            }
+          });
+
+          if (newOrdersAdded > 0) {
+            console.log('Added', newOrdersAdded, 'new orders from API');
+          }
+
+          return updatedOrders;
+        }
+      });
+    },
+    [setOrders],
+  );
+
+  // Update the fetchOrders function to use the new setOrders function
   const fetchOrders = useCallback(
     async (branchId: string) => {
       try {
@@ -141,7 +202,9 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
             status: o.status,
           })),
         );
-        setOrders(sortedOrders);
+
+        // Update to use the new setOrders function
+        setOrdersWithDuplicateCheck(sortedOrders);
       } catch (error: any) {
         console.error(
           'Fetch Orders Error:',
@@ -174,7 +237,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
         Alert.alert('Error', 'Failed to load orders. Please try again.');
       }
     },
-    [setOrders, navigation, sortOrdersByFIFO],
+    [navigation, setOrdersWithDuplicateCheck],
   );
 
   // Add a refresh function
@@ -496,6 +559,19 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
     }, 800);
   }, [navigation]);
 
+  // Add a function to handle recharge navigation
+  const handleRecharge = useCallback(() => {
+    setShowLowBalanceModal(false);
+    navigation.navigate('Wallet');
+  }, [navigation]);
+
+  // Check wallet balance and show modal if needed
+  useEffect(() => {
+    if (walletBalance < -100 && storeStatus === 'closed') {
+      setShowLowBalanceModal(true);
+    }
+  }, [walletBalance, storeStatus]);
+
   if (isLoading) {
     return <Text>Loading authentication...</Text>;
   }
@@ -506,7 +582,11 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
 
   return (
     <View style={styles.container}>
-      <Header navigation={navigation} showStoreStatus />
+      <Header
+        navigation={navigation}
+        showStoreStatus
+        setShowLowBalanceModal={setShowLowBalanceModal}
+      />
       <View style={styles.content}>
         <View style={styles.titleRow}>
           <Text style={styles.title}>Check Today's Sales</Text>
@@ -545,6 +625,12 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
         style={styles.packedOrderButton}>
         <Text style={styles.packedOrderButtonText}>Packed Order</Text>
       </TouchableOpacity>
+
+      <LowBalanceModal
+        visible={showLowBalanceModal}
+        onRecharge={handleRecharge}
+        onCancel={() => setShowLowBalanceModal(false)}
+      />
     </View>
   );
 };
