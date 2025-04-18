@@ -32,13 +32,19 @@ type UploadBranchDocsRouteProp = RouteProp<
 
 interface UploadBranchDocsProps {
   navigation: UploadBranchDocsNavigationProp;
-  route: UploadBranchDocsRouteProp;
+  route: UploadBranchDocsRouteProp & {
+    params?: {
+      formData: any;
+      branchId?: string;
+      isResubmit?: boolean;
+    };
+  };
 }
 
 interface Asset {
   uri: string;
-  type?: string;
-  fileName?: string;
+  type: string;
+  name: string;
   size?: number;
 }
 
@@ -104,10 +110,26 @@ const UploadBranchDocs: React.FC<UploadBranchDocsProps> = ({
     if (isResubmit && branch) {
       setFiles({
         branchfrontImage: branch.branchfrontImage
-          ? {uri: branch.branchfrontImage}
+          ? {
+              uri: branch.branchfrontImage,
+              type: 'image/jpeg',
+              name: 'branch-front.jpg',
+            }
           : null,
-        ownerIdProof: branch.ownerIdProof ? {uri: branch.ownerIdProof} : null,
-        ownerPhoto: branch.ownerPhoto ? {uri: branch.ownerPhoto} : null,
+        ownerIdProof: branch.ownerIdProof
+          ? {
+              uri: branch.ownerIdProof,
+              type: 'image/jpeg',
+              name: 'owner-id.jpg',
+            }
+          : null,
+        ownerPhoto: branch.ownerPhoto
+          ? {
+              uri: branch.ownerPhoto,
+              type: 'image/jpeg',
+              name: 'owner-photo.jpg',
+            }
+          : null,
       });
     }
   }, [isResubmit, branch]);
@@ -119,10 +141,16 @@ const UploadBranchDocs: React.FC<UploadBranchDocsProps> = ({
         quality: 0.7,
       });
 
-      if (!result.didCancel && result.assets?.[0]) {
+      if (!result.didCancel && result.assets?.[0]?.uri) {
+        const asset = result.assets[0];
         setFiles(prev => ({
           ...prev,
-          [type]: result.assets[0],
+          [type]: {
+            uri: asset.uri,
+            type: asset.type || 'image/jpeg',
+            name: asset.fileName || 'image.jpg',
+            size: asset.fileSize,
+          },
         }));
       }
     } catch (error) {
@@ -144,23 +172,26 @@ const UploadBranchDocs: React.FC<UploadBranchDocsProps> = ({
       const address = JSON.parse(form.branchAddress || '{}');
 
       const data = {
-        name: form.name || '',
+        name: String(form.name || ''),
         location: {
-          type: 'Point',
-          coordinates: [location.longitude || 0, location.latitude || 0],
+          type: 'Point' as const,
+          coordinates: [
+            Number(location.longitude) || 0,
+            Number(location.latitude) || 0,
+          ] as [number, number],
         },
         address: {
-          street: address.street || '',
-          area: address.area || '',
-          city: address.city || '',
-          pincode: address.pincode || '',
+          street: String(address.street || ''),
+          area: String(address.area || ''),
+          city: String(address.city || ''),
+          pincode: String(address.pincode || ''),
         },
-        branchEmail: form.branchEmail || '',
-        openingTime: form.openingTime || '',
-        closingTime: form.closingTime || '',
-        ownerName: form.ownerName || '',
-        govId: form.govId || '',
-        phone: form.phone || '',
+        branchEmail: String(form.branchEmail || ''),
+        openingTime: String(form.openingTime || ''),
+        closingTime: String(form.closingTime || ''),
+        ownerName: String(form.ownerName || ''),
+        govId: String(form.govId || ''),
+        phone: String(form.phone || ''),
         deliveryServiceAvailable: form.deliveryServiceAvailable === 'yes',
         selfPickup: form.selfPickup === 'yes',
         branchfrontImage: files.branchfrontImage,
@@ -189,59 +220,69 @@ const UploadBranchDocs: React.FC<UploadBranchDocsProps> = ({
 
         response = await api.patch(`/modify/branch/${branchId}`, payload);
         response = response.data;
+
+        // For resubmission, update branch data immediately
+        const branchData: Branch = {
+          id: response.branch._id,
+          status: response.branch.status || 'pending',
+          name: response.branch.name,
+          phone: data.phone,
+          address: data.address,
+          location: data.location,
+          branchEmail: response.branch.branchEmail,
+          openingTime: response.branch.openingTime,
+          closingTime: response.branch.closingTime,
+          ownerName: response.branch.ownerName,
+          govId: response.branch.govId,
+          deliveryServiceAvailable: response.branch.deliveryServiceAvailable,
+          selfPickup: response.branch.selfPickup,
+          branchfrontImage: response.branch.branchfrontImage,
+          ownerIdProof: response.branch.ownerIdProof,
+          ownerPhoto: response.branch.ownerPhoto,
+        };
+
+        addBranch(branchData);
+        navigation.navigate('StatusScreen', {
+          id: response.branch._id,
+          type: 'branch',
+        });
       } else {
+        // For new registration
         response = await registerBranch(data);
 
-        const loginResponse = await api.post('/auth/branch/login', {
-          phone: data.phone,
-        });
+        // Send OTP after successful registration
+        try {
+          const otpResponse = await api.post('/auth/branch/send-otp', {
+            phone: data.phone,
+          });
 
-        const newBranchId = response.branch?._id;
-        const accessToken = loginResponse.data.accessToken;
+          if (otpResponse.data.success) {
+            // Store registration data temporarily
+            storage.set(
+              'pendingBranchData',
+              JSON.stringify({
+                branchData: response.branch,
+                formData: data,
+              }),
+            );
 
-        if (newBranchId && accessToken) {
-          await AsyncStorage.setItem('userId', newBranchId);
-          await AsyncStorage.setItem('accessToken', accessToken);
-          setUserId(newBranchId);
+            navigation.navigate('OTPVerification', {
+              phone: data.phone,
+              token: otpResponse.data.token,
+              branchId: response.branch._id,
+            });
+          }
+        } catch (otpError: any) {
+          Alert.alert(
+            'Error',
+            otpError.response?.data?.message || 'Failed to send OTP',
+          );
         }
       }
-
-      const branchData: Branch = {
-        id: response.branch._id,
-        status: response.branch.status || 'pending',
-        name: response.branch.name,
-        phone: data.phone,
-        address: data.address,
-        location: data.location,
-        branchEmail: response.branch.branchEmail,
-        openingTime: response.branch.openingTime,
-        closingTime: response.branch.closingTime,
-        ownerName: response.branch.ownerName,
-        govId: response.branch.govId,
-        deliveryServiceAvailable: response.branch.deliveryServiceAvailable,
-        selfPickup: response.branch.selfPickup,
-        branchfrontImage: response.branch.branchfrontImage,
-        ownerIdProof: response.branch.ownerIdProof,
-        ownerPhoto: response.branch.ownerPhoto,
-      };
-
-      addBranch(branchData);
-
-      if (!isResubmit) {
-        storage.set('isRegistered', true);
-        storage.set('branchId', response.branch._id);
-
-        if (response.branch.status === 'approved') {
-          storage.set('isApproved', true);
-        } else {
-          storage.set('isApproved', false);
-        }
-      }
-
-      navigation.navigate('StatusScreen', {branchId: response.branch._id});
-    } catch (error) {
+    } catch (error: any) {
       const errorMessage =
-        error.message || (isResubmit ? 'Resubmission failed' : 'Upload failed');
+        error.response?.data?.message ||
+        (isResubmit ? 'Resubmission failed' : 'Upload failed');
       Alert.alert('Error', errorMessage);
       console.error(
         isResubmit ? 'Resubmission failed:' : 'Upload failed:',
@@ -250,16 +291,7 @@ const UploadBranchDocs: React.FC<UploadBranchDocsProps> = ({
     } finally {
       setIsLoading(false);
     }
-  }, [
-    files,
-    form,
-    isResubmit,
-    branchId,
-    branch,
-    addBranch,
-    setUserId,
-    navigation,
-  ]);
+  }, [files, form, isResubmit, branchId, branch, addBranch, navigation]);
 
   // Render preview if image exists
   const renderImagePreview = (type: keyof typeof files) => {
