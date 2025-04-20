@@ -33,6 +33,7 @@ import OrderHasPacked from '../features/orders/screens/OrderHasPacked';
 import MainPackedScreen from '../features/orders/screens/MainPackedScreen';
 // Branch screens
 import BranchAuth from '../features/branch/screens/BranchAuth';
+import OTPVerificationScreen from '../features/auth/screens/OTPVerificationScreen';
 import UploadBranchDocs from '../features/branch/screens/UploadBranchDocs';
 import StatusScreen from '../features/branch/screens/StatusScreen';
 import SalesSummary from '../features/orders/screens/SalesSummaryScreen';
@@ -73,7 +74,18 @@ export type RootStackParamList = {
   SuccessScreen: {partnerId: string};
   BranchAuth: undefined;
   PhoneNumberScreen: {formData: Partial<BranchForm>};
-  UploadBranchDocs: {formData: Partial<BranchForm>; initialFiles: any};
+  OTPVerificationScreen: {
+    phone: string;
+    formData: Partial<BranchForm>;
+    branchId?: string;
+    isResubmit?: boolean;
+  };
+  UploadBranchDocs: {
+    formData: Partial<BranchForm>;
+    initialFiles: any;
+    branchId?: string;
+    isResubmit?: boolean;
+  };
   StatusScreen: {id: string; type: 'branch' | 'delivery'};
   DeliveryReRegister: {id: string; name?: string};
   ReUploadDocuments: {
@@ -257,10 +269,10 @@ const AppNavigator: React.FC = () => (
     {/* Branch screens */}
     <Stack.Screen name="BranchAuth" component={BranchAuth} />
     <Stack.Screen
-      name="UploadBranchDocs"
-      component={UploadBranchDocs}
-      options={{headerShown: false}}
+      name="OTPVerificationScreen"
+      component={OTPVerificationScreen}
     />
+    <Stack.Screen name="UploadBranchDocs" component={UploadBranchDocs} />
     <Stack.Screen name="StatusScreen" component={StatusScreen} />
     <Stack.Screen
       name="OTPVerification"

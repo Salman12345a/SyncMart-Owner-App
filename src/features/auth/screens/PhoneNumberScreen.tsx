@@ -11,12 +11,9 @@ import {
 } from 'react-native';
 import {StackNavigationProp} from '@react-navigation/stack';
 import {RouteProp} from '@react-navigation/native';
-import CountryPicker, {
-  Country,
-  CountryCode,
-} from 'react-native-country-picker-modal';
-import {RootStackParamList} from '../../../navigation/AppNavigator';
-import Icon from 'react-native-vector-icons/MaterialIcons';
+import {RootStackParamList} from '../../../navigation/AppNavigator'; // Adjust path
+import {useStore} from '../../../store/ordersStore';
+import {sendBranchOTP} from '../../../services/api';
 
 type PhoneNumberScreenNavigationProp = StackNavigationProp<
   RootStackParamList,
@@ -59,46 +56,35 @@ const PhoneNumberScreen: React.FC<PhoneNumberScreenProps> = ({
       return false;
     }
 
-    return true;
-  };
-
-  const handleSubmit = useCallback(async () => {
-    if (!phoneNumber) {
-      Alert.alert('Error', 'Please enter your phone number');
-      return;
-    }
-
-    // Remove any non-digit characters
-    const cleanNumber = phoneNumber.replace(/\D/g, '');
-
-    if (!validatePhoneNumber(cleanNumber)) {
-      Alert.alert('Error', 'Please enter a valid phone number');
+  const handleNext = useCallback(async () => {
+    if (!phone || phone.length !== 10 || !/^\d+$/.test(phone)) {
+      Alert.alert('Error', 'Please enter a valid 10-digit phone number');
       return;
     }
 
     setIsLoading(true);
 
     try {
-      // Format phone number with country code
-      const formattedPhoneNumber = `+${callingCode}${cleanNumber}`;
+      const formattedPhone = `+91${phone}`;
+      await sendBranchOTP(formattedPhone);
 
-      // Update form data with formatted phone number
       const updatedFormData = {
         ...formData,
-        phone: formattedPhoneNumber,
+        phone: formattedPhone,
       };
 
-      navigation.navigate('UploadBranchDocs', {
+      navigation.navigate('OTPVerificationScreen', {
+        phone: formattedPhone,
         formData: updatedFormData,
-        initialFiles: {},
+        branchId: isResubmit ? branchId : undefined,
+        isResubmit: !!isResubmit,
       });
-    } catch (error) {
-      Alert.alert('Error', 'Failed to process phone number');
-      console.error('Phone number error:', error);
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'Failed to send OTP');
     } finally {
       setIsLoading(false);
     }
-  }, [phoneNumber, callingCode, formData, navigation]);
+  }, [phone, formData, branchId, isResubmit, navigation]);
 
   return (
     <View style={styles.container}>

@@ -320,7 +320,7 @@ export const registerBranch = async (data: {
     } as any);
 
     console.log('FormData prepared for branch registration');
-    const response = await api.post('/register/branch', formData, {
+    const response = await api.post('/register/branch/complete', formData, {
       headers: {'Content-Type': 'multipart/form-data'},
     });
 
@@ -567,6 +567,36 @@ export const updateStoreStatus = async (
       error.message ||
       'Failed to update store status';
     throw new Error(message);
+  }
+};
+
+// Branch OTP verification APIs
+export const sendBranchOTP = async (phoneNumber: string) => {
+  try {
+    const response = await api.post('/auth/branch/send-otp', {
+      phoneNumber,
+    });
+    return response.data;
+  } catch (error: any) {
+    if (error.response?.status === 429) {
+      throw new Error('Please wait 1 minute before requesting another OTP');
+    }
+    throw new Error(error.response?.data?.message || 'Failed to send OTP');
+  }
+};
+
+export const verifyBranchOTP = async (phoneNumber: string, otp: string) => {
+  try {
+    const response = await api.post('/auth/branch/verify-otp', {
+      phoneNumber,
+      otp,
+    });
+    return response.data;
+  } catch (error: any) {
+    if (error.response?.status === 403) {
+      throw new Error('Invalid OTP. Please try again.');
+    }
+    throw new Error(error.response?.data?.message || 'Failed to verify OTP');
   }
 };
 
