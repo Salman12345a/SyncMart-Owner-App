@@ -37,7 +37,6 @@ import OTPVerificationScreen from '../features/auth/screens/OTPVerificationScree
 import UploadBranchDocs from '../features/branch/screens/UploadBranchDocs';
 import StatusScreen from '../features/branch/screens/StatusScreen';
 import SalesSummary from '../features/orders/screens/SalesSummaryScreen';
-import OTPVerification from '../features/branch/screens/OTPVerification';
 
 export type RootStackParamList = {
   SplashScreen: undefined;
@@ -96,11 +95,6 @@ export type RootStackParamList = {
     id: string;
     formData: Partial<DeliveryPartnerForm>;
     initialFiles: any;
-  };
-  OTPVerification: {
-    phone: string;
-    token: string;
-    branchId: string;
   };
 };
 
@@ -274,11 +268,6 @@ const AppNavigator: React.FC = () => (
     />
     <Stack.Screen name="UploadBranchDocs" component={UploadBranchDocs} />
     <Stack.Screen name="StatusScreen" component={StatusScreen} />
-    <Stack.Screen
-      name="OTPVerification"
-      component={OTPVerification}
-      options={{headerShown: false}}
-    />
   </Stack.Navigator>
 );
 

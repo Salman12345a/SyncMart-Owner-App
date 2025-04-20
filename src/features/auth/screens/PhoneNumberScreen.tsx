@@ -1,14 +1,15 @@
-import React, {useState, useCallback} from 'react';
+import React, {useState, useCallback, useEffect} from 'react';
 import {
   View,
+  TextInput,
   Text,
   StyleSheet,
-  TextInput,
-  TouchableOpacity,
   Alert,
+  ScrollView,
+  TouchableOpacity,
   ActivityIndicator,
-  Platform,
 } from 'react-native';
+import Icon from 'react-native-vector-icons/MaterialIcons';
 import {StackNavigationProp} from '@react-navigation/stack';
 import {RouteProp} from '@react-navigation/native';
 import {RootStackParamList} from '../../../navigation/AppNavigator'; // Adjust path
@@ -31,30 +32,23 @@ interface PhoneNumberScreenProps {
 }
 
 const PhoneNumberScreen: React.FC<PhoneNumberScreenProps> = ({
-  navigation,
   route,
+  navigation,
 }) => {
-  const {formData} = route.params;
-  const [phoneNumber, setPhoneNumber] = useState('');
+  const {formData, branchId, isResubmit} = route.params || {};
+  const {branches} = useStore();
+  const branch = isResubmit ? branches.find(b => b.id === branchId) : null;
+
+  const [phone, setPhone] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [countryCode, setCountryCode] = useState<CountryCode>('IN');
-  const [callingCode, setCallingCode] = useState('91');
-  const [showCountryPicker, setShowCountryPicker] = useState(false);
 
-  const onSelectCountry = (country: Country) => {
-    setCountryCode(country.cca2);
-    setCallingCode(country.callingCode[0]);
-    setShowCountryPicker(false);
-  };
-
-  const validatePhoneNumber = (number: string) => {
-    // Remove any non-digit characters
-    const cleanNumber = number.replace(/\D/g, '');
-
-    // Basic validation for Indian numbers (can be expanded for other countries)
-    if (countryCode === 'IN' && cleanNumber.length !== 10) {
-      return false;
+  useEffect(() => {
+    if (isResubmit && branch) {
+      setPhone(branch.phone);
+    } else if (formData?.phone) {
+      setPhone(formData.phone);
     }
+  }, [isResubmit, branch, formData]);
 
   const handleNext = useCallback(async () => {
     if (!phone || phone.length !== 10 || !/^\d+$/.test(phone)) {
@@ -87,59 +81,53 @@ const PhoneNumberScreen: React.FC<PhoneNumberScreenProps> = ({
   }, [phone, formData, branchId, isResubmit, navigation]);
 
   return (
-    <View style={styles.container}>
+    <ScrollView contentContainerStyle={styles.container}>
       <Text style={styles.header}>Enter Phone Number</Text>
       <Text style={styles.subheader}>
-        Please enter your phone number to proceed with registration
+        Please provide a contact number for the branch
       </Text>
 
-      <View style={styles.inputContainer}>
-        <TouchableOpacity
-          style={styles.countryPickerButton}
-          onPress={() => setShowCountryPicker(true)}>
-          <CountryPicker
-            countryCode={countryCode}
-            withFilter
-            withFlag
-            withCallingCode
-            withCallingCodeButton
-            withAlphaFilter
-            onSelect={onSelectCountry}
-            visible={showCountryPicker}
-            onClose={() => setShowCountryPicker(false)}
+      <View style={styles.formGroup}>
+        <Text style={styles.label}>Branch Phone Number *</Text>
+        <View style={styles.inputContainer}>
+          <Icon name="phone" size={20} color="#7f8c8d" style={styles.icon} />
+          <TextInput
+            placeholder="+91 1234567890"
+            placeholderTextColor="#95a5a6"
+            value={phone}
+            onChangeText={setPhone}
+            keyboardType="numeric"
+            maxLength={10}
+            style={styles.input}
           />
-        </TouchableOpacity>
-
-        <TextInput
-          style={styles.input}
-          value={phoneNumber}
-          onChangeText={setPhoneNumber}
-          placeholder="Enter phone number"
-          keyboardType="phone-pad"
-          maxLength={10}
-        />
+        </View>
       </View>
 
       <TouchableOpacity
-        style={[styles.button, isLoading && styles.buttonDisabled]}
-        onPress={handleSubmit}
-        disabled={isLoading}>
+        style={[
+          styles.button,
+          (isLoading || phone.length !== 10) && styles.buttonDisabled,
+        ]}
+        onPress={handleNext}
+        disabled={isLoading || phone.length !== 10}>
         {isLoading ? (
           <ActivityIndicator color="white" />
         ) : (
           <>
-            <Text style={styles.buttonText}>Continue</Text>
+            <Text style={styles.buttonText}>
+              {isResubmit ? 'Next (Resubmit)' : 'Next'}
+            </Text>
             <Icon name="arrow-forward" size={20} color="white" />
           </>
         )}
       </TouchableOpacity>
-    </View>
+    </ScrollView>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
+    flexGrow: 1,
     padding: 20,
     backgroundColor: '#f8f9fa',
   },
@@ -147,35 +135,41 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: 'bold',
     color: '#2c3e50',
-    marginTop: 40,
     marginBottom: 8,
+    textAlign: 'center',
   },
   subheader: {
     fontSize: 16,
     color: '#7f8c8d',
     marginBottom: 30,
+    textAlign: 'center',
+  },
+  formGroup: {
+    marginBottom: 20,
+  },
+  label: {
+    fontSize: 14,
+    color: '#34495e',
+    marginBottom: 8,
+    fontWeight: '500',
   },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 20,
-  },
-  countryPickerButton: {
-    marginRight: 10,
-    padding: 10,
     backgroundColor: 'white',
     borderRadius: 8,
+    paddingHorizontal: 12,
     borderWidth: 1,
-    borderColor: '#dcdde1',
+    borderColor: '#ecf0f1',
+  },
+  icon: {
+    marginRight: 10,
   },
   input: {
     flex: 1,
-    backgroundColor: 'white',
-    borderRadius: 8,
-    padding: 15,
+    height: 50,
+    color: '#2c3e50',
     fontSize: 16,
-    borderWidth: 1,
-    borderColor: '#dcdde1',
   },
   button: {
     flexDirection: 'row',
@@ -184,11 +178,11 @@ const styles = StyleSheet.create({
     padding: 16,
     alignItems: 'center',
     justifyContent: 'center',
+    marginTop: 20,
     gap: 10,
   },
   buttonDisabled: {
     backgroundColor: '#95a5a6',
-    opacity: 0.7,
   },
   buttonText: {
     color: 'white',
