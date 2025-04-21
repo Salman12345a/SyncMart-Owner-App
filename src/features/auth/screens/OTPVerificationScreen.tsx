@@ -13,19 +13,30 @@ import {
 import {StackScreenProps} from '@react-navigation/stack';
 import {RootStackParamList} from '../../../navigation/types';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import {verifyOTP, sendOTP} from '../../../services/api';
+import {verifyOTP, sendOTP, completeLogin} from '../../../services/api';
 import {storage} from '../../../utils/storage';
+import {useStore} from '../../../store/ordersStore';
+import {jwtDecode} from 'jwt-decode';
 
 type OTPVerificationScreenProps = StackScreenProps<
   RootStackParamList,
   'OTPVerification'
 >;
 
+type JwtPayload = {
+  userId: string;
+  branchId: string;
+  role: string;
+  exp: number;
+  iat: number;
+};
+
 const OTPVerificationScreen: React.FC<OTPVerificationScreenProps> = ({
   route,
   navigation,
 }) => {
-  const {phone, formData, branchId, isResubmit} = route.params || {};
+  const {phone, formData, branchId, isResubmit, isLogin} = route.params || {};
+  const {setUserId} = useStore();
 
   const [otp, setOtp] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -134,7 +145,76 @@ const OTPVerificationScreen: React.FC<OTPVerificationScreenProps> = ({
     }
   };
 
-  const handleVerifyOTP = async () => {
+  const handleLoginVerification = async () => {
+    if (!otp || otp.length < 4) {
+      Alert.alert('Error', 'Please enter a valid OTP.');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const response = await completeLogin(phone, otp);
+
+      if (response && response.token) {
+        // Decode the JWT token
+        const decoded = jwtDecode<JwtPayload>(response.token);
+        console.log('Decoded token:', decoded);
+
+        // Store the user ID
+        if (decoded.userId) {
+          setUserId(decoded.userId);
+          storage.set('userId', decoded.userId);
+        }
+
+        // Check if the branch is registered
+        const isRegistered = storage.getBoolean('isRegistered') || false;
+
+        // If branch is registered but not yet approved, go to status screen
+        if (isRegistered && !storage.getBoolean('isApproved')) {
+          const branchId = storage.getString('branchId');
+          if (branchId) {
+            console.log('Going to status screen for branch:', branchId);
+            navigation.navigate('StatusScreen', {branchId});
+            return;
+          }
+        }
+
+        // Store branch data if available
+        if (response.branch) {
+          storage.set('isRegistered', true);
+
+          // If branch is approved, set approved flag
+          if (response.branch.status === 'approved') {
+            storage.set('isApproved', true);
+          }
+
+          // Store branch ID
+          if (response.branch.id) {
+            storage.set('branchId', response.branch.id);
+          }
+        }
+
+        // Navigate to the Home screen
+        console.log('Login successful, navigating to Home');
+        navigation.reset({
+          index: 0,
+          routes: [{name: 'HomeScreen'}],
+        });
+      } else {
+        throw new Error('Login verification failed');
+      }
+    } catch (error: any) {
+      console.error('Login verification error:', error);
+      Alert.alert(
+        'Verification Failed',
+        error.message || 'Invalid OTP. Please try again.',
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleRegistrationVerification = async () => {
     if (!otp || otp.length < 4) {
       Alert.alert('Error', 'Please enter a valid OTP.');
       return;
@@ -174,6 +254,14 @@ const OTPVerificationScreen: React.FC<OTPVerificationScreenProps> = ({
       );
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleVerifyOTP = async () => {
+    if (isLogin) {
+      await handleLoginVerification();
+    } else {
+      await handleRegistrationVerification();
     }
   };
 

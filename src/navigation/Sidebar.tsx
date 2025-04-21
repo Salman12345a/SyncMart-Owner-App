@@ -5,6 +5,9 @@ import WalletScreen from '../features/financial/screens/WalletScreen';
 import StoreManagement from '../components/storemanage/SyncmartManagement';
 import HelpScreen from '../features/common/screens/HelpScreen';
 import OrderHistory from '../features/orders/screens/OrderHistory';
+import PrivacyPolicyScreen from '../features/common/screens/PrivacyPolicyScreen';
+import TermsConditionsScreen from '../features/common/screens/TermsConditionsScreen';
+import Icon from 'react-native-vector-icons/MaterialIcons';
 
 export type DrawerParamList = {
   Home: undefined;
@@ -12,6 +15,8 @@ export type DrawerParamList = {
   StoreManagement: undefined;
   Help: undefined;
   OrderHistory: undefined;
+  PrivacyPolicy: undefined;
+  TermsConditions: undefined;
 };
 
 const Drawer = createDrawerNavigator<DrawerParamList>();
@@ -39,6 +44,28 @@ const Sidebar: React.FC = () => {
         name="OrderHistory"
         component={OrderHistory}
         options={{headerShown: false}}
+      />
+      <Drawer.Screen
+        name="PrivacyPolicy"
+        component={PrivacyPolicyScreen}
+        options={{
+          title: 'Privacy Policy',
+          headerShown: false,
+          drawerIcon: ({color}) => (
+            <Icon name="privacy-tip" size={24} color={color} />
+          ),
+        }}
+      />
+      <Drawer.Screen
+        name="TermsConditions"
+        component={TermsConditionsScreen}
+        options={{
+          title: 'Terms & Conditions',
+          headerShown: false,
+          drawerIcon: ({color}) => (
+            <Icon name="description" size={24} color={color} />
+          ),
+        }}
       />
     </Drawer.Navigator>
   );

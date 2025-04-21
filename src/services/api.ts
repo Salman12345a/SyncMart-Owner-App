@@ -511,17 +511,84 @@ export const validateToken = async () => {
   }
 };
 
-export const login = async (phone: string) => {
+// Step 1: Initiate branch login (send OTP)
+export const initiateLogin = async (phone: string) => {
   try {
-    const response = await api.post('/auth/branch/login', {
-      phone: phone.trim(),
+    console.log('Initiating login with phone:', phone);
+    // Ensure phone number has country code
+    let phoneNumber = phone;
+    if (!phoneNumber.startsWith('+')) {
+      console.warn('Phone number does not start with +, adding default +91');
+      phoneNumber = '+91' + phoneNumber;
+    }
+
+    const response = await api.post('/auth/branch/login/initiate', {
+      phone: phoneNumber,
     });
+
+    console.log('Login initiation successful:', response.data);
+
+    // Store timing information for OTP if available
+    if (response.data && response.data.data) {
+      storage.set(
+        'otpValidityPeriod',
+        parseInt(response.data.data.validityPeriod) || 600,
+      );
+      storage.set(
+        'otpRetryAfter',
+        parseInt(response.data.data.retryAfter) || 60,
+      );
+    }
+
+    return response.data;
+  } catch (error: any) {
+    console.error(
+      'Login initiation error:',
+      error.response?.data || error.message,
+    );
+    throw error.response?.data || error;
+  }
+};
+
+// Step 2: Complete branch login (verify OTP)
+export const completeLogin = async (phone: string, otp: string) => {
+  try {
+    console.log('Completing login with phone and OTP:', phone);
+    // Ensure phone number has country code
+    let phoneNumber = phone;
+    if (!phoneNumber.startsWith('+')) {
+      console.warn('Phone number does not start with +, adding default +91');
+      phoneNumber = '+91' + phoneNumber;
+    }
+
+    const response = await api.post('/auth/branch/login/complete', {
+      phoneNumber: phoneNumber,
+      otp: otp,
+    });
+
+    console.log('Login completion successful:', response.data);
+
+    // Store tokens
+    if (response.data && response.data.data) {
+      if (response.data.data.accessToken) {
+        storage.set('accessToken', response.data.data.accessToken);
+      }
+      if (response.data.data.refreshToken) {
+        storage.set('refreshToken', response.data.data.refreshToken);
+      }
+    }
+
     return {
-      token: response.data.accessToken,
-      branch: response.data.branch,
+      token: response.data.data?.accessToken,
+      refreshToken: response.data.data?.refreshToken,
+      branch: response.data.data?.branch,
     };
   } catch (error: any) {
-    throw error;
+    console.error(
+      'Login completion error:',
+      error.response?.data || error.message,
+    );
+    throw error.response?.data || error;
   }
 };
 

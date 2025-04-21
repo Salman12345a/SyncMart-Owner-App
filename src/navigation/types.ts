@@ -48,6 +48,7 @@ export type RootStackParamList = {
     formData: any;
     branchId?: string;
     isResubmit?: boolean;
+    isLogin?: boolean;
   };
   RegisteredBranchDetails: {
     phone: string;

@@ -10,14 +10,31 @@ import {
   SafeAreaView,
   KeyboardAvoidingView,
   Platform,
+  FlatList,
+  Modal,
 } from 'react-native';
 import {useNavigation} from '@react-navigation/native';
 import {StackNavigationProp} from '@react-navigation/stack';
-import {RootStackParamList} from '../../../navigation/AppNavigator';
-import {login} from '../../../services/api';
-import {jwtDecode} from 'jwt-decode';
-import {useStore} from '../../../store/ordersStore';
+import {RootStackParamList} from '../../../navigation/types';
 import {storage} from '../../../utils/storage';
+import {initiateLogin} from '../../../services/api';
+import {useStore} from '../../../store/ordersStore';
+import {jwtDecode} from 'jwt-decode';
+import Icon from 'react-native-vector-icons/MaterialIcons';
+
+// Common country codes
+const countryCodes = [
+  {code: '+91', country: 'India'},
+  {code: '+1', country: 'USA/Canada'},
+  {code: '+44', country: 'UK'},
+  {code: '+971', country: 'UAE'},
+  {code: '+966', country: 'Saudi Arabia'},
+  {code: '+65', country: 'Singapore'},
+  {code: '+61', country: 'Australia'},
+  {code: '+49', country: 'Germany'},
+  {code: '+33', country: 'France'},
+  {code: '+86', country: 'China'},
+];
 
 type AuthNavigationProp = StackNavigationProp<
   RootStackParamList,
@@ -37,13 +54,25 @@ const AuthenticationScreen: React.FC = () => {
   const [phone, setPhone] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const {setUserId} = useStore();
+  const [countryCode, setCountryCode] = useState('+91');
+  const [showCountryCodeModal, setShowCountryCodeModal] = useState(false);
 
   // Check if the phone number is already stored
   useEffect(() => {
     const checkStoredPhone = async () => {
       const storedPhone = storage.getString('branchPhone');
       if (storedPhone) {
-        setPhone(storedPhone);
+        // If stored phone has country code, extract it
+        if (storedPhone.startsWith('+')) {
+          const code =
+            countryCodes.find(c => storedPhone.startsWith(c.code))?.code ||
+            '+91';
+
+          setCountryCode(code);
+          setPhone(storedPhone.substring(code.length));
+        } else {
+          setPhone(storedPhone);
+        }
       }
     };
     checkStoredPhone();
@@ -51,7 +80,7 @@ const AuthenticationScreen: React.FC = () => {
 
   // Validate the phone number
   const isValidPhone = (phoneNumber: string): boolean => {
-    // Basic validation - 10 digits
+    // Basic validation - phone number without country code should be 10 digits
     return /^\d{10}$/.test(phoneNumber);
   };
 
@@ -68,46 +97,30 @@ const AuthenticationScreen: React.FC = () => {
 
     setIsLoading(true);
 
+    // Combine country code and phone
+    const fullPhoneNumber = `${countryCode}${phone}`;
+
     try {
-      console.log('Attempting login with phone:', phone);
-      const response = await login(phone);
+      console.log('Initiating login with phone:', fullPhoneNumber);
+      const response = await initiateLogin(fullPhoneNumber);
 
-      if (response && response.token) {
-        // Store the phone number for future use
-        storage.set('branchPhone', phone);
-        storage.set('accessToken', response.token);
+      if (response && response.status === 'success') {
+        // Store the complete phone number for future use
+        storage.set('branchPhone', fullPhoneNumber);
 
-        // Decode the JWT token
-        const decoded = jwtDecode<JwtPayload>(response.token);
-        console.log('Decoded token:', decoded);
-
-        // Store the user ID
-        if (decoded.userId) {
-          setUserId(decoded.userId);
-          storage.set('userId', decoded.userId);
-        }
-
-        // Check if the branch is registered
-        const isRegistered = storage.getBoolean('isRegistered') || false;
-
-        // If branch is registered but not yet approved, go to status screen
-        if (isRegistered && !storage.getBoolean('isApproved')) {
-          const branchId = storage.getString('branchId');
-          if (branchId) {
-            console.log('Going to status screen for branch:', branchId);
-            navigation.navigate('StatusScreen', {id: branchId, type: 'branch'});
-            return;
-          }
-        }
-
-        // Otherwise, go to the Home screen
-        console.log('Login successful, navigating to Home');
-        navigation.reset({
-          index: 0,
-          routes: [{name: 'HomeScreen'}],
+        // Navigate to OTP verification screen
+        console.log(
+          'Login initiation successful, navigating to OTP verification',
+        );
+        navigation.navigate('OTPVerification', {
+          phone: fullPhoneNumber,
+          isLogin: true,
+          formData: null,
+          branchId: undefined,
+          isResubmit: false,
         });
       } else {
-        throw new Error('No token received');
+        throw new Error('Login initiation failed');
       }
     } catch (err) {
       console.error('Login Error:', err);
@@ -121,6 +134,24 @@ const AuthenticationScreen: React.FC = () => {
     }
   };
 
+  const selectCountryCode = (code: string) => {
+    setCountryCode(code);
+    setShowCountryCodeModal(false);
+  };
+
+  const renderCountryCodeItem = ({
+    item,
+  }: {
+    item: {code: string; country: string};
+  }) => (
+    <TouchableOpacity
+      style={styles.countryItem}
+      onPress={() => selectCountryCode(item.code)}>
+      <Text style={styles.countryCode}>{item.code}</Text>
+      <Text style={styles.countryName}>{item.country}</Text>
+    </TouchableOpacity>
+  );
+
   return (
     <SafeAreaView style={styles.container}>
       <KeyboardAvoidingView
@@ -131,18 +162,30 @@ const AuthenticationScreen: React.FC = () => {
 
           <View style={styles.formContainer}>
             <Text style={styles.label}>Phone Number</Text>
-            <TextInput
-              style={styles.input}
-              value={phone}
-              onChangeText={setPhone}
-              placeholder="Enter 10-digit phone number"
-              keyboardType="phone-pad"
-              maxLength={10}
-              editable={!isLoading}
-            />
+            <View style={styles.phoneInputContainer}>
+              <TouchableOpacity
+                style={styles.countryCodeSelector}
+                onPress={() => setShowCountryCodeModal(true)}
+                disabled={isLoading}>
+                <Text style={styles.countryCodeText}>{countryCode}</Text>
+                <Icon name="arrow-drop-down" size={24} color="#333" />
+              </TouchableOpacity>
+              <TextInput
+                style={styles.phoneInput}
+                value={phone}
+                onChangeText={setPhone}
+                placeholder="Enter 10-digit phone number"
+                keyboardType="phone-pad"
+                maxLength={10}
+                editable={!isLoading}
+              />
+            </View>
 
             <TouchableOpacity
-              style={[styles.button]}
+              style={[
+                styles.button,
+                (!isValidPhone(phone) || isLoading) && styles.buttonDisabled,
+              ]}
               onPress={handleLogin}
               disabled={!isValidPhone(phone) || isLoading}>
               {isLoading ? (
@@ -154,6 +197,32 @@ const AuthenticationScreen: React.FC = () => {
           </View>
         </View>
       </KeyboardAvoidingView>
+
+      {/* Country Code Modal */}
+      <Modal
+        visible={showCountryCodeModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowCountryCodeModal(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Select Country Code</Text>
+              <TouchableOpacity
+                onPress={() => setShowCountryCodeModal(false)}
+                style={styles.closeButton}>
+                <Icon name="close" size={24} color="#333" />
+              </TouchableOpacity>
+            </View>
+            <FlatList
+              data={countryCodes}
+              renderItem={renderCountryCodeItem}
+              keyExtractor={item => item.code}
+              style={styles.countryList}
+            />
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -189,13 +258,33 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     color: '#333',
   },
-  input: {
+  phoneInputContainer: {
+    flexDirection: 'row',
     width: '100%',
+    marginBottom: 24,
+  },
+  countryCodeSelector: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f2f2f2',
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    height: 56,
+    marginRight: 8,
+  },
+  countryCodeText: {
+    fontSize: 16,
+    color: '#333',
+    marginRight: 4,
+  },
+  phoneInput: {
+    flex: 1,
     height: 56,
     borderWidth: 1,
     borderColor: '#e0e0e0',
     borderRadius: 10,
-    marginBottom: 24,
     paddingHorizontal: 16,
     backgroundColor: 'white',
     fontSize: 16,
@@ -217,11 +306,61 @@ const styles = StyleSheet.create({
     shadowRadius: 3,
     elevation: 2,
   },
-
+  buttonDisabled: {
+    backgroundColor: '#a68cb9',
+    opacity: 0.7,
+  },
   buttonText: {
     color: 'white',
     fontSize: 18,
     fontWeight: '600',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: 'white',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingVertical: 20,
+    maxHeight: '80%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 15,
+    paddingHorizontal: 20,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  closeButton: {
+    padding: 5,
+  },
+  countryList: {
+    paddingHorizontal: 20,
+  },
+  countryItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+  },
+  countryCode: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#333',
+    width: 60,
+  },
+  countryName: {
+    fontSize: 16,
+    color: '#666',
   },
 });
 
