@@ -9,6 +9,8 @@ import EntryScreen from '../features/auth/screens/EntryScreen';
 import AuthenticationScreen from '../features/auth/screens/AuthenticationScreen';
 import UserDetailsScreen from '../features/auth/screens/UserDetailsScreen';
 import PhoneNumberScreen from '../features/auth/screens/PhoneNumberScreen';
+import OTPVerificationScreen from '../features/auth/screens/OTPVerificationScreen';
+import RegisteredBranchDetails from '../features/auth/screens/RegisteredBranchDetails';
 // Navigation
 import Sidebar from './Sidebar';
 // Inventory screens
@@ -33,7 +35,6 @@ import OrderHasPacked from '../features/orders/screens/OrderHasPacked';
 import MainPackedScreen from '../features/orders/screens/MainPackedScreen';
 // Branch screens
 import BranchAuth from '../features/branch/screens/BranchAuth';
-import OTPVerificationScreen from '../features/auth/screens/OTPVerificationScreen';
 import UploadBranchDocs from '../features/branch/screens/UploadBranchDocs';
 import StatusScreen from '../features/branch/screens/StatusScreen';
 import SalesSummary from '../features/orders/screens/SalesSummaryScreen';
@@ -71,21 +72,19 @@ export type RootStackParamList = {
     initialFiles: any;
   };
   SuccessScreen: {partnerId: string};
-  BranchAuth: undefined;
-  PhoneNumberScreen: {formData: Partial<BranchForm>};
-  OTPVerificationScreen: {
-    phone: string;
-    formData: Partial<BranchForm>;
+  BranchAuth: {branchId?: string; isResubmit?: boolean};
+  PhoneNumberScreen: {
+    formData?: Partial<BranchForm>;
     branchId?: string;
     isResubmit?: boolean;
   };
   UploadBranchDocs: {
     formData: Partial<BranchForm>;
-    initialFiles: any;
+    initialFiles?: any;
     branchId?: string;
     isResubmit?: boolean;
   };
-  StatusScreen: {id: string; type: 'branch' | 'delivery'};
+  StatusScreen: {branchId: string};
   DeliveryReRegister: {id: string; name?: string};
   ReUploadDocuments: {
     id: string;
@@ -95,6 +94,19 @@ export type RootStackParamList = {
     id: string;
     formData: Partial<DeliveryPartnerForm>;
     initialFiles: any;
+  };
+  // New screens for OTP verification flow
+  OTPVerification: {
+    phone: string;
+    formData: any;
+    branchId?: string;
+    isResubmit?: boolean;
+  };
+  RegisteredBranchDetails: {
+    phone: string;
+    formData: any;
+    branchId?: string;
+    isResubmit?: boolean;
   };
 };
 
@@ -197,6 +209,11 @@ const AppNavigator: React.FC = () => (
     <Stack.Screen name="Authentication" component={AuthenticationScreen} />
     <Stack.Screen name="UserDetails" component={UserDetailsScreen} />
     <Stack.Screen name="PhoneNumberScreen" component={PhoneNumberScreen} />
+    <Stack.Screen name="OTPVerification" component={OTPVerificationScreen} />
+    <Stack.Screen
+      name="RegisteredBranchDetails"
+      component={RegisteredBranchDetails}
+    />
 
     {/* Navigation */}
     <Stack.Screen name="Main" component={Sidebar} />
@@ -263,11 +280,13 @@ const AppNavigator: React.FC = () => (
     {/* Branch screens */}
     <Stack.Screen name="BranchAuth" component={BranchAuth} />
     <Stack.Screen
-      name="OTPVerificationScreen"
-      component={OTPVerificationScreen}
+      name="UploadBranchDocs"
+      component={UploadBranchDocs as React.ComponentType<any>}
     />
-    <Stack.Screen name="UploadBranchDocs" component={UploadBranchDocs} />
-    <Stack.Screen name="StatusScreen" component={StatusScreen} />
+    <Stack.Screen
+      name="StatusScreen"
+      component={StatusScreen as React.ComponentType<any>}
+    />
   </Stack.Navigator>
 );
 

@@ -15,7 +15,11 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import {StackNavigationProp} from '@react-navigation/stack';
 import {RouteProp} from '@react-navigation/native';
 import {RootStackParamList} from '../../../navigation/AppNavigator';
-import {registerBranch} from '../../../services/api';
+import {
+  registerBranch,
+  initiateBranchRegistration,
+  sendOTP,
+} from '../../../services/api';
 import api from '../../../services/api';
 import {useStore} from '../../../store/ordersStore';
 import {storage} from '../../../utils/storage';
@@ -119,10 +123,10 @@ const UploadBranchDocs: React.FC<UploadBranchDocsProps> = ({
         quality: 0.7,
       });
 
-      if (!result.didCancel && result.assets?.[0]) {
+      if (!result.didCancel && result.assets && result.assets.length > 0) {
         setFiles(prev => ({
           ...prev,
-          [type]: result.assets[0],
+          [type]: result.assets![0],
         }));
       }
     } catch (error) {
@@ -168,7 +172,6 @@ const UploadBranchDocs: React.FC<UploadBranchDocsProps> = ({
         ownerPhoto: files.ownerPhoto,
       };
 
-      let response;
       if (isResubmit && branchId) {
         const payload = {
           branchName: data.name,
@@ -187,59 +190,121 @@ const UploadBranchDocs: React.FC<UploadBranchDocsProps> = ({
           ownerPhoto: branch?.ownerPhoto || '',
         };
 
-        response = await api.patch(`/modify/branch/${branchId}`, payload);
-        response = response.data;
+        const response = await api.patch(`/modify/branch/${branchId}`, payload);
+        const responseData = response.data;
+
+        if (responseData) {
+          const branchData: Branch = {
+            id: responseData.branch._id,
+            status: responseData.branch.status || 'pending',
+            name: responseData.branch.name,
+            phone: data.phone,
+            address: data.address,
+            location: {
+              type: 'Point',
+              coordinates: [
+                data.location.coordinates[0] as number,
+                data.location.coordinates[1] as number,
+              ] as [number, number],
+            },
+            branchEmail: responseData.branch.branchEmail,
+            openingTime: responseData.branch.openingTime,
+            closingTime: responseData.branch.closingTime,
+            ownerName: responseData.branch.ownerName,
+            govId: responseData.branch.govId,
+            deliveryServiceAvailable:
+              responseData.branch.deliveryServiceAvailable,
+            selfPickup: responseData.branch.selfPickup,
+            branchfrontImage: responseData.branch.branchfrontImage,
+            ownerIdProof: responseData.branch.ownerIdProof,
+            ownerPhoto: responseData.branch.ownerPhoto,
+          };
+
+          addBranch(branchData);
+          navigation.navigate('StatusScreen', {
+            branchId: responseData.branch._id,
+          });
+        }
       } else {
-        response = await registerBranch(data);
+        // New registration with OTP verification - Sequential API calls
 
-        const loginResponse = await api.post('/auth/branch/login', {
+        // Prepare form data for initiateBranchRegistration
+        const initiationData = {
+          branchName: data.name,
+          branchLocation: JSON.stringify({
+            latitude: data.location.coordinates[1],
+            longitude: data.location.coordinates[0],
+          }),
+          branchAddress: JSON.stringify(data.address),
+          branchEmail: data.branchEmail || '',
+          openingTime: data.openingTime,
+          closingTime: data.closingTime,
+          ownerName: data.ownerName,
+          govId: data.govId,
           phone: data.phone,
-        });
+          homeDelivery: data.deliveryServiceAvailable.toString(),
+          selfPickup: data.selfPickup.toString(),
+          // Files will be handled by the API function
+          branchfrontImage: files.branchfrontImage,
+          ownerIdProof: files.ownerIdProof,
+          ownerPhoto: files.ownerPhoto,
+        };
 
-        const newBranchId = response.branch?._id;
-        const accessToken = loginResponse.data.accessToken;
+        try {
+          // Step 1: First call initiateBranchRegistration
+          console.log('Step 1: Initiating branch registration');
+          const initiationResponse = await initiateBranchRegistration(
+            initiationData,
+          );
 
-        if (newBranchId && accessToken) {
-          await AsyncStorage.setItem('userId', newBranchId);
-          await AsyncStorage.setItem('accessToken', accessToken);
-          setUserId(newBranchId);
+          if (!initiationResponse) {
+            throw new Error('Branch registration initiation failed');
+          }
+
+          console.log('Branch initiation successful:', initiationResponse);
+
+          // Step 2: Only if Step 1 succeeds, proceed with OTP
+          console.log('Step 2: Sending OTP');
+          const otpResponse = await sendOTP(data.phone);
+
+          if (!otpResponse) {
+            throw new Error('OTP sending failed');
+          }
+
+          console.log('OTP sent successfully:', otpResponse);
+
+          // Store timing information for OTP
+          if (otpResponse.data) {
+            storage.set(
+              'otpValidityPeriod',
+              parseInt(otpResponse.data.validityPeriod) || 600,
+            );
+            storage.set(
+              'otpRetryAfter',
+              parseInt(otpResponse.data.retryAfter) || 60,
+            );
+          }
+
+          // Store form data for later use
+          storage.set('branchFormData', JSON.stringify(data));
+          storage.set('branchPhone', data.phone);
+
+          // Navigate to OTP verification screen
+          navigation.navigate('OTPVerification', {
+            phone: data.phone,
+            formData: data,
+            branchId: undefined,
+            isResubmit: false,
+          });
+        } catch (apiError: any) {
+          console.error('API Error:', apiError);
+          const errorMessage =
+            apiError.message || 'Registration process failed';
+          Alert.alert('Error', errorMessage);
+          throw apiError; // Re-throw to be caught by outer catch block
         }
       }
-
-      const branchData: Branch = {
-        id: response.branch._id,
-        status: response.branch.status || 'pending',
-        name: response.branch.name,
-        phone: data.phone,
-        address: data.address,
-        location: data.location,
-        branchEmail: response.branch.branchEmail,
-        openingTime: response.branch.openingTime,
-        closingTime: response.branch.closingTime,
-        ownerName: response.branch.ownerName,
-        govId: response.branch.govId,
-        deliveryServiceAvailable: response.branch.deliveryServiceAvailable,
-        selfPickup: response.branch.selfPickup,
-        branchfrontImage: response.branch.branchfrontImage,
-        ownerIdProof: response.branch.ownerIdProof,
-        ownerPhoto: response.branch.ownerPhoto,
-      };
-
-      addBranch(branchData);
-
-      if (!isResubmit) {
-        storage.set('isRegistered', true);
-        storage.set('branchId', response.branch._id);
-
-        if (response.branch.status === 'approved') {
-          storage.set('isApproved', true);
-        } else {
-          storage.set('isApproved', false);
-        }
-      }
-
-      navigation.navigate('StatusScreen', {branchId: response.branch._id});
-    } catch (error) {
+    } catch (error: any) {
       const errorMessage =
         error.message || (isResubmit ? 'Resubmission failed' : 'Upload failed');
       Alert.alert('Error', errorMessage);

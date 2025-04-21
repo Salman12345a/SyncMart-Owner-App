@@ -9,6 +9,7 @@ src/
 │   ├── common
 │   │   ├── Header.tsx
 │   │   ├── CongratulationsModel.tsx
+│   │   ├── LowBalanceModal.tsx
 │   │   └── UniversalAdd.tsx
 │   ├── dashboard
 │   │   ├── Header.tsx
@@ -32,6 +33,7 @@ src/
 │   │   └── screens
 │   │       ├── AuthenticationScreen.tsx
 │   │       |── EntryScreen.tsx
+│   │       |── OTPVerificationScreen.tsx
 │   │       |── PhoneNumberScreen.tsx
 │   │       └── UserDetailsScreen.tsx
 │   ├── branch
@@ -68,12 +70,17 @@ src/
 │   │   └── screens
 │   │       ├── AddProduct.tsx
 │   │       └── InventoryItemDisplay.tsx
+│   ├── native
+│   │   └── OrderSocket.tsx
+│   │       
+│   │       
 │   └── orders
 │       └── screens
 │           ├── HomeScreen.tsx
 │           ├── OrderDetail.tsx
 │           |── OrderHasPacked.tsx
 │           |── MainPackedScreen.tsx
+│           |── SaleSummaryScreen.tsx
 │           |── OrderHistory.tsx
 │           └── OrderManagementScreen.js
 ├── navigation
@@ -86,10 +93,14 @@ src/
 │   └── socket.ts
 ├── store
 │   └── ordersStore.ts
-└── utils
-    ├── Constants.tsx
-    ├── CustomMap.tsx
-    ├── DateUtils.tsx
-    ├── NavigationUtils.tsx
-    ├── Scaling.tsx
-    └── storage.ts
+├── types
+│   └── react-native-switch-selector.d.ts
+|── utils
+|    ├── Constants.tsx
+|    ├── CustomMap.tsx
+|    ├── DateUtils.tsx
+|    ├── dummyData.tsx
+|    ├── NavigationUtils.tsx
+|    ├── Scaling.tsx
+|    └── storage.ts
+|── config.ts

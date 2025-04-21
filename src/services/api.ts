@@ -320,7 +320,7 @@ export const registerBranch = async (data: {
     } as any);
 
     console.log('FormData prepared for branch registration');
-    const response = await api.post('/register/branch/complete', formData, {
+    const response = await api.post('/register/branch', formData, {
       headers: {'Content-Type': 'multipart/form-data'},
     });
 
@@ -570,33 +570,158 @@ export const updateStoreStatus = async (
   }
 };
 
-// Branch OTP verification APIs
-export const sendBranchOTP = async (phoneNumber: string) => {
+// Branch Registration with OTP Verification
+
+// Step 1: Initialize branch registration
+export const initiateBranchRegistration = async (data: {
+  branchName: string;
+  branchLocation: string;
+  branchAddress: string;
+  branchEmail?: string;
+  openingTime: string;
+  closingTime: string;
+  ownerName: string;
+  govId: string;
+  phone: string;
+  homeDelivery: string;
+  selfPickup: string;
+  branchfrontImage?: {uri: string; type: string; name: string};
+  ownerIdProof?: {uri: string; type: string; name: string};
+  ownerPhoto?: {uri: string; type: string; name: string};
+}) => {
   try {
-    const response = await api.post('/auth/branch/send-otp', {
-      phoneNumber,
+    console.log(
+      'Initiating branch registration with data:',
+      JSON.stringify(data, null, 2),
+    );
+
+    // Ensure phone number has country code
+    let phoneNumber = data.phone;
+    if (!phoneNumber.startsWith('+')) {
+      console.warn('Phone number does not start with +, adding default +91');
+      phoneNumber = '+91' + phoneNumber;
+    }
+
+    // Create FormData object for multipart/form-data submission
+    const formData = new FormData();
+
+    // Add all text fields
+    formData.append('branchName', data.branchName);
+    formData.append('branchLocation', data.branchLocation);
+    formData.append('branchAddress', data.branchAddress);
+    formData.append('branchEmail', data.branchEmail || '');
+    formData.append('openingTime', data.openingTime);
+    formData.append('closingTime', data.closingTime);
+    formData.append('ownerName', data.ownerName);
+    formData.append('govId', data.govId);
+    formData.append('phone', phoneNumber);
+    formData.append('homeDelivery', data.homeDelivery);
+    formData.append('selfPickup', data.selfPickup);
+
+    // Add file fields if available
+    if (data.branchfrontImage && data.branchfrontImage.uri) {
+      formData.append('branchfrontImage', {
+        uri: data.branchfrontImage.uri,
+        type: data.branchfrontImage.type || 'image/jpeg',
+        name: data.branchfrontImage.name || 'branchfrontImage.jpg',
+      } as any);
+    }
+
+    if (data.ownerIdProof && data.ownerIdProof.uri) {
+      formData.append('ownerIdProof', {
+        uri: data.ownerIdProof.uri,
+        type: data.ownerIdProof.type || 'image/jpeg',
+        name: data.ownerIdProof.name || 'ownerIdProof.jpg',
+      } as any);
+    }
+
+    if (data.ownerPhoto && data.ownerPhoto.uri) {
+      formData.append('ownerPhoto', {
+        uri: data.ownerPhoto.uri,
+        type: data.ownerPhoto.type || 'image/jpeg',
+        name: data.ownerPhoto.name || 'ownerPhoto.jpg',
+      } as any);
+    }
+
+    console.log('Sending branch registration with FormData');
+
+    // Use FormData with the appropriate content-type header
+    const response = await api.post('/register/branch/initiate', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
     });
+
+    console.log('Branch Registration Initiation Success:', response.data);
     return response.data;
   } catch (error: any) {
-    if (error.response?.status === 429) {
-      throw new Error('Please wait 1 minute before requesting another OTP');
-    }
-    throw new Error(error.response?.data?.message || 'Failed to send OTP');
+    console.error(
+      'Branch Registration Initiation Error:',
+      error.response?.data || error.message,
+    );
+    throw error.response?.data || error;
   }
 };
 
-export const verifyBranchOTP = async (phoneNumber: string, otp: string) => {
+// Step 1 (parallel): Send OTP to phone
+export const sendOTP = async (phoneNumber: string) => {
   try {
+    console.log('Sending OTP to phone:', phoneNumber);
+    // Ensure phone number has country code
+    if (!phoneNumber.startsWith('+')) {
+      console.warn('Phone number does not start with +, adding default +91');
+      phoneNumber = '+91' + phoneNumber;
+    }
+    const response = await api.post('/auth/branch/send-otp', {phoneNumber});
+    console.log('Send OTP Success:', response.data);
+    return response.data;
+  } catch (error: any) {
+    console.error('Send OTP Error:', error.response?.data || error.message);
+    throw error.response?.data || error;
+  }
+};
+
+// Step 2: Verify OTP
+export const verifyOTP = async (phoneNumber: string, otp: string) => {
+  try {
+    console.log('Verifying OTP for phone:', phoneNumber);
+    // Ensure phone number has country code
+    if (!phoneNumber.startsWith('+')) {
+      console.warn('Phone number does not start with +, adding default +91');
+      phoneNumber = '+91' + phoneNumber;
+    }
     const response = await api.post('/auth/branch/verify-otp', {
       phoneNumber,
       otp,
     });
+    console.log('Verify OTP Success:', response.data);
     return response.data;
   } catch (error: any) {
-    if (error.response?.status === 403) {
-      throw new Error('Invalid OTP. Please try again.');
+    console.error('Verify OTP Error:', error.response?.data || error.message);
+    throw error.response?.data || error;
+  }
+};
+
+// Step 3: Complete branch registration
+export const completeBranchRegistration = async (phoneNumber: string) => {
+  try {
+    console.log('Completing branch registration for phone:', phoneNumber);
+    // Ensure phone number has country code
+    if (!phoneNumber.startsWith('+')) {
+      console.warn('Phone number does not start with +, adding default +91');
+      phoneNumber = '+91' + phoneNumber;
     }
-    throw new Error(error.response?.data?.message || 'Failed to verify OTP');
+    const response = await api.post('/register/branch/complete', {
+      phone: phoneNumber,
+    });
+    console.log('Complete Registration Success:', response.data);
+    return response.data;
+  } catch (error: any) {
+    console.error(
+      'Complete Registration Error:',
+      error.response?.data || error.message,
+    );
+    throw error.response?.data || error;
   }
 };
 

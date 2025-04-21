@@ -8,7 +8,11 @@ export type RootStackParamList = {
   EntryScreen: undefined;
   Authentication: undefined;
   UserDetails: undefined;
-  PhoneNumberScreen: undefined;
+  PhoneNumberScreen: {
+    formData?: any;
+    branchId?: string;
+    isResubmit?: boolean;
+  };
   Main: undefined;
   AddProduct: undefined;
   Finance: undefined;
@@ -25,13 +29,32 @@ export type RootStackParamList = {
   OrderDetail: {order: Order; fromPackedTab?: boolean};
   OrderHasPacked: undefined;
   MainPackedScreen: undefined;
-  BranchAuth: undefined;
-  UploadBranchDocs: undefined;
+  BranchAuth: {
+    branchId?: string;
+    isResubmit?: boolean;
+  };
+  UploadBranchDocs: {
+    formData?: any;
+    branchId?: string;
+    isResubmit?: boolean;
+  };
   StatusScreen: {branchId: string};
   SalesSummary: undefined;
   Order: undefined;
   Wallet: undefined;
   OrderHistory: undefined;
+  OTPVerification: {
+    phone: string;
+    formData: any;
+    branchId?: string;
+    isResubmit?: boolean;
+  };
+  RegisteredBranchDetails: {
+    phone: string;
+    formData: any;
+    branchId?: string;
+    isResubmit?: boolean;
+  };
 };
 
 export type StatusScreenNavigationProp = StackNavigationProp<
