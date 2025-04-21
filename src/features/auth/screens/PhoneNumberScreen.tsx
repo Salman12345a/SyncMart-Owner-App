@@ -201,9 +201,13 @@ const PhoneNumberScreen: React.FC<PhoneNumberScreenProps> = ({
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.header}>Enter Phone Number</Text>
+      <Text style={styles.header}>
+        {isResubmit ? 'Resubmit Branch Application' : 'Enter Phone Number'}
+      </Text>
       <Text style={styles.subheader}>
-        Please provide a contact number for the branch
+        {isResubmit
+          ? 'Update your branch details to resubmit your application'
+          : 'Please provide a contact number for the branch'}
       </Text>
 
       <View style={styles.formGroup}>
@@ -211,15 +215,22 @@ const PhoneNumberScreen: React.FC<PhoneNumberScreenProps> = ({
         <View style={styles.phoneInputContainer}>
           {/* Country code selector */}
           <TouchableOpacity
-            style={styles.countryCodeSelector}
-            onPress={() => setModalVisible(true)}>
+            style={[
+              styles.countryCodeSelector,
+              isResubmit && styles.disabledInput,
+            ]}
+            onPress={() => !isResubmit && setModalVisible(true)}
+            disabled={isResubmit}>
             <Text style={styles.countryFlag}>{selectedCountry.flag}</Text>
             <Text style={styles.countryCode}>{selectedCountry.dial_code}</Text>
-            <Icon name="arrow-drop-down" size={20} color="#7f8c8d" />
+            {!isResubmit && (
+              <Icon name="arrow-drop-down" size={20} color="#7f8c8d" />
+            )}
           </TouchableOpacity>
 
           {/* Phone number input */}
-          <View style={styles.inputContainer}>
+          <View
+            style={[styles.inputContainer, isResubmit && styles.disabledInput]}>
             <Icon name="phone" size={20} color="#7f8c8d" style={styles.icon} />
             <TextInput
               placeholder="Enter phone number"
@@ -228,9 +239,16 @@ const PhoneNumberScreen: React.FC<PhoneNumberScreenProps> = ({
               onChangeText={setPhoneNumber}
               keyboardType="numeric"
               style={styles.input}
+              editable={!isResubmit}
             />
           </View>
         </View>
+        {isResubmit && (
+          <Text style={styles.warningText}>
+            Phone number cannot be changed during resubmission as it's used to
+            identify your branch.
+          </Text>
+        )}
         <Text style={styles.hint}>
           Enter your phone number with country code (e.g.,{' '}
           {selectedCountry.dial_code} XXXXXXXXXX)
@@ -422,6 +440,18 @@ const styles = StyleSheet.create({
   countryDialCode: {
     fontSize: 16,
     color: '#7f8c8d',
+  },
+  warningText: {
+    fontSize: 12,
+    color: '#e74c3c',
+    marginTop: 8,
+    marginLeft: 4,
+    fontStyle: 'italic',
+  },
+  disabledInput: {
+    backgroundColor: '#f1f2f6',
+    borderColor: '#dfe4ea',
+    opacity: 0.8,
   },
 });
 

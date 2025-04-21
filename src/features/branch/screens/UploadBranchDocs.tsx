@@ -244,10 +244,28 @@ const UploadBranchDocs: React.FC<UploadBranchDocsProps> = ({
           phone: data.phone,
           homeDelivery: data.deliveryServiceAvailable.toString(),
           selfPickup: data.selfPickup.toString(),
-          // Files will be handled by the API function
-          branchfrontImage: files.branchfrontImage,
-          ownerIdProof: files.ownerIdProof,
-          ownerPhoto: files.ownerPhoto,
+          // Convert Asset to expected format with name property
+          branchfrontImage: files.branchfrontImage
+            ? {
+                uri: files.branchfrontImage.uri,
+                type: files.branchfrontImage.type || 'image/jpeg',
+                name: files.branchfrontImage.fileName || 'branchfrontImage.jpg',
+              }
+            : undefined,
+          ownerIdProof: files.ownerIdProof
+            ? {
+                uri: files.ownerIdProof.uri,
+                type: files.ownerIdProof.type || 'image/jpeg',
+                name: files.ownerIdProof.fileName || 'ownerIdProof.jpg',
+              }
+            : undefined,
+          ownerPhoto: files.ownerPhoto
+            ? {
+                uri: files.ownerPhoto.uri,
+                type: files.ownerPhoto.type || 'image/jpeg',
+                name: files.ownerPhoto.fileName || 'ownerPhoto.jpg',
+              }
+            : undefined,
         };
 
         try {
