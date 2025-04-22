@@ -18,6 +18,7 @@ import {
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import {useStore} from '../../store/ordersStore';
 import {storage} from '../../utils/storage';
+import {useFocusEffect} from '@react-navigation/native';
 
 type IconProps = {
   color: string;
@@ -28,24 +29,41 @@ type IconProps = {
 const CustomDrawerContent = (props: DrawerContentComponentProps) => {
   const {navigation} = props;
   const userId = useStore(state => state.userId);
- 
+
   const [userName, setUserName] = useState('Branch Manager');
   const [ownerName, setOwnerName] = useState('Owner Name');
 
-  // Fetch branch info from storage
+  // Fetch branch info from storage when userId changes
   useEffect(() => {
-    const branch = storage.getString('branchId');
+    if (userId) {
+      loadBranchInfo();
+    }
+  }, [userId]);
+
+  // Refresh branch info when drawer is opened
+  useFocusEffect(
+    React.useCallback(() => {
+      loadBranchInfo();
+      return () => {};
+    }, []),
+  );
+
+  // Function to load branch info from storage
+  const loadBranchInfo = () => {
+    const storedBranchId = storage.getString('branchId');
     const storedBranchName = storage.getString('branchName');
     const storedOwnerName = storage.getString('ownerName');
 
-
-
     if (storedOwnerName) {
-      setUserName(storedOwnerName);
+      setOwnerName(storedOwnerName);
+      console.log('Loaded owner name from storage:', storedOwnerName);
     }
 
-
-  }, []);
+    if (storedBranchName) {
+      setUserName(storedBranchName);
+      console.log('Loaded branch name from storage:', storedBranchName);
+    }
+  };
 
   // Customize which screens should be shown in the drawer
   const filteredRoutes = props.state.routes.filter(route => {
@@ -78,8 +96,8 @@ const CustomDrawerContent = (props: DrawerContentComponentProps) => {
             <Icon name="store" size={32} color="#340e5c" />
           </View>
           <View style={styles.userInfo}>
-            <Text style={styles.branchName}>{ownerName}</Text>
-            <Text style={styles.userName}>{userName}</Text>
+            <Text style={styles.branchName}>{userName}</Text>
+            <Text style={styles.userName}>{ownerName}</Text>
           </View>
         </View>
       </View>

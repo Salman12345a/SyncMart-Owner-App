@@ -247,6 +247,35 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
     }
   }, [userId, fetchOrders]);
 
+  // Function to fetch branch data and ensure owner name is stored
+  const fetchBranchData = useCallback(async (branchId: string) => {
+    try {
+      console.log('Fetching branch data for branchId:', branchId);
+      const response = await api.get(`/branch/status/${branchId}`);
+
+      if (response.data) {
+        // Store important branch information in local storage
+        if (response.data.name) {
+          storage.set('branchName', response.data.name);
+        }
+
+        if (response.data.ownerName) {
+          storage.set('ownerName', response.data.ownerName);
+        }
+
+        console.log(
+          'Branch data fetched successfully and stored in local storage',
+        );
+      }
+    } catch (error: any) {
+      console.error(
+        'Error fetching branch data:',
+        error?.response?.data || error?.message,
+      );
+      // Non-critical error, don't show alert to user
+    }
+  }, []);
+
   useEffect(() => {
     let isMounted = true;
 
@@ -342,6 +371,9 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
                 setLocalUserId(finalUserId);
                 setAccessToken(storedAccessToken);
                 setUserId(finalUserId);
+
+                // Fetch branch data to ensure owner name is available
+                fetchBranchData(finalUserId);
               }
             }
           } catch (error) {

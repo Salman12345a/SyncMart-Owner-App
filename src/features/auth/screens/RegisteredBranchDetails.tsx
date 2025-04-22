@@ -48,6 +48,15 @@ const RegisteredBranchDetails: React.FC<RegisteredBranchDetailsProps> = ({
           storage.set('isApproved', false);
         }
 
+        // Store branch name and owner name
+        if (branchData.name) {
+          storage.set('branchName', branchData.name);
+        }
+
+        if (branchData.ownerName) {
+          storage.set('ownerName', branchData.ownerName);
+        }
+
         // Store token if available
         if (response.accessToken) {
           storage.set('accessToken', response.accessToken);

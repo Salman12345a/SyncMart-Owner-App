@@ -9,6 +9,7 @@ import {
   Alert,
   ScrollView,
   SafeAreaView,
+  Keyboard,
 } from 'react-native';
 import {StackScreenProps} from '@react-navigation/stack';
 import {RootStackParamList} from '../../../navigation/types';
@@ -38,23 +39,28 @@ const OTPVerificationScreen: React.FC<OTPVerificationScreenProps> = ({
   const {phone, formData, branchId, isResubmit, isLogin} = route.params || {};
   const {setUserId} = useStore();
 
-  const [otp, setOtp] = useState('');
+  // OTP inputs
+  const [otpValues, setOtpValues] = useState(['', '', '', '']);
+  const otpInputRefs = useRef<Array<TextInput | null>>([]);
+
   const [isLoading, setIsLoading] = useState(false);
-  const [timeLeft, setTimeLeft] = useState(600); // 10 minutes default
+  // OTP Expiration: Default 10 minutes (600 seconds)
+  const [timeLeft, setTimeLeft] = useState(600);
+  // Resend OTP cooldown: Default 60 seconds
   const [resendDisabled, setResendDisabled] = useState(true);
-  const [resendCountdown, setResendCountdown] = useState(60); // 1 minute default
+  const [resendCountdown, setResendCountdown] = useState(60);
 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const resendTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Initialize timers based on backend response
+  // Initialize timers based on backend response or use defaults
   useEffect(() => {
-    // OTP validity period timer (from seconds to milliseconds)
-    const validityPeriod = storage.getNumber('otpValidityPeriod') || 600; // 10 minutes default
-    setTimeLeft(validityPeriod);
+    // Use stored values from backend or defaults
+    const validityPeriod = storage.getNumber('otpValidityPeriod') || 600; // 10 minutes
+    const retryAfter = storage.getNumber('otpRetryAfter') || 60; // 1 minute
 
-    // Resend timer (from seconds to milliseconds)
-    const retryAfter = storage.getNumber('otpRetryAfter') || 60; // 1 minute default
+    // Set initial values
+    setTimeLeft(validityPeriod);
     setResendCountdown(retryAfter);
     setResendDisabled(true);
 
@@ -67,22 +73,26 @@ const OTPVerificationScreen: React.FC<OTPVerificationScreenProps> = ({
     // Clear any existing timers
     clearTimers();
 
-    // Start OTP validity timer
+    // Start OTP validity timer (counts down from timeLeft)
     timerRef.current = setInterval(() => {
       setTimeLeft(prev => {
         if (prev <= 1) {
-          clearInterval(timerRef.current!);
+          if (timerRef.current) {
+            clearInterval(timerRef.current);
+          }
           return 0;
         }
         return prev - 1;
       });
     }, 1000);
 
-    // Start resend countdown timer
+    // Start resend countdown timer (counts down from resendCountdown)
     resendTimerRef.current = setInterval(() => {
       setResendCountdown(prev => {
         if (prev <= 1) {
-          clearInterval(resendTimerRef.current!);
+          if (resendTimerRef.current) {
+            clearInterval(resendTimerRef.current);
+          }
           setResendDisabled(false);
           return 0;
         }
@@ -111,6 +121,48 @@ const OTPVerificationScreen: React.FC<OTPVerificationScreenProps> = ({
       .padStart(2, '0')}`;
   };
 
+  const handleOtpChange = (index: number, value: string) => {
+    if (value.length > 1) {
+      // Handle paste event
+      const pastedText = value;
+      const newOtpValues = [...otpValues];
+
+      for (let i = 0; i < Math.min(pastedText.length, 4); i++) {
+        if (/^\d+$/.test(pastedText[i])) {
+          newOtpValues[i] = pastedText[i];
+        }
+      }
+
+      setOtpValues(newOtpValues);
+
+      // Focus on the last filled input or the next empty one
+      const lastFilledIndex = newOtpValues.findIndex(v => v === '') - 1;
+      const focusIndex =
+        lastFilledIndex >= 0 && lastFilledIndex < 3 ? lastFilledIndex + 1 : 3;
+      otpInputRefs.current[focusIndex]?.focus();
+    } else if (/^\d*$/.test(value)) {
+      // Handle single digit input
+      const newOtpValues = [...otpValues];
+      newOtpValues[index] = value;
+      setOtpValues(newOtpValues);
+
+      // Auto focus to next input
+      if (value !== '' && index < 3) {
+        otpInputRefs.current[index + 1]?.focus();
+      }
+    }
+  };
+
+  const handleOtpKeyPress = (index: number, key: string) => {
+    // Handle backspace for empty inputs
+    if (key === 'Backspace' && index > 0 && otpValues[index] === '') {
+      const newOtpValues = [...otpValues];
+      newOtpValues[index - 1] = '';
+      setOtpValues(newOtpValues);
+      otpInputRefs.current[index - 1]?.focus();
+    }
+  };
+
   const handleResendOTP = async () => {
     if (resendDisabled) return;
 
@@ -119,17 +171,20 @@ const OTPVerificationScreen: React.FC<OTPVerificationScreenProps> = ({
       const response = await sendOTP(phone);
 
       if (response && response.data) {
-        // Reset timers
+        // Reset timers with values from the server response or use defaults
         const validityPeriod = parseInt(response.data.validityPeriod) || 600;
         const retryAfter = parseInt(response.data.retryAfter) || 60;
 
+        // Store the values for potential future use
         storage.set('otpValidityPeriod', validityPeriod);
         storage.set('otpRetryAfter', retryAfter);
 
+        // Reset timer states
         setTimeLeft(validityPeriod);
         setResendCountdown(retryAfter);
         setResendDisabled(true);
 
+        // Restart the timers
         startTimers();
 
         Alert.alert('Success', 'OTP has been resent to your phone number.');
@@ -146,14 +201,15 @@ const OTPVerificationScreen: React.FC<OTPVerificationScreenProps> = ({
   };
 
   const handleLoginVerification = async () => {
-    if (!otp || otp.length < 4) {
-      Alert.alert('Error', 'Please enter a valid OTP.');
+    const otpCode = otpValues.join('');
+    if (!otpCode || otpCode.length < 4) {
+      Alert.alert('Error', 'Please enter a valid 4-digit OTP.');
       return;
     }
 
     setIsLoading(true);
     try {
-      const response = await completeLogin(phone, otp);
+      const response = await completeLogin(phone, otpCode);
 
       if (response && response.token) {
         // Decode the JWT token
@@ -192,6 +248,15 @@ const OTPVerificationScreen: React.FC<OTPVerificationScreenProps> = ({
           if (response.branch.id) {
             storage.set('branchId', response.branch.id);
           }
+
+          // Store branch name and owner name
+          if (response.branch.name) {
+            storage.set('branchName', response.branch.name);
+          }
+
+          if (response.branch.ownerName) {
+            storage.set('ownerName', response.branch.ownerName);
+          }
         }
 
         // Navigate to the Home screen
@@ -215,14 +280,15 @@ const OTPVerificationScreen: React.FC<OTPVerificationScreenProps> = ({
   };
 
   const handleRegistrationVerification = async () => {
-    if (!otp || otp.length < 4) {
-      Alert.alert('Error', 'Please enter a valid OTP.');
+    const otpCode = otpValues.join('');
+    if (!otpCode || otpCode.length < 4) {
+      Alert.alert('Error', 'Please enter a valid 4-digit OTP.');
       return;
     }
 
     setIsLoading(true);
     try {
-      const response = await verifyOTP(phone, otp);
+      const response = await verifyOTP(phone, otpCode);
 
       if (response && response.data && response.data.verified) {
         // Store verification status
@@ -258,6 +324,7 @@ const OTPVerificationScreen: React.FC<OTPVerificationScreenProps> = ({
   };
 
   const handleVerifyOTP = async () => {
+    Keyboard.dismiss();
     if (isLogin) {
       await handleLoginVerification();
     } else {
@@ -265,61 +332,78 @@ const OTPVerificationScreen: React.FC<OTPVerificationScreenProps> = ({
     }
   };
 
+  const goBack = () => {
+    navigation.goBack();
+  };
+
+  const isOtpComplete = otpValues.every(value => value !== '');
+
   return (
     <SafeAreaView style={styles.safeArea}>
-      <ScrollView contentContainerStyle={styles.container}>
-        <Text style={styles.header}>Verify Your Phone</Text>
-        <Text style={styles.subheader}>Enter the OTP sent to {phone}</Text>
+      <TouchableOpacity style={styles.backButton} onPress={goBack}>
+        <Icon name="arrow-back" size={24} color="#333333" />
+      </TouchableOpacity>
 
-        <View style={styles.otpContainer}>
-          <TextInput
-            style={styles.otpInput}
-            value={otp}
-            onChangeText={setOtp}
-            placeholder="Enter OTP"
-            keyboardType="numeric"
-            maxLength={6}
-            autoFocus
-          />
-        </View>
-
-        <View style={styles.timerContainer}>
-          <Text style={styles.timerText}>
-            OTP valid for: {formatTime(timeLeft)}
+      <ScrollView
+        contentContainerStyle={styles.container}
+        keyboardShouldPersistTaps="handled">
+        <View style={styles.headerContainer}>
+          <Text style={styles.header}>Verification Code</Text>
+          <Text style={styles.subheader}>
+            We've sent a 4-digit code to {phone}
           </Text>
         </View>
 
+        <View style={styles.otpContainer}>
+          {otpValues.map((value, index) => (
+            <TextInput
+              key={index}
+              ref={ref => (otpInputRefs.current[index] = ref)}
+              style={styles.otpInput}
+              value={value}
+              onChangeText={text => handleOtpChange(index, text)}
+              onKeyPress={({nativeEvent}) =>
+                handleOtpKeyPress(index, nativeEvent.key)
+              }
+              keyboardType="numeric"
+              maxLength={index === 0 ? 4 : 1} // First input can accept paste
+              autoFocus={index === 0}
+              selectionColor="#007AFF"
+            />
+          ))}
+        </View>
+
+        <View style={styles.timerContainer}>
+          <Text style={styles.timerText}>Resend in {formatTime(timeLeft)}</Text>
+        </View>
+
         <TouchableOpacity
-          style={[styles.button, isLoading && styles.buttonDisabled]}
+          style={[
+            styles.button,
+            (!isOtpComplete || isLoading) && styles.buttonDisabled,
+          ]}
           onPress={handleVerifyOTP}
-          disabled={isLoading || !otp}>
+          disabled={!isOtpComplete || isLoading}>
           {isLoading ? (
             <ActivityIndicator color="#FFFFFF" />
           ) : (
-            <>
-              <Text style={styles.buttonText}>Verify OTP</Text>
-              <Icon name="check-circle" size={20} color="#FFFFFF" />
-            </>
+            <Text style={styles.buttonText}>Verify</Text>
           )}
         </TouchableOpacity>
 
         <View style={styles.resendContainer}>
+          <Text style={styles.resendLabel}>Didn't receive the code? </Text>
           <TouchableOpacity
             onPress={handleResendOTP}
-            disabled={resendDisabled || isLoading}
-            style={[
-              styles.resendButton,
-              (resendDisabled || isLoading) && styles.resendButtonDisabled,
-            ]}>
+            disabled={resendDisabled || isLoading}>
             <Text
               style={[
                 styles.resendText,
                 (resendDisabled || isLoading) && styles.resendTextDisabled,
               ]}>
-              Resend OTP
               {resendDisabled && resendCountdown > 0
-                ? ` (${formatTime(resendCountdown)})`
-                : ''}
+                ? `Resend in ${formatTime(resendCountdown)}`
+                : 'Resend Code'}
             </Text>
           </TouchableOpacity>
         </View>
@@ -340,53 +424,67 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  backButton: {
+    position: 'absolute',
+    top: 16,
+    left: 16,
+    zIndex: 10,
+    padding: 8,
+  },
+  headerContainer: {
+    width: '100%',
+    marginBottom: 40,
+    alignItems: 'center',
+  },
   header: {
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: 'bold',
     color: '#333333',
-    marginBottom: 8,
+    marginBottom: 12,
     textAlign: 'center',
   },
   subheader: {
     fontSize: 16,
     color: '#666666',
-    marginBottom: 32,
     textAlign: 'center',
+    lineHeight: 22,
   },
   otpContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     width: '100%',
-    marginBottom: 24,
+    marginBottom: 40,
+    paddingHorizontal: 24,
   },
   otpInput: {
+    width: 60,
     height: 60,
-    width: '100%',
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: '#E0E0E0',
     borderRadius: 12,
-    fontSize: 20,
+    fontSize: 24,
+    fontWeight: '600',
     textAlign: 'center',
     color: '#333333',
     backgroundColor: '#F9F9F9',
   },
   timerContainer: {
-    marginBottom: 32,
+    marginBottom: 40,
   },
   timerText: {
-    fontSize: 16,
+    fontSize: 14,
     color: '#666666',
     textAlign: 'center',
   },
   button: {
-    flexDirection: 'row',
-    backgroundColor: '#007AFF',
+    backgroundColor: '#340e5c',
     borderRadius: 12,
     paddingVertical: 16,
-    paddingHorizontal: 24,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 16,
+    marginBottom: 24,
     width: '100%',
-    gap: 8,
+    elevation: 2,
   },
   buttonDisabled: {
     backgroundColor: '#CCCCCC',
@@ -397,19 +495,18 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   resendContainer: {
-    marginTop: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  resendButton: {
-    padding: 12,
-    borderRadius: 8,
-  },
-  resendButtonDisabled: {
-    opacity: 0.7,
+  resendLabel: {
+    fontSize: 14,
+    color: '#666666',
   },
   resendText: {
-    fontSize: 16,
+    fontSize: 14,
+    fontWeight: '600',
     color: '#007AFF',
-    textAlign: 'center',
   },
   resendTextDisabled: {
     color: '#999999',
