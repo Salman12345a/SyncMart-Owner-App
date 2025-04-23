@@ -39,6 +39,7 @@
     "react-native-responsive-fontsize": "^0.5.1",
     "react-native-safe-area-context": "^5.2.0",
     "react-native-screens": "^4.9.1",
+    "react-native-sound": "^0.11.2",
     "react-native-switch": "^1.5.1",
     "react-native-switch-selector": "^2.3.0",
     "react-native-tab-view": "^4.0.6",

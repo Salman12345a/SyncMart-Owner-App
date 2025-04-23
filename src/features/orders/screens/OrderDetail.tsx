@@ -1,4 +1,4 @@
-import React, {useState, useEffect} from 'react';
+import React, {useState, useEffect, useRef} from 'react';
 import {
   View,
   Text,
@@ -43,6 +43,9 @@ const OrderDetail: React.FC<OrderDetailProps> = ({route, navigation}) => {
     currentOrder.totalPrice || 0,
   );
   const [loading, setLoading] = useState(false);
+  const [showCancelFeedback, setShowCancelFeedback] = useState(false);
+  const [cancelCountdown, setCancelCountdown] = useState(30);
+  const cancelTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Fetch detailed order data if price or totalPrice is missing
   useEffect(() => {
@@ -123,7 +126,46 @@ const OrderDetail: React.FC<OrderDetailProps> = ({route, navigation}) => {
     );
   };
 
+  const startCancelProcess = () => {
+    if (currentOrder.status === 'packed') return;
+
+    setShowCancelFeedback(true);
+    setCancelCountdown(30);
+
+    // Start countdown
+    cancelTimerRef.current = setInterval(() => {
+      setCancelCountdown(prev => {
+        if (prev <= 1) {
+          if (cancelTimerRef.current) {
+            clearInterval(cancelTimerRef.current);
+          }
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  };
+
+  const cancelCancelProcess = () => {
+    if (cancelTimerRef.current) {
+      clearInterval(cancelTimerRef.current);
+    }
+    setShowCancelFeedback(false);
+  };
+
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (cancelTimerRef.current) {
+        clearInterval(cancelTimerRef.current);
+      }
+    };
+  }, []);
+
   const handleCancelOrder = async () => {
+    // First cancel the feedback UI
+    cancelCancelProcess();
+
     Alert.alert('Cancel Order', 'Are you sure you want to cancel this order?', [
       {
         text: 'No',
@@ -355,11 +397,44 @@ const OrderDetail: React.FC<OrderDetailProps> = ({route, navigation}) => {
               </Text>
             </View>
           </View>
-          <TouchableOpacity
-            onPress={handleCancelOrder}
-            style={styles.cancelButton}>
-            <Icon name="close" size={20} color="#FF4D4F" />
-          </TouchableOpacity>
+
+          {showCancelFeedback ? (
+            <View style={styles.cancelFeedbackContainer}>
+              <Text style={styles.cancelFeedbackText}>Cancel?</Text>
+              <Text style={styles.cancelCountdownText}>{cancelCountdown}s</Text>
+              <View style={styles.cancelFeedbackButtons}>
+                <TouchableOpacity
+                  onPress={cancelCancelProcess}
+                  style={styles.cancelFeedbackNoButton}>
+                  <Text style={styles.cancelFeedbackNoText}>No</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={handleCancelOrder}
+                  disabled={cancelCountdown > 0}
+                  style={[
+                    styles.cancelFeedbackYesButton,
+                    cancelCountdown > 0 &&
+                      styles.cancelFeedbackYesButtonDisabled,
+                  ]}>
+                  <Text style={styles.cancelFeedbackYesText}>Yes</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ) : (
+            <TouchableOpacity
+              onPress={startCancelProcess}
+              disabled={currentOrder.status === 'packed'}
+              style={[
+                styles.cancelButton,
+                currentOrder.status === 'packed' && styles.disabledCancelButton,
+              ]}>
+              <Icon
+                name="close"
+                size={20}
+                color={currentOrder.status === 'packed' ? '#CCCCCC' : '#FF4D4F'}
+              />
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* Order Items */}
@@ -734,6 +809,69 @@ const styles = StyleSheet.create({
   },
   disabledButton: {
     opacity: 0.6,
+  },
+  disabledCancelButton: {
+    borderColor: '#EEEEEE',
+    backgroundColor: '#F5F5F5',
+  },
+  cancelFeedbackContainer: {
+    backgroundColor: '#FFF5F5',
+    borderWidth: 1,
+    borderColor: '#FFEEEE',
+    borderRadius: 8,
+    padding: 8,
+    alignItems: 'center',
+    width: 100,
+  },
+  cancelFeedbackText: {
+    color: '#FF4D4F',
+    fontSize: 12,
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  cancelCountdownText: {
+    color: '#111827',
+    fontSize: 14,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  cancelFeedbackButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: '100%',
+  },
+  cancelFeedbackNoButton: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 4,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    flex: 1,
+    marginRight: 4,
+    alignItems: 'center',
+  },
+  cancelFeedbackNoText: {
+    color: '#6B7280',
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  cancelFeedbackYesButton: {
+    backgroundColor: '#FF4D4F',
+    borderRadius: 4,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    flex: 1,
+    marginLeft: 4,
+    alignItems: 'center',
+  },
+  cancelFeedbackYesButtonDisabled: {
+    backgroundColor: '#FFCCCB',
+  },
+  cancelFeedbackYesText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '500',
   },
 });
 

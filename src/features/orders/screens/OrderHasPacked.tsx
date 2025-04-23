@@ -23,6 +23,7 @@ type OrderHasPackedProps = StackScreenProps<
 interface ExtendedOrder extends Order {
   deliveryEnabled?: boolean;
   deliveryServiceAvailable?: boolean;
+  manuallyCollected?: boolean;
 }
 
 // Helper function to calculate platform charges based on order value
@@ -177,6 +178,21 @@ const OrderHasPacked: React.FC<OrderHasPackedProps> = ({route, navigation}) => {
           Informed Customer! To visit the Branch to collect their items.
         </Text>
       </View>
+
+      {/* Completed button - only show when manuallyCollected is true */}
+      {orderState.manuallyCollected && (
+        <TouchableOpacity
+          style={styles.completedButton}
+          onPress={() => navigation.goBack()}>
+          <Icon
+            name="check"
+            size={24}
+            color="#FFFFFF"
+            style={styles.buttonIcon}
+          />
+          <Text style={styles.completedButtonText}>Completed</Text>
+        </TouchableOpacity>
+      )}
     </ScrollView>
   );
 };
@@ -355,6 +371,24 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  completedButton: {
+    backgroundColor: '#5E60CE',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 16,
+    borderRadius: 8,
+    marginTop: 16,
+    marginBottom: 20,
+  },
+  completedButtonText: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  buttonIcon: {
+    marginRight: 8,
   },
 });
 

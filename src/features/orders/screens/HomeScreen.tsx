@@ -18,6 +18,8 @@ import {StackNavigationProp} from '@react-navigation/stack';
 import {RootStackParamList} from '../../../navigation/types';
 import {DrawerNavigationProp} from '@react-navigation/drawer';
 import {jwtDecode} from 'jwt-decode';
+import LottieView from 'lottie-react-native';
+import Sound from 'react-native-sound';
 import {
   OrderSocket,
   OrderSocketEventEmitter,
@@ -41,6 +43,10 @@ interface TokenPayload {
   iat?: number;
 }
 
+// Initialize Sound
+Sound.setCategory('Playback');
+let orderSound: Sound | null = null;
+
 const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
   const {
     storeStatus,
@@ -55,6 +61,45 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showLowBalanceModal, setShowLowBalanceModal] = useState(false);
+
+  // Initialize order ring sound
+  useEffect(() => {
+    // Load sound file
+    orderSound = new Sound(
+      require('../../../assets/music/OrderRing.mp3'),
+      (error: any) => {
+        if (error) {
+          console.error('Failed to load order sound:', error);
+        } else {
+          console.log('Order sound loaded successfully');
+          // Set volume
+          orderSound?.setVolume(1.0);
+        }
+      },
+    );
+
+    // Clean up on unmount
+    return () => {
+      if (orderSound) {
+        orderSound.release();
+        orderSound = null;
+      }
+    };
+  }, []);
+
+  // Function to play order sound
+  const playOrderSound = useCallback(() => {
+    if (orderSound) {
+      // Reset sound to beginning (in case it was played before)
+      orderSound.stop();
+      // Play the sound
+      orderSound.play((success: boolean) => {
+        if (!success) {
+          console.error('Sound playback failed');
+        }
+      });
+    }
+  }, []);
 
   // Add a function to sort orders by ID in FIFO order
   const sortOrdersByFIFO = useCallback((ordersToSort: Order[]) => {
@@ -438,6 +483,9 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
             return prevOrders;
           }
 
+          // Play order sound when a new order is received
+          playOrderSound();
+
           const newOrders = sortOrdersByFIFO([order, ...prevOrders]);
           console.log('[Socket] Added new order:', order._id);
           return newOrders;
@@ -619,39 +667,73 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
         showStoreStatus
         setShowLowBalanceModal={setShowLowBalanceModal}
       />
-      <View style={styles.content}>
-        <View style={styles.titleRow}>
-          <Text style={styles.title}>Check Today's Sales</Text>
-          <TouchableOpacity
-            style={styles.viewButton}
-            disabled={isRefreshing}
-            onPress={navigateToSalesSummary}>
-            {isRefreshing ? (
-              <ActivityIndicator size="small" color="#fff" />
-            ) : (
-              <Text style={styles.viewButtonText}>View</Text>
-            )}
-          </TouchableOpacity>
+      {storeStatus === 'closed' ? (
+        <View style={styles.closedContainer}>
+          <LottieView
+            source={require('../../../assets/animations/Closed.json')}
+            autoPlay
+            loop
+            style={styles.closedAnimation}
+          />
+          <Text style={styles.closedText}>Store is currently closed</Text>
+          <Text style={styles.closedSubtext}>
+            Open your store to receive new orders
+          </Text>
         </View>
-        <FlatList
-          data={filteredOrders}
-          renderItem={({item}) => (
-            <OrderCard
-              order={item}
-              onAccept={handleAccept}
-              onReject={handleReject}
-              onCancelItem={handleCancelItem}
-              onAssignDeliveryPartner={() => handleAssignDeliveryPartner(item)}
-              navigation={navigation}
-              onPress={() => navigation.navigate('OrderDetail', {order: item})}
+      ) : (
+        <View style={styles.content}>
+          <View style={styles.titleRow}>
+            <Text style={styles.title}>Check Today's Sales</Text>
+            <TouchableOpacity
+              style={styles.viewButton}
+              disabled={isRefreshing}
+              onPress={navigateToSalesSummary}>
+              {isRefreshing ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text style={styles.viewButtonText}>View</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+          {filteredOrders.length === 0 ? (
+            <View style={styles.emptyOrdersContainer}>
+              <LottieView
+                source={require('../../../assets/animations/open.json')}
+                autoPlay
+                loop
+                style={styles.openAnimation}
+              />
+
+              <Text style={styles.noOrdersSubtext}>
+                Your store is open and ready to receive orders
+              </Text>
+            </View>
+          ) : (
+            <FlatList
+              data={filteredOrders}
+              renderItem={({item}) => (
+                <OrderCard
+                  order={item}
+                  onAccept={handleAccept}
+                  onReject={handleReject}
+                  onCancelItem={handleCancelItem}
+                  onAssignDeliveryPartner={() =>
+                    handleAssignDeliveryPartner(item)
+                  }
+                  navigation={navigation}
+                  onPress={() =>
+                    navigation.navigate('OrderDetail', {order: item})
+                  }
+                />
+              )}
+              keyExtractor={item => item._id}
+              contentContainerStyle={styles.orderList}
+              onRefresh={handleRefresh}
+              refreshing={isRefreshing}
             />
           )}
-          keyExtractor={item => item._id}
-          contentContainerStyle={styles.orderList}
-          onRefresh={handleRefresh}
-          refreshing={isRefreshing}
-        />
-      </View>
+        </View>
+      )}
       <TouchableOpacity
         onPress={() => navigation.navigate('MainPackedScreen')}
         style={styles.packedOrderButton}>
@@ -692,6 +774,29 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   orderList: {paddingBottom: 20},
+  emptyOrdersContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  openAnimation: {
+    width: 200,
+    height: 200,
+  },
+  noOrdersText: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: '#333',
+    marginTop: 20,
+    textAlign: 'center',
+  },
+  noOrdersSubtext: {
+    fontSize: 16,
+    color: '#666',
+    marginTop: 10,
+    textAlign: 'center',
+  },
   orderCard: {
     backgroundColor: '#fff',
     padding: 15,
@@ -745,6 +850,29 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  closedContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  closedAnimation: {
+    width: 200,
+    height: 200,
+  },
+  closedText: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: '#333',
+    marginTop: 20,
+    textAlign: 'center',
+  },
+  closedSubtext: {
+    fontSize: 16,
+    color: '#666',
+    marginTop: 10,
+    textAlign: 'center',
   },
 });
 
