@@ -7,6 +7,8 @@ import {
   FlatList,
   TouchableOpacity,
   ActivityIndicator,
+  AppState,
+  AppStateStatus,
 } from 'react-native';
 import {storage} from '../../../utils/storage';
 import Header from '../../../components/dashboard/Header';
@@ -25,6 +27,7 @@ import {
   OrderSocketEventEmitter,
   OrderSocketEvents,
 } from '../../../native/OrderSocket';
+import {FloatingOverlay} from '../../../native/FloatingOverlay';
 
 type HomeScreenNavigationProp = StackNavigationProp<
   RootStackParamList,
@@ -61,6 +64,9 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showLowBalanceModal, setShowLowBalanceModal] = useState(false);
+  const [appState, setAppState] = useState<AppStateStatus>(
+    AppState.currentState,
+  );
 
   // Initialize order ring sound
   useEffect(() => {
@@ -651,6 +657,62 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
       setShowLowBalanceModal(true);
     }
   }, [walletBalance, storeStatus]);
+
+  // Add new useEffect for floating overlay
+  useEffect(() => {
+    // Request overlay permission when component mounts
+    FloatingOverlay.requestOverlayPermission().catch(error => {
+      console.error('Failed to request overlay permission:', error);
+    });
+
+    // Set up app state change listener
+    const subscription = AppState.addEventListener('change', nextAppState => {
+      console.log('App state changed:', nextAppState);
+      setAppState(nextAppState);
+
+      // Show overlay when app goes to background and store is open
+      if (nextAppState === 'background') {
+        const activeOrderCount = filteredOrders.length;
+        if (storeStatus === 'open') {
+          console.log(
+            'App went to background with store open, showing floating overlay',
+          );
+          FloatingOverlay.showOverlay(true, activeOrderCount);
+        } else {
+          // Even when store is closed, show overlay if there are orders
+          if (activeOrderCount > 0) {
+            console.log(
+              'App went to background with store closed but has active orders, showing floating overlay',
+            );
+            FloatingOverlay.showOverlay(false, activeOrderCount);
+          } else {
+            FloatingOverlay.hideOverlay();
+          }
+        }
+      } else if (nextAppState === 'active') {
+        // Hide overlay when app comes to foreground
+        console.log('App came to foreground, hiding floating overlay');
+        FloatingOverlay.hideOverlay();
+      }
+    });
+
+    // Clean up on unmount
+    return () => {
+      subscription.remove();
+      FloatingOverlay.hideOverlay();
+    };
+  }, [storeStatus, filteredOrders.length]);
+
+  // Add another useEffect to update the overlay when orders change
+  useEffect(() => {
+    if (appState === 'background') {
+      const activeOrderCount = filteredOrders.length;
+      if (storeStatus === 'open' || activeOrderCount > 0) {
+        console.log('Updating overlay with new order count:', activeOrderCount);
+        FloatingOverlay.updateOverlay(storeStatus === 'open', activeOrderCount);
+      }
+    }
+  }, [filteredOrders.length, appState, storeStatus]);
 
   if (isLoading) {
     return <Text>Loading authentication...</Text>;

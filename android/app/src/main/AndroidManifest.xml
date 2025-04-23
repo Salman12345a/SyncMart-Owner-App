@@ -8,6 +8,7 @@
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-feature android:name="android.hardware.camera.front" android:required="false" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
 
     <application
       android:name=".MainApplication"
@@ -19,6 +20,10 @@
       android:supportsRtl="true">
       <service
         android:name=".socket.service.OrderSocketService"
+        android:enabled="true"
+        android:exported="false" />
+      <service
+        android:name=".FloatingOverlay.FloatingOverlayService"
         android:enabled="true"
         android:exported="false" />
       <activity
