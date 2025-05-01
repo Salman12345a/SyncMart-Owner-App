@@ -90,12 +90,13 @@ const InventoryItemDisplay = () => {
 
   const renderCategories = () => {
     const activeCategories = categories.branch;
-    const filteredCategories = activeCategories.items.filter(category => 
-      categories.activeTab === 'default'
-        ? category.createdFromTemplate || !!category.defaultCategoryId
-        : !category.createdFromTemplate && !category.defaultCategoryId
+    // Default and custom filtered lists
+    const defaultCategories = activeCategories.items.filter(
+      category => category.createdFromTemplate || !!category.defaultCategoryId
     );
-    console.log('ActiveTab:', categories.activeTab, 'FilteredCategories:', filteredCategories);
+    const customCategories = activeCategories.items.filter(
+      category => !category.createdFromTemplate && !category.defaultCategoryId
+    );
 
     return (
       <View style={styles.container}>
@@ -118,6 +119,7 @@ const InventoryItemDisplay = () => {
         </Tab>
 
         <TabView value={categoryIndex} onChange={setCategoryIndex} animationType="spring">
+          {/* Default Tab */}
           <TabView.Item style={styles.tabContent}>
             <ScrollView style={styles.scrollView}>
               {activeCategories.loading ? (
@@ -126,34 +128,42 @@ const InventoryItemDisplay = () => {
                 <Text style={styles.errorText}>{activeCategories.error}</Text>
               ) : (
                 <>
-                  {filteredCategories.length === 0 ? (
+                  {defaultCategories.length === 0 ? (
                     <View style={styles.emptyState}>
-                      <Text style={styles.emptyStateText}>
-                        {categories.activeTab === 'default' 
-                          ? 'No default categories added yet'
-                          : 'No custom categories added yet'}
-                      </Text>
-                      {categories.activeTab === 'default' && (
-                        <CustomButton
-                          title="Add Inventory"
-                          onPress={handleAddInventory}
-                        />
-                      )}
+                      <Text style={styles.emptyStateText}>No default categories added yet</Text>
+                      <CustomButton title="Add Inventory" onPress={handleAddInventory} />
                     </View>
                   ) : (
                     <>
                       <View style={styles.gridContainer}>
-                        {filteredCategories.map(renderCategoryItem)}
+                        {defaultCategories.map(renderCategoryItem)}
                       </View>
-                      {categories.activeTab === 'default' && (
-                        <View style={styles.addButtonContainer}>
-                          <CustomButton
-                            title="Add Inventory"
-                            onPress={handleAddInventory}
-                          />
-                        </View>
-                      )}
+                      <View style={styles.addButtonContainer}>
+                        <CustomButton title="Add Inventory" onPress={handleAddInventory} />
+                      </View>
                     </>
+                  )}
+                </>
+              )}
+            </ScrollView>
+          </TabView.Item>
+          {/* Custom Tab */}
+          <TabView.Item style={styles.tabContent}>
+            <ScrollView style={styles.scrollView}>
+              {activeCategories.loading ? (
+                <Text style={styles.loadingText}>Loading categories...</Text>
+              ) : activeCategories.error ? (
+                <Text style={styles.errorText}>{activeCategories.error}</Text>
+              ) : (
+                <>
+                  {customCategories.length === 0 ? (
+                    <View style={styles.emptyState}>
+                      <Text style={styles.emptyStateText}>No custom categories added yet</Text>
+                    </View>
+                  ) : (
+                    <View style={styles.gridContainer}>
+                      {customCategories.map(renderCategoryItem)}
+                    </View>
                   )}
                 </>
               )}
