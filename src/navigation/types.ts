@@ -56,6 +56,8 @@ export type RootStackParamList = {
     branchId?: string;
     isResubmit?: boolean;
   };
+  DefaultCategories: undefined;
+  InventoryItemDisplay: undefined;
 };
 
 export type StatusScreenNavigationProp = StackNavigationProp<
@@ -65,4 +67,14 @@ export type StatusScreenNavigationProp = StackNavigationProp<
 export type StatusScreenRouteProp = RouteProp<
   RootStackParamList,
   'StatusScreen'
+>;
+
+export type DefaultCategoriesNavigationProp = StackNavigationProp<
+  RootStackParamList,
+  'DefaultCategories'
+>;
+
+export type InventoryItemDisplayNavigationProp = StackNavigationProp<
+  RootStackParamList,
+  'InventoryItemDisplay'
 >;

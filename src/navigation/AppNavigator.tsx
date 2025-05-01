@@ -15,6 +15,8 @@ import RegisteredBranchDetails from '../features/auth/screens/RegisteredBranchDe
 import Sidebar from './Sidebar';
 // Inventory screens
 import AddProduct from '../features/inventory/screens/AddProduct';
+import DefaultCategories from '../features/inventory/screens/DefaultCategories';
+import InventoryItemDisplay from '../features/inventory/screens/InventoryItemDisplay';
 // Financial screens
 import Financial from '../features/financial/screens/FinancialSummaryScreen';
 // Delivery screens
@@ -109,6 +111,8 @@ export type RootStackParamList = {
     branchId?: string;
     isResubmit?: boolean;
   };
+  DefaultCategories: undefined;
+  InventoryItemDisplay: undefined;
 };
 
 interface Order {
@@ -149,18 +153,18 @@ const Stack = createStackNavigator<RootStackParamList>();
 
 // Animation configurations
 const slideFromRightConfig = {
-  animation: 'timing',
+  animation: 'timing' as const,
   config: {
     duration: 300,
-    easing: Easing.out(Easing.poly(4)),
+    easing: Easing.bezier(0.33, 1, 0.68, 1),
   },
 };
 
 const fadeConfig = {
-  animation: 'timing',
+  animation: 'timing' as const,
   config: {
     duration: 200,
-    easing: Easing.inOut(Easing.ease),
+    easing: Easing.linear,
   },
 };
 
@@ -222,6 +226,8 @@ const AppNavigator: React.FC = () => (
 
     {/* Inventory screens */}
     <Stack.Screen name="AddProduct" component={AddProduct} />
+    <Stack.Screen name="DefaultCategories" component={DefaultCategories} />
+    <Stack.Screen name="InventoryItemDisplay" component={InventoryItemDisplay} />
 
     {/* Financial screens */}
     <Stack.Screen name="Finance" component={Financial} />
