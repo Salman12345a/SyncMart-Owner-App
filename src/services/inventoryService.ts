@@ -9,6 +9,7 @@ export interface Category {
   createdAt: string;
   updatedAt: string;
   createdFromTemplate: boolean;
+  defaultCategoryId?: string;
 }
 
 export interface Product {

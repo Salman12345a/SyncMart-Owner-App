@@ -227,7 +227,11 @@ const AppNavigator: React.FC = () => (
     {/* Inventory screens */}
     <Stack.Screen name="AddProduct" component={AddProduct} />
     <Stack.Screen name="DefaultCategories" component={DefaultCategories} />
-    <Stack.Screen name="InventoryItemDisplay" component={InventoryItemDisplay} />
+    <Stack.Screen 
+  name="InventoryItemDisplay" 
+  component={InventoryItemDisplay}  
+  options={{ headerShown: false }} 
+/>
 
     {/* Financial screens */}
     <Stack.Screen name="Finance" component={Financial} />

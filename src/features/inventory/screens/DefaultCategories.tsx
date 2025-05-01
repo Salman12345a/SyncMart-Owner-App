@@ -1,42 +1,65 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { Tab, TabView } from '@rneui/themed';
-import useInventoryStore from '../../../store/inventoryStore';
-import { Category } from '../../../services/inventoryService';
+import { inventoryService } from '../../../services/inventoryService';
 import CustomHeader from '../../../components/ui/CustomHeader';
 import CustomButton from '../../../components/ui/CustomButton';
 import { useNavigation } from '@react-navigation/native';
 import { DefaultCategoriesNavigationProp } from '../../../navigation/types';
+import { Category } from '../../../services/inventoryService';
+import { storage } from '../../../utils/storage';
 
 const DefaultCategories = () => {
   const navigation = useNavigation<DefaultCategoriesNavigationProp>();
-  const {
-    categories,
-    fetchDefaultCategories,
-    toggleCategorySelection,
-    importSelectedCategories,
-  } = useInventoryStore();
 
-  const [categoryIndex, setCategoryIndex] = React.useState(0);
+  // Local state for default categories
+  const [defaultCategories, setDefaultCategories] = useState<Category[]>([]);
+  const [selected, setSelected] = useState<string[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [categoryIndex, setCategoryIndex] = useState(0);
 
   useEffect(() => {
-    fetchDefaultCategories();
+    setLoading(true);
+    inventoryService.getDefaultCategories()
+      .then((categories) => {
+        setDefaultCategories(categories);
+        setLoading(false);
+      })
+      .catch((err) => {
+        setError(err?.message || 'Failed to fetch categories');
+        setLoading(false);
+      });
   }, []);
 
   const handleCategorySelect = (categoryId: string) => {
-    toggleCategorySelection(categoryId);
+    setSelected((prev) =>
+      prev.includes(categoryId)
+        ? prev.filter((id) => id !== categoryId)
+        : [...prev, categoryId]
+    );
   };
 
   const handleImport = async () => {
-    // TODO: Get branchId from context or storage
-    const branchId = 'your-branch-id';
-    await importSelectedCategories(branchId);
-    navigation.goBack();
+    const branchId = storage.getString('userId');
+    if (!branchId) {
+      setError('Branch ID not found');
+      return;
+    }
+    setLoading(true);
+    try {
+      await inventoryService.importDefaultCategories(branchId, selected);
+      setSelected([]);
+      navigation.goBack();
+    } catch (err: any) {
+      setError(err?.message || 'Failed to import categories');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const renderCategoryItem = (category: Category) => {
-    const isSelected = categories.default.selected.includes(category._id);
-    
+    const isSelected = selected.includes(category._id);
     return (
       <TouchableOpacity
         key={category._id}
@@ -49,14 +72,8 @@ const DefaultCategories = () => {
     );
   };
 
-  const defaultCategories = categories.default.items.filter(cat => cat.createdFromTemplate);
-  const customCategories = categories.default.items.filter(cat => !cat.createdFromTemplate);
-
   return (
     <View style={styles.mainContainer}>
-      <CustomHeader
-        title="Select Categories"
-      />
       <View style={styles.container}>
         <Tab
           value={categoryIndex}
@@ -64,11 +81,7 @@ const DefaultCategories = () => {
           indicatorStyle={styles.tabIndicator}
         >
           <Tab.Item
-            title="Default"
-            titleStyle={styles.tabTitle}
-          />
-          <Tab.Item
-            title="Custom"
+            title="Default Categories"
             titleStyle={styles.tabTitle}
           />
         </Tab>
@@ -76,40 +89,20 @@ const DefaultCategories = () => {
         <TabView value={categoryIndex} onChange={setCategoryIndex} animationType="spring">
           <TabView.Item style={styles.tabContent}>
             <ScrollView style={styles.scrollView}>
-              {categories.default.loading ? (
+              {loading ? (
                 <Text style={styles.loadingText}>Loading categories...</Text>
-              ) : categories.default.error ? (
-                <Text style={styles.errorText}>{categories.default.error}</Text>
+              ) : error ? (
+                <Text style={styles.errorText}>{error}</Text>
               ) : (
                 <>
                   {defaultCategories.map(renderCategoryItem)}
-                  {categories.default.selected.length > 0 && (
+                  {selected.length > 0 && (
                     <View style={styles.importButtonContainer}>
                       <CustomButton
                         title="Import Selected Categories"
                         onPress={handleImport}
                       />
                     </View>
-                  )}
-                </>
-              )}
-            </ScrollView>
-          </TabView.Item>
-          
-          <TabView.Item style={styles.tabContent}>
-            <ScrollView style={styles.scrollView}>
-              {categories.default.loading ? (
-                <Text style={styles.loadingText}>Loading categories...</Text>
-              ) : categories.default.error ? (
-                <Text style={styles.errorText}>{categories.default.error}</Text>
-              ) : (
-                <>
-                  {customCategories.length === 0 ? (
-                    <View style={styles.emptyState}>
-                      <Text style={styles.emptyStateText}>No custom categories available</Text>
-                    </View>
-                  ) : (
-                    customCategories.map(renderCategoryItem)
                   )}
                 </>
               )}

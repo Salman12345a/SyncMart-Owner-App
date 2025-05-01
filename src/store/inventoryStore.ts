@@ -4,13 +4,7 @@ import { Category, Product, inventoryService } from '../services/inventoryServic
 interface InventoryState {
   // Categories State
   categories: {
-    default: {
-      items: Category[];
-      selected: string[];
-      loading: boolean;
-      error: string | null;
-    };
-    custom: {
+    branch: {
       items: Category[];
       selected: string[];
       loading: boolean;
@@ -43,11 +37,7 @@ interface InventoryState {
   setSelectedCategory: (categoryId: string | null) => void;
   
   // Category Actions
-  fetchDefaultCategories: () => Promise<void>;
-  fetchCustomCategories: (branchId: string) => Promise<void>;
-  toggleCategorySelection: (categoryId: string) => void;
-  importSelectedCategories: (branchId: string) => Promise<void>;
-  clearCategorySelections: () => void;
+  fetchBranchCategories: (branchId: string) => Promise<void>;
   
   // Product Actions
   fetchDefaultProducts: (categoryId: string) => Promise<void>;
@@ -60,13 +50,7 @@ interface InventoryState {
 const useInventoryStore = create<InventoryState>()((set, get) => ({
   // Initial Categories State
   categories: {
-    default: {
-      items: [],
-      selected: [],
-      loading: false,
-      error: null,
-    },
-    custom: {
+    branch: {
       items: [],
       selected: [],
       loading: false,
@@ -110,68 +94,32 @@ const useInventoryStore = create<InventoryState>()((set, get) => ({
     })),
 
   // Category Actions
-  fetchDefaultCategories: async () => {
+  fetchBranchCategories: async (branchId: string) => {
     set((state) => ({
       categories: {
         ...state.categories,
-        default: { ...state.categories.default, loading: true, error: null }
+        branch: { ...state.categories.branch, loading: true, error: null }
       }
     }));
-
-    try {
-      const categories = await inventoryService.getDefaultCategories();
-      set((state) => ({
-        categories: {
-          ...state.categories,
-          default: {
-            ...state.categories.default,
-            items: categories,
-            loading: false
-          }
-        }
-      }));
-    } catch (err: any) {
-      const error = err?.message || 'Failed to fetch categories';
-      set((state) => ({
-        categories: {
-          ...state.categories,
-          default: {
-            ...state.categories.default,
-            error,
-            loading: false
-          }
-        }
-      }));
-    }
-  },
-
-  fetchCustomCategories: async (branchId: string) => {
-    set((state) => ({
-      categories: {
-        ...state.categories,
-        custom: { ...state.categories.custom, loading: true, error: null }
-      }
-    }));
-
     try {
       const categories = await inventoryService.getCustomCategories(branchId);
       set((state) => ({
         categories: {
           ...state.categories,
-          custom: {
-            ...state.categories.custom,
+          branch: {
+            ...state.categories.branch,
             items: categories,
             loading: false
           }
         }
       }));
     } catch (err: any) {
-      const error = err?.message || 'Failed to fetch custom categories';
+      const error = err?.message || 'Failed to fetch branch categories';
       set((state) => ({
         categories: {
           ...state.categories,
-          custom: {
-            ...state.categories.custom,
+          branch: {
+            ...state.categories.branch,
             error,
             loading: false
           }
@@ -179,73 +127,6 @@ const useInventoryStore = create<InventoryState>()((set, get) => ({
       }));
     }
   },
-
-  toggleCategorySelection: (categoryId: string) =>
-    set((state) => {
-      const activeTab = state.categories.activeTab;
-      const selected = state.categories[activeTab].selected;
-      const newSelected = selected.includes(categoryId)
-        ? selected.filter(id => id !== categoryId)
-        : [...selected, categoryId];
-
-      return {
-        categories: {
-          ...state.categories,
-          [activeTab]: {
-            ...state.categories[activeTab],
-            selected: newSelected
-          }
-        }
-      };
-    }),
-
-  importSelectedCategories: async (branchId: string) => {
-    const { selected } = get().categories.default;
-    
-    set((state) => ({
-      categories: {
-        ...state.categories,
-        default: { ...state.categories.default, loading: true, error: null }
-      }
-    }));
-
-    try {
-      await inventoryService.importDefaultCategories(branchId, selected);
-      set((state) => ({
-        categories: {
-          ...state.categories,
-          default: {
-            ...state.categories.default,
-            selected: [],
-            loading: false
-          }
-        }
-      }));
-    } catch (err: any) {
-      const error = err?.message || 'Failed to import categories';
-      set((state) => ({
-        categories: {
-          ...state.categories,
-          default: {
-            ...state.categories.default,
-            error,
-            loading: false
-          }
-        }
-      }));
-    }
-  },
-
-  clearCategorySelections: () =>
-    set((state) => ({
-      categories: {
-        ...state.categories,
-        [state.categories.activeTab]: {
-          ...state.categories[state.categories.activeTab],
-          selected: []
-        }
-      }
-    })),
 
   // Product Actions
   fetchDefaultProducts: async (categoryId: string) => {

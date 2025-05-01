@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image } from 'react-native';
 import { Tab, TabView } from '@rneui/themed';
 import useInventoryStore from '../../../store/inventoryStore';
 import { Category, Product } from '../../../services/inventoryService';
@@ -14,9 +14,7 @@ const InventoryItemDisplay = () => {
   const {
     categories,
     products,
-    fetchCustomCategories,
-    toggleCategorySelection,
-    importSelectedCategories,
+    fetchBranchCategories,
     setActiveCategoryTab,
     setActiveProductTab,
     fetchDefaultProducts,
@@ -35,27 +33,16 @@ const InventoryItemDisplay = () => {
 
   useEffect(() => {
     if (branchId) {
-      fetchCustomCategories(branchId).then(() => {
-        console.log('Fetched categories:', useInventoryStore.getState().categories);
-      });
+      fetchBranchCategories(branchId);
     }
-  }, [branchId, fetchCustomCategories]);
+  }, [branchId, fetchBranchCategories]);
 
   const handleAddInventory = () => {
     navigation.navigate('DefaultCategories');
   };
 
-  const handleCategorySelect = (categoryId: string) => {
-    toggleCategorySelection(categoryId);
-  };
-
   const handleProductSelect = (productId: string) => {
     toggleProductSelection(productId);
-  };
-
-  const handleCategoryImport = async () => {
-    if (!branchId) return;
-    await importSelectedCategories(branchId);
   };
 
   const handleProductImport = async () => {
@@ -75,18 +62,13 @@ const InventoryItemDisplay = () => {
   };
 
   const renderCategoryItem = (category: Category) => {
-    const isSelected = categories[categories.activeTab].selected.includes(category._id);
-    
     return (
-      <TouchableOpacity
-        key={category._id}
-        style={[styles.itemContainer, isSelected && styles.selectedItem]}
-        onPress={() => handleCategorySelect(category._id)}
-        onLongPress={() => handleCategoryPress(category)}
-      >
-        <Text style={styles.itemName}>{category.name}</Text>
-        <Text style={styles.itemDescription}>{category.description || 'No description'}</Text>
-      </TouchableOpacity>
+      <View key={category._id} style={styles.gridItem}>
+        {category.imageUrl ? (
+          <Image source={{ uri: category.imageUrl }} style={styles.categoryImage} />
+        ) : null}
+        <Text style={styles.itemName} numberOfLines={1}>{category.name}</Text>
+      </View>
     );
   };
 
@@ -107,9 +89,11 @@ const InventoryItemDisplay = () => {
   };
 
   const renderCategories = () => {
-    const activeCategories = categories[categories.activeTab];
+    const activeCategories = categories.branch;
     const filteredCategories = activeCategories.items.filter(category => 
-      categories.activeTab === 'default' ? category.createdFromTemplate : !category.createdFromTemplate
+      categories.activeTab === 'default'
+        ? category.createdFromTemplate || !!category.defaultCategoryId
+        : !category.createdFromTemplate && !category.defaultCategoryId
     );
     console.log('ActiveTab:', categories.activeTab, 'FilteredCategories:', filteredCategories);
 
@@ -158,11 +142,13 @@ const InventoryItemDisplay = () => {
                     </View>
                   ) : (
                     <>
-                      {filteredCategories.map(renderCategoryItem)}
+                      <View style={styles.gridContainer}>
+                        {filteredCategories.map(renderCategoryItem)}
+                      </View>
                       {categories.activeTab === 'default' && (
                         <View style={styles.addButtonContainer}>
                           <CustomButton
-                            title="Add More Categories"
+                            title="Add Inventory"
                             onPress={handleAddInventory}
                           />
                         </View>
@@ -246,7 +232,6 @@ const InventoryItemDisplay = () => {
   if (!branchId) {
     return (
       <View style={styles.mainContainer}>
-        <CustomHeader title="Inventory Management" />
         <View style={styles.emptyState}>
           <Text style={styles.loadingText}>Loading branch information...</Text>
         </View>
@@ -256,9 +241,6 @@ const InventoryItemDisplay = () => {
 
   return (
     <View style={styles.mainContainer}>
-      <CustomHeader
-        title="Inventory Management"
-      />
       {renderCategories()}
       {renderProducts()}
     </View>
@@ -301,9 +283,10 @@ const styles = StyleSheet.create({
     borderColor: '#2196f3',
   },
   itemName: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
-    marginBottom: 4,
+    textAlign: 'center',
+    marginBottom: 0,
   },
   itemDescription: {
     fontSize: 14,
@@ -343,6 +326,30 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#6c757d',
     marginBottom: 16,
+  },
+  categoryImage: {
+    width: 80,
+    height: 80,
+    borderRadius: 8,
+    marginBottom: 8,
+    alignSelf: 'center',
+    resizeMode: 'cover',
+  },
+  gridContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    paddingHorizontal: 4,
+  },
+  gridItem: {
+    width: '48%',
+    backgroundColor: '#f8f9fa',
+    borderRadius: 8,
+    marginBottom: 12,
+    alignItems: 'center',
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#e9ecef',
   },
 });
 
