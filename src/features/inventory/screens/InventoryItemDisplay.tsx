@@ -135,6 +135,7 @@ const InventoryItemDisplay = () => {
                     </View>
                   ) : (
                     <>
+                      <Text style={styles.sectionTitle}>Imported Default Categories</Text>
                       <View style={styles.gridContainer}>
                         {defaultCategories.map(renderCategoryItem)}
                       </View>
@@ -159,11 +160,18 @@ const InventoryItemDisplay = () => {
                   {customCategories.length === 0 ? (
                     <View style={styles.emptyState}>
                       <Text style={styles.emptyStateText}>No custom categories added yet</Text>
+                      <CustomButton title="Create Category" onPress={() => navigation.navigate('CreateCustomCategories')} />
                     </View>
                   ) : (
+                    <>
+                      <Text style={styles.sectionTitle}>Created Custom Categories</Text>
                     <View style={styles.gridContainer}>
                       {customCategories.map(renderCategoryItem)}
                     </View>
+                      <View style={styles.addButtonContainer}>
+                        <CustomButton title="Create Category" onPress={() => navigation.navigate('CreateCustomCategories')} />
+                      </View>
+                    </>
                   )}
                 </>
               )}
@@ -338,8 +346,8 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   categoryImage: {
-    width: 80,
-    height: 80,
+    width: '100%',
+    height: 120,
     borderRadius: 8,
     marginBottom: 8,
     alignSelf: 'center',
@@ -360,6 +368,14 @@ const styles = StyleSheet.create({
     padding: 12,
     borderWidth: 1,
     borderColor: '#e9ecef',
+    overflow: 'hidden',
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 16,
+    marginLeft: 4,
   },
 });
 

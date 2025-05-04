@@ -58,6 +58,8 @@ export type RootStackParamList = {
   };
   DefaultCategories: undefined;
   InventoryItemDisplay: undefined;
+  CreateCustomCategories: undefined;
+  UploadCategoryImage: { uploadUrl: string; key: string; categoryId: string; branchId: string };
 };
 
 export type StatusScreenNavigationProp = StackNavigationProp<

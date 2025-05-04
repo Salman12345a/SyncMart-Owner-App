@@ -17,6 +17,8 @@ import Sidebar from './Sidebar';
 import AddProduct from '../features/inventory/screens/AddProduct';
 import DefaultCategories from '../features/inventory/screens/DefaultCategories';
 import InventoryItemDisplay from '../features/inventory/screens/InventoryItemDisplay';
+import CreateCustomCategories from '../features/inventory/screens/CreateCustomCategories';
+import UploadCategoryImage from '../features/inventory/screens/UploadCategoryImage';
 // Financial screens
 import Financial from '../features/financial/screens/FinancialSummaryScreen';
 // Delivery screens
@@ -113,6 +115,8 @@ export type RootStackParamList = {
   };
   DefaultCategories: undefined;
   InventoryItemDisplay: undefined;
+  CreateCustomCategories: undefined;
+  UploadCategoryImage: undefined;
 };
 
 interface Order {
@@ -232,6 +236,8 @@ const AppNavigator: React.FC = () => (
   component={InventoryItemDisplay}  
   options={{ headerShown: false }} 
 />
+    <Stack.Screen name="CreateCustomCategories" component={CreateCustomCategories} options={{ headerShown: false }} />
+    <Stack.Screen name="UploadCategoryImage" component={UploadCategoryImage} options={{ headerShown: false }} />
 
     {/* Financial screens */}
     <Stack.Screen name="Finance" component={Financial} />

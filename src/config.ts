@@ -1,5 +1,6 @@
 // src/config.ts
 export const config = {
-  BASE_URL: 'http://10.0.2.2:3000/api', // API base URL for axios
-  SOCKET_URL: 'http://10.0.2.2:3000/', // WebSocket URL for socket.io - removed /api for socket connection
+  BASE_URL: 'http://dokirana-env.eba-a4dkw2tt.ap-south-1.elasticbeanstalk.com/api', // API base URL for axios
+  SOCKET_URL: 'http://doKirana-env.eba-a4dkw2tt.ap-south-1.elasticbeanstalk.com/', // WebSocket URL for socket.io - removed /api for socket connection
+  PUBLIC_URL: 'http://doKirana-env.eba-a4dkw2tt.ap-south-1.elasticbeanstalk.com/public', // Public URL for the app
 };
