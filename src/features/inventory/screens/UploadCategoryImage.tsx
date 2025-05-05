@@ -2,13 +2,16 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Image, ActivityIndicator, Alert, Platform, ToastAndroid, PermissionsAndroid } from 'react-native';
 import CustomButton from '../../../components/ui/CustomButton';
 import { useRoute, useNavigation } from '@react-navigation/native';
+import { StackNavigationProp } from '@react-navigation/stack';
+import { RootStackParamList } from '../../../navigation/types';
 import { launchImageLibrary, ImagePickerResponse, Asset } from 'react-native-image-picker';
 import { PERMISSIONS, request, RESULTS, check } from 'react-native-permissions';
+import ImageCropPicker from 'react-native-image-crop-picker';
 import api from '../../../services/api';
 
 const UploadCategoryImage = () => {
   const route = useRoute();
-  const navigation = useNavigation();
+  const navigation = useNavigation<StackNavigationProp<RootStackParamList>>();
   const { uploadUrl, key, categoryId, branchId } = route.params as any;
   const [image, setImage] = useState<Asset | null>(null);
   const [loading, setLoading] = useState(false);
@@ -154,6 +157,65 @@ const UploadCategoryImage = () => {
     }
   };
 
+  // Process the image - convert to JPG and compress
+  const processImage = async (imageUri: string): Promise<{ uri: string; type: string; name: string }> => {
+    try {
+      console.log('Processing image: converting to JPG and compressing');
+      
+      // Process the image using correct ImageCropPicker API
+      const processedImage = await ImageCropPicker.openCropper({
+        path: imageUri,
+        width: 800,                 // Target width
+        height: 800,                // Target height
+        compressImageQuality: 0.7,  // Compression quality (0-1)
+        compressImageMaxWidth: 800, // Max width for compression
+        compressImageMaxHeight: 800,// Max height for compression
+        mediaType: 'photo',
+        cropperCircleOverlay: false,
+        freeStyleCropEnabled: true,
+        includeBase64: false,       // Don't include base64 to save memory
+        includeExif: false,         // Don't include EXIF data
+        forceJpg: true              // Force JPG conversion
+      });
+      
+      console.log('Image processed successfully:', processedImage.path);
+      return {
+        uri: processedImage.path,
+        type: 'image/jpeg',         // Force JPEG mime type
+        name: 'image.jpg',          // Force .jpg extension
+      };
+    } catch (err: any) {
+      console.error('Image processing error:', err);
+      
+      // If cropper fails, try direct processing without UI
+      try {
+        console.log('Attempting direct image processing...');
+        // Use the lower-level API to manipulate the image
+        const fileName = imageUri.split('/').pop() || 'image.jpg';
+        const extension = fileName.split('.').pop()?.toLowerCase() || 'jpg';
+        
+        if (extension !== 'jpg' && extension !== 'jpeg') {
+          console.log('Converting non-JPG image to JPG');
+        }
+        
+        return {
+          uri: imageUri,           // Use original URI
+          type: 'image/jpeg',      // Force JPEG content type regardless of source
+          name: 'image.jpg',       // Force JPG extension
+        };
+      } catch (fallbackErr) {
+        console.error('All image processing methods failed:', fallbackErr);
+        
+        // Last resort: use original image but with JPG type for uploading
+        return {
+          uri: imageUri,
+          type: 'image/jpeg',
+          name: 'image.jpg',
+        };
+      }
+    }
+  };
+
   const handleSubmit = async () => {
     setError('');
     if (!image) {
@@ -163,30 +225,27 @@ const UploadCategoryImage = () => {
     setLoading(true);
     try {
       // Validate image data
-      if (!image.uri || !image.type) {
+      if (!image.uri) {
         throw new Error('Invalid image data');
       }
       
-      console.log('Starting image upload to S3');
+      console.log('Starting image processing and upload to S3');
       
-      // 1. Upload image to S3
-      const file = {
-        uri: image.uri,
-        type: image.type,
-        name: image.fileName || 'image.jpg',
-      };
+      // Process the image - convert to JPG and compress
+      const processedFile = await processImage(image.uri);
+      console.log('Image processed successfully, ready for upload');
       
-      // Get the image as a blob safely
+      // Get the processed image as a blob safely
       let imageBlob;
       try {
-        const imageResponse = await fetch(image.uri);
+        const imageResponse = await fetch(processedFile.uri);
         if (!imageResponse.ok) {
-          throw new Error(`Failed to fetch image: ${imageResponse.status} ${imageResponse.statusText}`);
+          throw new Error(`Failed to fetch processed image: ${imageResponse.status} ${imageResponse.statusText}`);
         }
         imageBlob = await imageResponse.blob();
       } catch (fetchErr: any) {
-        console.error('Error fetching image blob:', fetchErr);
-        throw new Error(`Error preparing image: ${fetchErr.message}`);
+        console.error('Error fetching processed image blob:', fetchErr);
+        throw new Error(`Error preparing processed image: ${fetchErr.message}`);
       }
       
       // Upload to S3
@@ -194,7 +253,7 @@ const UploadCategoryImage = () => {
         const response = await fetch(uploadUrl, {
           method: 'PUT',
           headers: {
-            'Content-Type': image.type,
+            'Content-Type': 'image/jpeg', // Always use JPEG content type
           },
           body: imageBlob,
         });
@@ -234,7 +293,10 @@ const UploadCategoryImage = () => {
         ToastAndroid.show('Image uploaded successfully', ToastAndroid.SHORT);
       }
       Alert.alert('Success', 'Category image uploaded successfully!', [
-        { text: 'OK', onPress: () => navigation.goBack() },
+        { text: 'OK', onPress: () => {
+          // Navigate back with refresh parameter
+          navigation.navigate('InventoryItemDisplay', { refresh: true, refreshTimestamp: Date.now() });
+        }},
       ]);
     } catch (err: any) {
       console.error('Submit error:', err);

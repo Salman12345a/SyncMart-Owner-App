@@ -1,16 +1,19 @@
-import React, { useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, ToastAndroid, ActivityIndicator } from 'react-native';
+import { Icon } from '@rneui/themed';
+import api from '../../../services/api';
 import { Tab, TabView } from '@rneui/themed';
 import useInventoryStore from '../../../store/inventoryStore';
 import { Category, Product } from '../../../services/inventoryService';
 import CustomHeader from '../../../components/ui/CustomHeader';
 import CustomButton from '../../../components/ui/CustomButton';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import { InventoryItemDisplayNavigationProp } from '../../../navigation/types';
 import { storage } from '../../../utils/storage';
 
 const InventoryItemDisplay = () => {
   const navigation = useNavigation<InventoryItemDisplayNavigationProp>();
+  const route = useRoute();
   const {
     categories,
     products,
@@ -26,11 +29,28 @@ const InventoryItemDisplay = () => {
 
   const [categoryIndex, setCategoryIndex] = React.useState(0);
   const [productIndex, setProductIndex] = React.useState(0);
+  const [selectionMode, setSelectionMode] = React.useState(false);
+  const [selectedCategories, setSelectedCategories] = React.useState<string[]>([]);
+  const [isRemoving, setIsRemoving] = React.useState(false);
 
   // Get branchId from MMKV storage (userId)
   const branchId = storage.getString('userId');
   console.log('BranchId (userId) from MMKV storage:', branchId);
 
+  // Add a refresh effect that triggers when returning from upload
+  useEffect(() => {
+    const params = route.params as { refresh?: boolean; refreshTimestamp?: number } | undefined;
+    if (params?.refresh && branchId) {
+      console.log('Refreshing categories due to navigation parameter');
+      fetchBranchCategories(branchId);
+      
+      // After refresh, optionally set the tab to custom categories
+      setCategoryIndex(1); // Switch to custom tab
+      setActiveCategoryTab('custom');
+    }
+  }, [route.params, branchId, fetchBranchCategories, setActiveCategoryTab]);
+
+  // Initial categories fetch
   useEffect(() => {
     if (branchId) {
       fetchBranchCategories(branchId);
@@ -61,14 +81,78 @@ const InventoryItemDisplay = () => {
     }
   };
 
+  const handleRemoveSelectedCategories = async () => {
+    if (!branchId || selectedCategories.length === 0) return;
+    
+    setIsRemoving(true);
+    try {
+      console.log('Removing categories with IDs:', selectedCategories);
+      
+      // Use the api service which handles the base URL, authentication, and error handling
+      // The endpoint path matches what was shown in the screenshot
+      const response = await api.put(`/branch/${branchId}/categories/remove-imported`, {
+        categoryIds: selectedCategories
+      });
+      
+      console.log('Response data:', response.data);
+      
+      // Show success message
+      ToastAndroid.show('Categories removed successfully', ToastAndroid.SHORT);
+      
+      // Reset selection mode and refresh categories
+      setSelectionMode(false);
+      setSelectedCategories([]);
+      fetchBranchCategories(branchId);
+    } catch (error) {
+      console.error('Error removing categories:', error);
+      // More detailed error message
+      if (error instanceof Error) {
+        ToastAndroid.show(`Error: ${error.message}`, ToastAndroid.LONG);
+      } else {
+        ToastAndroid.show('Failed to remove categories', ToastAndroid.LONG);
+      }
+    } finally {
+      setIsRemoving(false);
+    }
+  };
+
+  const toggleCategorySelection = (categoryId: string) => {
+    setSelectedCategories(prev => {
+      if (prev.includes(categoryId)) {
+        return prev.filter(id => id !== categoryId);
+      } else {
+        return [...prev, categoryId];
+      }
+    });
+  };
+
   const renderCategoryItem = (category: Category) => {
+    const isSelected = selectedCategories.includes(category._id);
+    
     return (
-      <View key={category._id} style={styles.gridItem}>
+      <TouchableOpacity 
+        key={category._id} 
+        style={[styles.gridItem, selectionMode && isSelected && styles.categorySelectedItem]}
+        onPress={() => {
+          if (selectionMode) {
+            toggleCategorySelection(category._id);
+          } else {
+            handleCategoryPress(category);
+          }
+        }}
+      >
+        {selectionMode && (
+          <View style={styles.checkboxContainer}>
+            <View style={[styles.checkbox, isSelected && styles.checkboxSelected]}>
+              {isSelected && <Text style={styles.checkmark}>✓</Text>}
+            </View>
+          </View>
+        )}
         {category.imageUrl ? (
           <Image source={{ uri: category.imageUrl }} style={styles.categoryImage} />
         ) : null}
         <Text style={styles.itemName} numberOfLines={1}>{category.name}</Text>
-      </View>
+      </TouchableOpacity>
     );
   };
 
@@ -135,13 +219,40 @@ const InventoryItemDisplay = () => {
                     </View>
                   ) : (
                     <>
-                      <Text style={styles.sectionTitle}>Imported Default Categories</Text>
+                      <View style={styles.headerContainer}>
+                        <Text style={styles.sectionTitle}>Imported Default Categories</Text>
+                        {defaultCategories.length > 0 && (
+                          <TouchableOpacity
+                            style={styles.deleteIcon}
+                            onPress={() => {
+                              setSelectionMode(!selectionMode);
+                              setSelectedCategories([]);
+                            }}
+                          >
+                            <Icon name={selectionMode ? "close" : "delete"} size={24} color="#dc3545" />
+                          </TouchableOpacity>
+                        )}
+                      </View>
                       <View style={styles.gridContainer}>
                         {defaultCategories.map(renderCategoryItem)}
                       </View>
-                      <View style={styles.addButtonContainer}>
-                        <CustomButton title="Add Inventory" onPress={handleAddInventory} />
-                      </View>
+                      {selectionMode ? (
+                        <View style={styles.removeButtonContainer}>
+                          {isRemoving ? (
+                            <ActivityIndicator size="small" color="#007AFF" />
+                          ) : (
+                            <CustomButton 
+                              title="Remove Selected Categories" 
+                              onPress={handleRemoveSelectedCategories}
+                              disabled={selectedCategories.length === 0} 
+                            />
+                          )}
+                        </View>
+                      ) : (
+                        <View style={styles.addButtonContainer}>
+                          <CustomButton title="Add Inventory" onPress={handleAddInventory} />
+                        </View>
+                      )}
                     </>
                   )}
                 </>
@@ -269,6 +380,48 @@ const styles = StyleSheet.create({
   mainContainer: {
     flex: 1,
     backgroundColor: '#fff',
+  },
+  headerContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  deleteIcon: {
+    padding: 8,
+  },
+  checkboxContainer: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    zIndex: 1,
+  },
+  checkbox: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: '#007AFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFF',
+  },
+  checkboxSelected: {
+    backgroundColor: '#007AFF',
+  },
+  checkmark: {
+    color: '#FFF',
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  categorySelectedItem: {
+    backgroundColor: '#e3f2fd',
+    borderColor: '#2196f3',
+    borderWidth: 2,
+  },
+  removeButtonContainer: {
+    marginTop: 16,
+    alignItems: 'center',
   },
   container: {
     flex: 1,

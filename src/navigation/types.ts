@@ -57,7 +57,7 @@ export type RootStackParamList = {
     isResubmit?: boolean;
   };
   DefaultCategories: undefined;
-  InventoryItemDisplay: undefined;
+  InventoryItemDisplay: { refresh?: boolean; refreshTimestamp?: number } | undefined;
   CreateCustomCategories: undefined;
   UploadCategoryImage: { uploadUrl: string; key: string; categoryId: string; branchId: string };
 };

@@ -49,6 +49,7 @@ interface TokenPayload {
 // Initialize Sound
 Sound.setCategory('Playback');
 let orderSound: Sound | null = null;
+let soundInitialized = false;
 
 const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
   const {
@@ -70,40 +71,121 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
 
   // Initialize order ring sound
   useEffect(() => {
-    // Load sound file
-    orderSound = new Sound(
-      require('../../../assets/music/OrderRing.mp3'),
-      (error: any) => {
-        if (error) {
-          console.error('Failed to load order sound:', error);
-        } else {
-          console.log('Order sound loaded successfully');
-          // Set volume
-          orderSound?.setVolume(1.0);
-        }
-      },
-    );
+    console.log('Initializing order sound');
+    // Ensure we don't have multiple instances
+    if (orderSound) {
+      orderSound.release();
+      orderSound = null;
+    }
+    
+    // Load sound file with retry mechanism
+    const loadSound = () => {
+      try {
+        orderSound = new Sound(
+          require('../../../assets/music/OrderRing.mp3'),
+          (error: any) => {
+            if (error) {
+              console.error('Failed to load order sound:', error);
+              // Retry after 2 seconds
+              setTimeout(loadSound, 2000);
+            } else {
+              console.log('Order sound loaded successfully');
+              // Set volume
+              orderSound?.setVolume(1.0);
+              soundInitialized = true;
+              
+              // Prime the sound by playing it silently (volume 0)
+              if (orderSound) {
+                const originalVolume = orderSound.getVolume();
+                orderSound.setVolume(0);
+                orderSound.play(() => {
+                  orderSound?.stop();
+                  orderSound?.setVolume(originalVolume);
+                  console.log('Order sound primed successfully');
+                });
+              }
+            }
+          },
+        );
+      } catch (err) {
+        console.error('Exception during sound initialization:', err);
+        // Retry after 2 seconds
+        setTimeout(loadSound, 2000);
+      }
+    };
+    
+    loadSound();
 
     // Clean up on unmount
     return () => {
       if (orderSound) {
         orderSound.release();
         orderSound = null;
+        soundInitialized = false;
       }
     };
   }, []);
 
-  // Function to play order sound
+  // Function to play order sound with retry mechanism
   const playOrderSound = useCallback(() => {
-    if (orderSound) {
-      // Reset sound to beginning (in case it was played before)
-      orderSound.stop();
-      // Play the sound
-      orderSound.play((success: boolean) => {
-        if (!success) {
-          console.error('Sound playback failed');
+    console.log('Attempting to play order sound, initialized:', soundInitialized);
+    
+    if (!soundInitialized) {
+      console.log('Sound not initialized yet, attempting to initialize...');
+      // Try to re-initialize sound if not already initialized
+      if (!orderSound) {
+        try {
+          orderSound = new Sound(
+            require('../../../assets/music/OrderRing.mp3'),
+            (error: any) => {
+              if (error) {
+                console.error('Failed to load order sound in playback attempt:', error);
+              } else {
+                console.log('Order sound loaded in playback attempt');
+                soundInitialized = true;
+                orderSound?.setVolume(1.0);
+                // Play after initialization
+                orderSound?.stop();
+                orderSound?.play((success: boolean) => {
+                  if (!success) {
+                    console.error('Sound playback failed after initialization');
+                  } else {
+                    console.log('Sound played successfully after initialization');
+                  }
+                });
+              }
+            },
+          );
+        } catch (err) {
+          console.error('Exception during sound playback initialization:', err);
         }
-      });
+      }
+      return;
+    }
+    
+    if (orderSound) {
+      try {
+        // Reset sound to beginning (in case it was played before)
+        orderSound.stop();
+        // Play the sound with max volume to ensure audibility
+        orderSound.setVolume(1.0);
+        orderSound.play((success: boolean) => {
+          if (!success) {
+            console.error('Sound playback failed, attempting to retry...');
+            // Try again after a short delay
+            setTimeout(() => {
+              orderSound?.stop();
+              orderSound?.play();
+            }, 300);
+          } else {
+            console.log('Order sound played successfully');
+          }
+        });
+      } catch (err) {
+        console.error('Exception during sound playback:', err);
+      }
+    } else {
+      console.error('Order sound object is null when attempting to play');
     }
   }, []);
 
@@ -163,18 +245,23 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
 
           if (newOrdersAdded > 0) {
             console.log('Added', newOrdersAdded, 'new orders from API');
+            // Play order sound when new orders are detected via API
+            playOrderSound();
           }
 
           return updatedOrders;
         }
       });
     },
-    [setOrders],
+    [setOrders, playOrderSound],
   );
 
   // Update the fetchOrders function to use the new setOrders function
   const fetchOrders = useCallback(
     async (branchId: string) => {
+      // Track initial order count to detect if new orders are added
+      const initialOrderCount = orders.length;
+      let newOrdersDetected = false;
       try {
         console.log('Fetching orders for branchId:', branchId);
 
@@ -256,6 +343,19 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
 
         // Update to use the new setOrders function
         setOrdersWithDuplicateCheck(sortedOrders);
+        
+        // Explicitly check if new orders were added and play sound
+        // This is a backup in case the setOrdersWithDuplicateCheck doesn't trigger
+        if (sortedOrders.length > initialOrderCount) {
+          newOrdersDetected = true;
+          console.log(
+            'fetchOrders detected',
+            sortedOrders.length - initialOrderCount,
+            'new orders, will play sound',
+          );
+          // Use setTimeout to ensure this runs after state updates
+          setTimeout(playOrderSound, 300);
+        }
       } catch (error: any) {
         console.error(
           'Fetch Orders Error:',
@@ -288,7 +388,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
         Alert.alert('Error', 'Failed to load orders. Please try again.');
       }
     },
-    [navigation, setOrdersWithDuplicateCheck],
+    [navigation, setOrdersWithDuplicateCheck, orders.length, playOrderSound],
   );
 
   // Add a refresh function
@@ -536,7 +636,16 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
     // Set up fallback refresh every 1 minute
     const refreshInterval = setInterval(() => {
       console.log('[Fallback] Checking for new orders...');
-      fetchOrders(userId);
+      // Store current order count to compare after fetching
+      const currentOrderCount = orders.length;
+      fetchOrders(userId).then(() => {
+        // Check if new orders were detected during this refresh
+        if (orders.length > currentOrderCount) {
+          console.log('[Fallback] New orders detected, playing sound');
+          // Force sound to play for new orders detected via fallback
+          setTimeout(playOrderSound, 500); // Slight delay to ensure state is updated
+        }
+      });
     }, 60 * 1000); // 1 minute
 
     return () => {

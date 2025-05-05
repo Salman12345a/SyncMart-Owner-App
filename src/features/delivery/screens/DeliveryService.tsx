@@ -16,7 +16,7 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 import {StackNavigationProp} from '@react-navigation/stack';
 import {RootStackParamList} from '../../../navigation/AppNavigator';
 
-const socket = io('http://10.0.2.2:3000', {
+const socket = io('http://doKirana-env.eba-a4dkw2tt.ap-south-1.elasticbeanstalk.com/',  {
   transports: ['websocket'],
   reconnection: true,
 });
