@@ -28,7 +28,7 @@ const InventoryItemDisplay = () => {
   } = useInventoryStore();
 
   const [categoryIndex, setCategoryIndex] = React.useState(0);
-  const [productIndex, setProductIndex] = React.useState(0);
+  // productIndex state removed as it's now in ProductsScreen
   const [selectionMode, setSelectionMode] = React.useState(false);
   const [selectedCategories, setSelectedCategories] = React.useState<string[]>([]);
   const [isRemoving, setIsRemoving] = React.useState(false);
@@ -61,24 +61,15 @@ const InventoryItemDisplay = () => {
     navigation.navigate('DefaultCategories');
   };
 
-  const handleProductSelect = (productId: string) => {
-    toggleProductSelection(productId);
-  };
-
-  const handleProductImport = async () => {
-    if (!products.selectedCategory || !branchId) return;
-    await importSelectedProducts(branchId, products.selectedCategory);
-  };
+  // Product handling functions moved to ProductsScreen
 
   const handleCategoryPress = (category: Category) => {
-    setSelectedCategory(category._id);
-    if (categories.activeTab === 'default') {
-      fetchDefaultProducts(category._id);
-    } else {
-      if (branchId) {
-        fetchCustomProducts(branchId, category._id);
-      }
-    }
+    navigation.navigate('ProductsScreen', {
+      categoryId: category._id,
+      categoryName: category.name,
+      isDefault: categories.activeTab === 'default',
+      defaultCategoryId: category.defaultCategoryId
+    });
   };
 
   const handleRemoveSelectedCategories = async () => {
@@ -156,21 +147,7 @@ const InventoryItemDisplay = () => {
     );
   };
 
-  const renderProductItem = (product: Product) => {
-    const isSelected = products[products.activeTab].selected.includes(product._id);
-    
-    return (
-      <TouchableOpacity
-        key={product._id}
-        style={[styles.itemContainer, isSelected && styles.selectedItem]}
-        onPress={() => handleProductSelect(product._id)}
-      >
-        <Text style={styles.itemName}>{product.name}</Text>
-        <Text style={styles.itemPrice}>₹{product.price}</Text>
-        <Text style={styles.itemDescription}>{product.description || 'No description'}</Text>
-      </TouchableOpacity>
-    );
-  };
+  // renderProductItem moved to ProductsScreen
 
   const renderCategories = () => {
     const activeCategories = categories.branch;
@@ -293,70 +270,7 @@ const InventoryItemDisplay = () => {
     );
   };
 
-  const renderProducts = () => {
-    if (!products.selectedCategory) return null;
-
-    const activeProducts = products[products.activeTab];
-    const selectedCategoryProducts = activeProducts.items[products.selectedCategory] || [];
-
-    return (
-      <View style={styles.container}>
-        <Tab
-          value={productIndex}
-          onChange={(index) => {
-            setProductIndex(index);
-            setActiveProductTab(index === 0 ? 'default' : 'custom');
-          }}
-          indicatorStyle={styles.tabIndicator}
-        >
-          <Tab.Item
-            title="Default"
-            titleStyle={styles.tabTitle}
-          />
-          <Tab.Item
-            title="Custom"
-            titleStyle={styles.tabTitle}
-          />
-        </Tab>
-
-        <TabView value={productIndex} onChange={setProductIndex} animationType="spring">
-          <TabView.Item style={styles.tabContent}>
-            <ScrollView style={styles.scrollView}>
-              {activeProducts.loading ? (
-                <Text style={styles.loadingText}>Loading products...</Text>
-              ) : activeProducts.error ? (
-                <Text style={styles.errorText}>{activeProducts.error}</Text>
-              ) : (
-                <>
-                  {selectedCategoryProducts.length === 0 ? (
-                    <View style={styles.emptyState}>
-                      <Text style={styles.emptyStateText}>
-                        {products.activeTab === 'default'
-                          ? 'No default products added yet'
-                          : 'No custom products added yet'}
-                      </Text>
-                    </View>
-                  ) : (
-                    <>
-                      {selectedCategoryProducts.map(renderProductItem)}
-                      {products.activeTab === 'default' && activeProducts.selected.length > 0 && (
-                        <View style={styles.importButtonContainer}>
-                          <CustomButton
-                            title="Import Selected Products"
-                            onPress={handleProductImport}
-                          />
-                        </View>
-                      )}
-                    </>
-                  )}
-                </>
-              )}
-            </ScrollView>
-          </TabView.Item>
-        </TabView>
-      </View>
-    );
-  };
+  // renderProducts function removed as it is now moved to ProductsScreen
 
   if (!branchId) {
     return (
@@ -371,7 +285,6 @@ const InventoryItemDisplay = () => {
   return (
     <View style={styles.mainContainer}>
       {renderCategories()}
-      {renderProducts()}
     </View>
   );
 };

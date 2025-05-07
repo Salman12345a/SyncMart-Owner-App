@@ -91,6 +91,16 @@ export const inventoryService = {
     }
   },
 
+  // Get branch-specific products for a category (imported products)
+  getBranchCategoryProducts: async (branchId: string, categoryId: string) => {
+    try {
+      const response = await api.get(`/branch/${branchId}/categories/${categoryId}/products`);
+      return response.data;
+    } catch (error) {
+      throw error;
+    }
+  },
+
   importDefaultProducts: async (branchId: string, categoryId: string, productIds: string[]) => {
     try {
       const response = await api.post(`/branch/${branchId}/categories/${categoryId}/import-products`, {

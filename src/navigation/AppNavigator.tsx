@@ -19,6 +19,8 @@ import DefaultCategories from '../features/inventory/screens/DefaultCategories';
 import InventoryItemDisplay from '../features/inventory/screens/InventoryItemDisplay';
 import CreateCustomCategories from '../features/inventory/screens/CreateCustomCategories';
 import UploadCategoryImage from '../features/inventory/screens/UploadCategoryImage';
+import ProductsScreen from '../features/inventory/screens/ProductsScreen';
+import SelectDefaultProducts from '../features/inventory/screens/SelectDefaultProducts';
 // Financial screens
 import Financial from '../features/financial/screens/FinancialSummaryScreen';
 // Delivery screens
@@ -117,6 +119,8 @@ export type RootStackParamList = {
   InventoryItemDisplay: undefined;
   CreateCustomCategories: undefined;
   UploadCategoryImage: undefined;
+  ProductsScreen: { categoryId: string; categoryName: string; isDefault: boolean; refresh?: boolean; refreshTimestamp?: number };
+  SelectDefaultProducts: { categoryId: string; categoryName: string };
 };
 
 interface Order {
@@ -238,6 +242,8 @@ const AppNavigator: React.FC = () => (
 />
     <Stack.Screen name="CreateCustomCategories" component={CreateCustomCategories} options={{ headerShown: false }} />
     <Stack.Screen name="UploadCategoryImage" component={UploadCategoryImage} options={{ headerShown: false }} />
+    <Stack.Screen name="ProductsScreen" component={ProductsScreen} options={{ headerShown: false }} />
+    <Stack.Screen name="SelectDefaultProducts" component={SelectDefaultProducts} options={{ headerShown: false }} />
 
     {/* Financial screens */}
     <Stack.Screen name="Finance" component={Financial} />

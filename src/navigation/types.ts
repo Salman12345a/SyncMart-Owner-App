@@ -60,6 +60,8 @@ export type RootStackParamList = {
   InventoryItemDisplay: { refresh?: boolean; refreshTimestamp?: number } | undefined;
   CreateCustomCategories: undefined;
   UploadCategoryImage: { uploadUrl: string; key: string; categoryId: string; branchId: string };
+  ProductsScreen: { categoryId: string; categoryName: string; isDefault: boolean; refresh?: boolean; refreshTimestamp?: number; defaultCategoryId?: string };
+  SelectDefaultProducts: { categoryId: string; categoryName: string; defaultCategoryId?: string };
 };
 
 export type StatusScreenNavigationProp = StackNavigationProp<
@@ -79,4 +81,9 @@ export type DefaultCategoriesNavigationProp = StackNavigationProp<
 export type InventoryItemDisplayNavigationProp = StackNavigationProp<
   RootStackParamList,
   'InventoryItemDisplay'
+>;
+
+export type ProductsScreenNavigationProp = StackNavigationProp<
+  RootStackParamList,
+  'ProductsScreen'
 >;

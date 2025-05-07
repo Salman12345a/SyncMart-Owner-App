@@ -17,13 +17,13 @@ interface InventoryState {
   products: {
     default: {
       items: Record<string, Product[]>;
-      selected: string[];
+      selected: Record<string, string[]>;
       loading: boolean;
       error: string | null;
     };
     custom: {
       items: Record<string, Product[]>;
-      selected: string[];
+      selected: Record<string, string[]>;
       loading: boolean;
       error: string | null;
     };
@@ -42,9 +42,10 @@ interface InventoryState {
   // Product Actions
   fetchDefaultProducts: (categoryId: string) => Promise<void>;
   fetchCustomProducts: (branchId: string, categoryId: string) => Promise<void>;
-  toggleProductSelection: (productId: string) => void;
+  fetchBranchCategoryProducts: (branchId: string, categoryId: string) => Promise<void>;
+  toggleProductSelection: (productId: string, categoryId: string) => void;
   importSelectedProducts: (branchId: string, categoryId: string) => Promise<void>;
-  clearProductSelections: () => void;
+  clearProductSelections: (categoryId: string) => void;
 }
 
 const useInventoryStore = create<InventoryState>()((set, get) => ({
@@ -63,13 +64,13 @@ const useInventoryStore = create<InventoryState>()((set, get) => ({
   products: {
     default: {
       items: {},
-      selected: [],
+      selected: {},
       loading: false,
       error: null,
     },
     custom: {
       items: {},
-      selected: [],
+      selected: {},
       loading: false,
       error: null,
     },
@@ -89,7 +90,7 @@ const useInventoryStore = create<InventoryState>()((set, get) => ({
       products: { 
         ...state.products, 
         selectedCategory: categoryId,
-        selected: [] // Clear product selections when changing category
+        selected: {} // Clear product selections when changing category
       } 
     })),
 
@@ -205,28 +206,7 @@ const useInventoryStore = create<InventoryState>()((set, get) => ({
     }
   },
 
-  toggleProductSelection: (productId: string) =>
-    set((state) => {
-      const activeTab = state.products.activeTab;
-      const selected = state.products[activeTab].selected;
-      const newSelected = selected.includes(productId)
-        ? selected.filter(id => id !== productId)
-        : [...selected, productId];
-
-      return {
-        products: {
-          ...state.products,
-          [activeTab]: {
-            ...state.products[activeTab],
-            selected: newSelected
-          }
-        }
-      };
-    }),
-
-  importSelectedProducts: async (branchId: string, categoryId: string) => {
-    const { selected } = get().products.default;
-    
+  fetchBranchCategoryProducts: async (branchId: string, categoryId: string) => {
     set((state) => ({
       products: {
         ...state.products,
@@ -235,19 +215,22 @@ const useInventoryStore = create<InventoryState>()((set, get) => ({
     }));
 
     try {
-      await inventoryService.importDefaultProducts(branchId, categoryId, selected);
+      const products = await inventoryService.getBranchCategoryProducts(branchId, categoryId);
       set((state) => ({
         products: {
           ...state.products,
           default: {
             ...state.products.default,
-            selected: [],
+            items: {
+              ...state.products.default.items,
+              [categoryId]: products
+            },
             loading: false
           }
         }
       }));
     } catch (err: any) {
-      const error = err?.message || 'Failed to import products';
+      const error = err?.message || 'Failed to fetch branch category products';
       set((state) => ({
         products: {
           ...state.products,
@@ -261,13 +244,89 @@ const useInventoryStore = create<InventoryState>()((set, get) => ({
     }
   },
 
-  clearProductSelections: () =>
+  toggleProductSelection: (productId: string, categoryId: string) =>
+    set((state) => {
+      const activeTab = state.products.activeTab;
+      const selected = state.products[activeTab].selected[categoryId] || [];
+      const newSelected = selected.includes(productId)
+        ? selected.filter(id => id !== productId)
+        : [...selected, productId];
+
+      return {
+        products: {
+          ...state.products,
+          [activeTab]: {
+            ...state.products[activeTab],
+            selected: {
+              ...state.products[activeTab].selected,
+              [categoryId]: newSelected
+            }
+          }
+        }
+      };
+    }),
+
+  importSelectedProducts: async (branchId: string, categoryId: string) => {
+    const { selected } = get().products.default;
+    const categorySelected = selected[categoryId] || [];
+    
+    if (categorySelected.length === 0) {
+      throw new Error('No products selected for import');
+    }
+
+    set((state) => ({
+      products: {
+        ...state.products,
+        default: { ...state.products.default, loading: true, error: null }
+      }
+    }));
+
+    try {
+      await inventoryService.importDefaultProducts(branchId, categoryId, categorySelected);
+      
+      // Clear only the selections for this category
+      set((state) => ({
+        products: {
+          ...state.products,
+          default: {
+            ...state.products.default,
+            selected: {
+              ...state.products.default.selected,
+              [categoryId]: []
+            },
+            loading: false
+          }
+        }
+      }));
+
+      // Refresh the products for this category
+      await get().fetchBranchCategoryProducts(branchId, categoryId);
+    } catch (err: any) {
+      const error = err?.message || 'Failed to import products';
+      set((state) => ({
+        products: {
+          ...state.products,
+          default: {
+            ...state.products.default,
+            error,
+            loading: false
+          }
+        }
+      }));
+      throw error;
+    }
+  },
+
+  clearProductSelections: (categoryId: string) =>
     set((state) => ({
       products: {
         ...state.products,
         [state.products.activeTab]: {
           ...state.products[state.products.activeTab],
-          selected: []
+          selected: {
+            ...state.products[state.products.activeTab].selected,
+            [categoryId]: []
+          }
         }
       }
     })),
