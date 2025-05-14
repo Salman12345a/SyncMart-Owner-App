@@ -21,6 +21,8 @@ import CreateCustomCategories from '../features/inventory/screens/CreateCustomCa
 import UploadCategoryImage from '../features/inventory/screens/UploadCategoryImage';
 import ProductsScreen from '../features/inventory/screens/ProductsScreen';
 import SelectDefaultProducts from '../features/inventory/screens/SelectDefaultProducts';
+import CustomProducts from '../features/inventory/screens/CustomProducts';
+import UploadProductImage from '../features/inventory/screens/UploadProductImage';
 // Financial screens
 import Financial from '../features/financial/screens/FinancialSummaryScreen';
 // Delivery screens
@@ -121,6 +123,8 @@ export type RootStackParamList = {
   UploadCategoryImage: undefined;
   ProductsScreen: { categoryId: string; categoryName: string; isDefault: boolean; refresh?: boolean; refreshTimestamp?: number };
   SelectDefaultProducts: { categoryId: string; categoryName: string };
+  CustomProducts: { categoryId: string; categoryName: string; isCustom: boolean };
+  UploadProductImage: { productId: string; uploadUrl: string; key: string; branchId: string };
 };
 
 interface Order {
@@ -244,6 +248,8 @@ const AppNavigator: React.FC = () => (
     <Stack.Screen name="UploadCategoryImage" component={UploadCategoryImage} options={{ headerShown: false }} />
     <Stack.Screen name="ProductsScreen" component={ProductsScreen} options={{ headerShown: false }} />
     <Stack.Screen name="SelectDefaultProducts" component={SelectDefaultProducts} options={{ headerShown: false }} />
+    <Stack.Screen name="CustomProducts" component={CustomProducts} options={{ headerShown: false }} />
+    <Stack.Screen name="UploadProductImage" component={UploadProductImage} options={{ headerShown: false }} />
 
     {/* Financial screens */}
     <Stack.Screen name="Finance" component={Financial} />

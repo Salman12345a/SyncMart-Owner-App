@@ -70,7 +70,7 @@ const ProductsScreen = () => {
   };
   
   const navigateToCreateProduct = () => {
-    navigation.navigate('CreateProduct', {
+    navigation.navigate('CustomProducts', {
       categoryId,
       categoryName,
       isCustom: true
