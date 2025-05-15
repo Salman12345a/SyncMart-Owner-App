@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, FlatList, Image, Dimensions } from 'react-native';
 import { Tab, TabView } from '@rneui/themed';
 import useInventoryStore from '../../../store/inventoryStore';
 import { Product } from '../../../services/inventoryService';
@@ -77,22 +77,42 @@ const ProductsScreen = () => {
     });
   };
 
-  const renderProductItem = (product: Product) => {
+  // Product card component for grid layout
+  const renderProductItem = ({ item: product }: { item: Product }) => {
     const isSelected = products[products.activeTab].selected[categoryId]?.includes(product._id) || false;
     
     return (
       <TouchableOpacity
-        key={product._id}
-        style={[styles.itemContainer, isSelected && styles.selectedItem]}
+        style={[styles.gridItem, isSelected && styles.selectedItem]}
         onPress={() => handleProductSelect(product._id)}
       >
-        <Text style={styles.itemName}>{product.name}</Text>
-        <Text style={styles.itemPrice}>₹{product.price}</Text>
-        <Text style={styles.itemDescription}>{product.description || 'No description'}</Text>
+        <View style={styles.imageContainer}>
+          {product.imageUrl ? (
+            <Image 
+              source={{ uri: product.imageUrl }} 
+              style={styles.productImage} 
+              resizeMode="cover"
+            />
+          ) : (
+            <View style={styles.placeholderImage}>
+              <Text style={styles.placeholderText}>No Image</Text>
+            </View>
+          )}
+        </View>
+        <View style={styles.productInfo}>
+          <Text style={styles.itemName} numberOfLines={1}>{product.name}</Text>
+          <Text style={styles.itemPrice}>₹{product.price}</Text>
+          <Text style={styles.itemDescription} numberOfLines={2}>{product.description || 'No description'}</Text>
+        </View>
         {/* Show an indicator for custom products */}
         {!product.createdFromTemplate && (
           <View style={styles.customProductIndicator}>
             <Text style={styles.customProductText}>Custom</Text>
+          </View>
+        )}
+        {isSelected && (
+          <View style={styles.selectedBadge}>
+            <Text style={styles.selectedBadgeText}>✓</Text>
           </View>
         )}
       </TouchableOpacity>
@@ -133,7 +153,7 @@ const ProductsScreen = () => {
         <TabView value={productIndex} onChange={setProductIndex} animationType="spring">
           {/* Default Products Tab */}
           <TabView.Item style={styles.tabContent}>
-            <ScrollView style={styles.scrollView}>
+            <View style={styles.tabContentContainer}>
               {products.default.loading ? (
                 <View style={styles.loadingContainer}>
                   <ActivityIndicator size="large" color="#007AFF" />
@@ -155,7 +175,14 @@ const ProductsScreen = () => {
                     </View>
                   ) : (
                     <>
-                      {selectedCategoryProducts.map(renderProductItem)}
+                      <FlatList
+                        data={selectedCategoryProducts}
+                        renderItem={renderProductItem}
+                        keyExtractor={(item) => item._id}
+                        numColumns={2}
+                        columnWrapperStyle={styles.gridRow}
+                        contentContainerStyle={styles.gridContainer}
+                      />
                       <View style={styles.buttonContainer}>
                         <CustomButton
                           title="Import New Products"
@@ -166,12 +193,12 @@ const ProductsScreen = () => {
                   )}
                 </>
               )}
-            </ScrollView>
+            </View>
           </TabView.Item>
           
           {/* Custom Products Tab */}
           <TabView.Item style={styles.tabContent}>
-            <ScrollView style={styles.scrollView}>
+            <View style={styles.tabContentContainer}>
               {products.custom.loading ? (
                 <View style={styles.loadingContainer}>
                   <ActivityIndicator size="large" color="#007AFF" />
@@ -193,7 +220,14 @@ const ProductsScreen = () => {
                     </View>
                   ) : (
                     <>
-                      {selectedCategoryProducts.map(renderProductItem)}
+                      <FlatList
+                        data={selectedCategoryProducts}
+                        renderItem={renderProductItem}
+                        keyExtractor={(item) => item._id}
+                        numColumns={2}
+                        columnWrapperStyle={styles.gridRow}
+                        contentContainerStyle={styles.gridContainer}
+                      />
                       <View style={styles.buttonContainer}>
                         <CustomButton
                           title="Create New Product"
@@ -204,13 +238,17 @@ const ProductsScreen = () => {
                   )}
                 </>
               )}
-            </ScrollView>
+            </View>
           </TabView.Item>
         </TabView>
       </View>
     </View>
   );
 };
+
+// Get screen width to calculate grid item width
+const { width } = Dimensions.get('window');
+const itemWidth = (width - 40) / 2; // 2 columns with padding
 
 const styles = StyleSheet.create({
   mainContainer: {
@@ -231,29 +269,76 @@ const styles = StyleSheet.create({
   },
   tabContent: {
     width: '100%',
-  },
-  scrollView: {
     flex: 1,
   },
-  itemContainer: {
-    backgroundColor: '#f9f9f9',
-    borderRadius: 8,
-    padding: 15,
+  tabContentContainer: {
+    flex: 1,
+  },
+  gridContainer: {
+    paddingVertical: 10,
+    paddingHorizontal: 5,
+  },
+  gridRow: {
+    justifyContent: 'space-between',
     marginBottom: 10,
+  },
+  gridItem: {
+    width: itemWidth,
+    backgroundColor: '#ffffff',
+    borderRadius: 10,
+    overflow: 'hidden',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
+    shadowRadius: 4,
+    elevation: 3,
     position: 'relative',
   },
+  imageContainer: {
+    width: '100%',
+    height: 120,
+    backgroundColor: '#f5f5f5',
+  },
+  productImage: {
+    width: '100%',
+    height: '100%',
+  },
+  placeholderImage: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#e0e0e0',
+  },
+  placeholderText: {
+    color: '#888',
+    fontSize: 14,
+  },
+  productInfo: {
+    padding: 10,
+  },
   selectedItem: {
-    backgroundColor: '#e6f7ff',
     borderColor: '#007AFF',
-    borderWidth: 1,
+    borderWidth: 2,
+  },
+  selectedBadge: {
+    position: 'absolute',
+    top: 5,
+    left: 5,
+    backgroundColor: '#007AFF',
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  selectedBadgeText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: 'bold',
   },
   itemName: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: 'bold',
     marginBottom: 5,
   },
@@ -261,10 +346,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#28a745',
     marginBottom: 5,
+    fontWeight: '500',
   },
   itemDescription: {
     fontSize: 12,
     color: '#6c757d',
+    height: 32, // Limit to 2 lines
   },
   customProductIndicator: {
     position: 'absolute',
@@ -274,20 +361,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 10,
+    zIndex: 1,
   },
   customProductText: {
     color: '#fff',
     fontSize: 10,
     fontWeight: 'bold',
   },
-  importButtonContainer: {
-    marginTop: 20,
-    marginBottom: 40,
-  },
   loadingContainer: {
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 50,
+    flex: 1,
   },
   loadingText: {
     textAlign: 'center',
@@ -303,6 +388,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 50,
+    flex: 1,
   },
   emptyStateText: {
     fontSize: 16,
@@ -310,6 +396,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   buttonContainer: {
+    paddingHorizontal: 10,
     marginTop: 15,
     marginBottom: 20,
     width: '100%',
