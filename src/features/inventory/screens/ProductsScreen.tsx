@@ -46,9 +46,24 @@ const ProductsScreen = () => {
         setActiveProductTab('custom');
       }
       
-      // Fetch both default and custom products for this category
-      fetchBranchCategoryProducts(branchId, categoryId);
-      fetchCustomProducts(branchId, categoryId);
+      console.log('Fetching products for category:', categoryId);
+      
+      // Fetch both types of products for this category
+      const fetchAllProducts = async () => {
+        try {
+          // First fetch default products (from template)
+          await fetchBranchCategoryProducts(branchId, categoryId);
+          console.log('Default products fetched successfully');
+          
+          // Then fetch custom products (created by branch)
+          await fetchCustomProducts(branchId, categoryId);
+          console.log('Custom products fetched successfully');
+        } catch (err) {
+          console.error('Error fetching products:', err);
+        }
+      };
+      
+      fetchAllProducts();
     }
   }, [categoryId, isDefault, branchId, fetchBranchCategoryProducts, fetchCustomProducts, setActiveProductTab, refreshTimestamp]);
 
@@ -119,13 +134,42 @@ const ProductsScreen = () => {
     );
   };
 
-  const activeProducts = products[products.activeTab];
-  const allCategoryProducts = activeProducts.items[categoryId] || [];
+  // Get products based on the active tab and filter by createdFromTemplate flag
+  const getProductsForTab = () => {
+    // For default tab, use only the default store
+    // For custom tab, use only the custom store
+    // This ensures proper separation of products
+    
+    if (products.activeTab === 'default') {
+      // Default tab: Get products only from default store
+      const defaultProducts = products.default.items[categoryId] || [];
+      console.log(`Default store has ${defaultProducts.length} products`);
+      
+      // Filter to ensure only products with createdFromTemplate = true are shown
+      const filteredProducts = defaultProducts.filter(product => {
+        return product.createdFromTemplate === true;
+      });
+      
+      console.log(`Filtered ${filteredProducts.length} products for DEFAULT tab`);
+      return filteredProducts;
+    } else {
+      // Custom tab: Get products only from custom store
+      const customProducts = products.custom.items[categoryId] || [];
+      console.log(`Custom store has ${customProducts.length} products`);
+      
+      // Filter to ensure only products with createdFromTemplate = false are shown
+      const filteredProducts = customProducts.filter(product => {
+        return product.createdFromTemplate === false;
+      });
+      
+      console.log(`Filtered ${filteredProducts.length} products for CUSTOM tab`);
+      return filteredProducts;
+    }
+  };
   
-  // Filter products based on the active tab and createdFromTemplate flag
-  const selectedCategoryProducts = products.activeTab === 'default'
-    ? allCategoryProducts.filter(product => product.createdFromTemplate)
-    : allCategoryProducts.filter(product => !product.createdFromTemplate);
+  const selectedCategoryProducts = getProductsForTab();
+  
+  console.log(`Final products for ${products.activeTab} tab:`, selectedCategoryProducts.length);
 
   return (
     <View style={styles.mainContainer}>

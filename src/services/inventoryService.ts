@@ -93,13 +93,23 @@ export const inventoryService = {
 
   getCustomProducts: async (branchId: string, categoryId: string) => {
     try {
+      console.log(`Fetching custom products for branch ${branchId} and category ${categoryId}`);
       const response = await api.get(`/branch/${branchId}/categories/${categoryId}/products`);
-      // Ensure all products from this endpoint have createdFromTemplate set to false
-      return response.data.map((product: Product) => ({
+      
+      // Filter to only include products that are not created from template
+      const customProducts = response.data.filter((product: Product) => 
+        product.createdFromTemplate === false
+      );
+      
+      console.log(`Found ${customProducts.length} custom products out of ${response.data.length} total`);
+      
+      // Return products, ensuring createdFromTemplate is explicitly set to false
+      return customProducts.map((product: Product) => ({
         ...product,
         createdFromTemplate: false
       }));
     } catch (error) {
+      console.error('Error fetching custom products:', error);
       throw error;
     }
   },
@@ -107,9 +117,23 @@ export const inventoryService = {
   // Get branch-specific products for a category (imported products)
   getBranchCategoryProducts: async (branchId: string, categoryId: string) => {
     try {
+      console.log(`Fetching branch category products for branch ${branchId} and category ${categoryId}`);
       const response = await api.get(`/branch/${branchId}/categories/${categoryId}/products`);
-      return response.data;
+      
+      // Filter to only include products that are created from template
+      const defaultProducts = response.data.filter((product: Product) => 
+        product.createdFromTemplate === true
+      );
+      
+      console.log(`Found ${defaultProducts.length} default products out of ${response.data.length} total`);
+      
+      // Return products, ensuring createdFromTemplate is explicitly set to true
+      return defaultProducts.map((product: Product) => ({
+        ...product,
+        createdFromTemplate: true
+      }));
     } catch (error) {
+      console.error('Error fetching branch category products:', error);
       throw error;
     }
   },

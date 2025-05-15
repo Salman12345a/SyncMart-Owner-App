@@ -203,17 +203,7 @@ const CustomProducts = () => {
             />
           </View>
           
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Discount Price</Text>
-            <TextInput
-              style={styles.input}
-              value={discountPrice}
-              onChangeText={setDiscountPrice}
-              placeholder="Enter discount price (optional)"
-              placeholderTextColor="#999"
-              keyboardType="numeric"
-            />
-          </View>
+
           
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Quantity</Text>
@@ -221,7 +211,7 @@ const CustomProducts = () => {
               style={styles.input}
               value={quantity}
               onChangeText={setQuantity}
-              placeholder="Enter quantity (optional)"
+              placeholder="Enter quantity"
               placeholderTextColor="#999"
               keyboardType="numeric"
             />
