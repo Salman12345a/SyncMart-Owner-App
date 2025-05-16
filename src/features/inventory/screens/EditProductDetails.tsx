@@ -231,16 +231,7 @@ const EditProductDetails = () => {
           
           {!isPacket && (
             <>
-              <View style={styles.formGroup}>
-                <Text style={styles.label}>Quantity*</Text>
-                <TextInput
-                  style={styles.input}
-                  value={quantity}
-                  onChangeText={setQuantity}
-                  placeholder="Enter quantity (e.g., 500)"
-                />
-              </View>
-              
+
               <View style={styles.formGroup}>
                 <Text style={styles.label}>Unit*</Text>
                 <TouchableOpacity 

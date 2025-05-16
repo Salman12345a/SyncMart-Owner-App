@@ -136,7 +136,10 @@ const ProductsScreen = () => {
               </View>
             ) : null}
           </View>
-          {product.unit ? (
+          {/* Show price with unit or 'pack' based on isPacket */}
+          {product.isPacket === true ? (
+            <Text style={styles.itemPrice}>₹{product.price}/pack</Text>
+          ) : product.unit ? (
             <Text style={styles.itemPrice}>₹{product.price}/{product.unit}</Text>
           ) : (
             <Text style={styles.itemPrice}>₹{product.price}</Text>
