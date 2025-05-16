@@ -20,6 +20,12 @@ export interface Product {
   isActive: boolean;
   description?: string;
   price: number;
+  discountPrice?: number;
+  quantity?: string;
+  unit?: string;
+  isPacket?: boolean;
+  isAvailable?: boolean;
+  disabledReason?: string;
   categoryId: string;
   createdAt: string;
   updatedAt: string;

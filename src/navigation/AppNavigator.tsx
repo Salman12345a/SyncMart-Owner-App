@@ -23,6 +23,7 @@ import ProductsScreen from '../features/inventory/screens/ProductsScreen';
 import SelectDefaultProducts from '../features/inventory/screens/SelectDefaultProducts';
 import CustomProducts from '../features/inventory/screens/CustomProducts';
 import UploadProductImage from '../features/inventory/screens/UploadProductImage';
+import EditProductDetails from '../features/inventory/screens/EditProductDetails';
 // Financial screens
 import Financial from '../features/financial/screens/FinancialSummaryScreen';
 // Delivery screens
@@ -250,6 +251,7 @@ const AppNavigator: React.FC = () => (
     <Stack.Screen name="SelectDefaultProducts" component={SelectDefaultProducts} options={{ headerShown: false }} />
     <Stack.Screen name="CustomProducts" component={CustomProducts} options={{ headerShown: false }} />
     <Stack.Screen name="UploadProductImage" component={UploadProductImage} options={{ headerShown: false }} />
+    <Stack.Screen name="EditProductDetails" component={EditProductDetails} options={{ headerShown: false }} />
 
     {/* Financial screens */}
     <Stack.Screen name="Finance" component={Financial} />

@@ -64,6 +64,7 @@ export type RootStackParamList = {
   SelectDefaultProducts: { categoryId: string; categoryName: string; defaultCategoryId?: string };
   CustomProducts: { categoryId: string; categoryName: string; isCustom: boolean };
   UploadProductImage: { productId: string; uploadUrl: string; key: string; branchId: string };
+  EditProductDetails: { productId: string; categoryId: string; categoryName: string };
 };
 
 export type StatusScreenNavigationProp = StackNavigationProp<

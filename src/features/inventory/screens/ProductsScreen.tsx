@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, FlatList, Image, Dimensions } from 'react-native';
 import { Tab, TabView } from '@rneui/themed';
+import Icon from 'react-native-vector-icons/MaterialIcons';
 import useInventoryStore from '../../../store/inventoryStore';
 import { Product } from '../../../services/inventoryService';
 import CustomHeader from '../../../components/ui/CustomHeader';
@@ -92,6 +93,14 @@ const ProductsScreen = () => {
     });
   };
 
+  const navigateToEditProduct = (productId: string) => {
+    navigation.navigate('EditProductDetails', {
+      productId,
+      categoryId,
+      categoryName
+    });
+  };
+
   // Product card component for grid layout
   const renderProductItem = ({ item: product }: { item: Product }) => {
     const isSelected = products[products.activeTab].selected[categoryId]?.includes(product._id) || false;
@@ -115,16 +124,42 @@ const ProductsScreen = () => {
           )}
         </View>
         <View style={styles.productInfo}>
-          <Text style={styles.itemName} numberOfLines={1}>{product.name}</Text>
-          <Text style={styles.itemPrice}>₹{product.price}</Text>
+          <View style={styles.nameContainer}>
+            <Text style={styles.itemName} numberOfLines={1}>{product.name}</Text>
+            {product.isPacket === false ? (
+              <View style={styles.inlineLooseTag}>
+                <Text style={styles.looseProductText}>Loose</Text>
+              </View>
+            ) : product.isPacket === true ? (
+              <View style={styles.inlinePackTag}>
+                <Text style={styles.packProductText}>Pack</Text>
+              </View>
+            ) : null}
+          </View>
+          {product.unit ? (
+            <Text style={styles.itemPrice}>₹{product.price}/{product.unit}</Text>
+          ) : (
+            <Text style={styles.itemPrice}>₹{product.price}</Text>
+          )}
           <Text style={styles.itemDescription} numberOfLines={2}>{product.description || 'No description'}</Text>
         </View>
-        {/* Show an indicator for custom products */}
+        
+        {/* Show edit icon for all products (both default and custom) */}
+        <TouchableOpacity 
+          style={styles.editButton} 
+          onPress={() => navigateToEditProduct(product._id)}
+        >
+          <Icon name="edit" size={16} color="#ffffff" />
+        </TouchableOpacity>
+        
+        {/* Custom product indicator (hidden but kept as flag) */}
         {!product.createdFromTemplate && (
-          <View style={styles.customProductIndicator}>
+          <View style={[styles.customProductIndicator, { display: 'none' }]}>
             <Text style={styles.customProductText}>Custom</Text>
           </View>
         )}
+        
+
         {isSelected && (
           <View style={styles.selectedBadge}>
             <Text style={styles.selectedBadgeText}>✓</Text>
@@ -381,17 +416,25 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: 'bold',
   },
+  nameContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 5,
+    flexWrap: 'wrap',
+  },
   itemName: {
     fontSize: 14,
     fontWeight: 'bold',
-    marginBottom: 5,
+    flex: 1,
+    marginRight: 5,
   },
+
   itemPrice: {
     fontSize: 14,
     color: '#28a745',
-    marginBottom: 5,
     fontWeight: '500',
   },
+
   itemDescription: {
     fontSize: 12,
     color: '#6c757d',
@@ -411,6 +454,42 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 10,
     fontWeight: 'bold',
+  },
+  inlineLooseTag: {
+    backgroundColor: '#8A2BE2', // Purple color for loose products
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+    marginLeft: 5,
+  },
+  inlinePackTag: {
+    backgroundColor: '#FF6347', // Tomato color for packaged products
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+    marginLeft: 5,
+  },
+  looseProductText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: 'bold',
+  },
+  packProductText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: 'bold',
+  },
+  editButton: {
+    position: 'absolute',
+    top: 5,
+    right: 5,
+    backgroundColor: '#007AFF',
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 2,
   },
   loadingContainer: {
     alignItems: 'center',
