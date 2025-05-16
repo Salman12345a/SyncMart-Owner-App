@@ -253,8 +253,19 @@ export const inventoryService = {
       throw error;
     }
   },
+  deleteCustomCategories: async (branchId: string, categoryIds: string[]) => {
+    try {
+      const response = await api.delete(`/branch/${branchId}/categories/custom`, {
+        data: { categoryIds }
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error deleting custom categories:', error);
+      throw error;
+    }
+  },
 };
 
 
 
-export default inventoryService; 
+export default inventoryService;

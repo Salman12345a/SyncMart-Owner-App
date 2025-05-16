@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, ToastAndroid, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, ToastAndroid, ActivityIndicator, Alert } from 'react-native';
 import { Icon } from '@rneui/themed';
 import api from '../../../services/api';
 import { Tab, TabView } from '@rneui/themed';
 import useInventoryStore from '../../../store/inventoryStore';
-import { Category, Product } from '../../../services/inventoryService';
+import { Category, Product, inventoryService } from '../../../services/inventoryService';
 import CustomHeader from '../../../components/ui/CustomHeader';
 import CustomButton from '../../../components/ui/CustomButton';
 import { useNavigation, useRoute } from '@react-navigation/native';
@@ -32,6 +32,9 @@ const InventoryItemDisplay = () => {
   const [selectionMode, setSelectionMode] = React.useState(false);
   const [selectedCategories, setSelectedCategories] = React.useState<string[]>([]);
   const [isRemoving, setIsRemoving] = React.useState(false);
+  // New state for custom categories deletion mode
+  const [customDeletionMode, setCustomDeletionMode] = React.useState(false);
+  const [deletingCustomCategories, setDeletingCustomCategories] = React.useState(false);
 
   // Get branchId from MMKV storage (userId)
   const branchId = storage.getString('userId');
@@ -107,32 +110,83 @@ const InventoryItemDisplay = () => {
     }
   };
 
+  // Handle custom category deletion
+  const handleDeleteCustomCategories = async () => {
+    if (!branchId || selectedCategories.length === 0) return;
+    
+    // Show confirmation dialog
+    Alert.alert(
+      'Delete Categories',
+      'Are you sure you want to delete the selected categories?',
+      [
+        {
+          text: 'No',
+          style: 'cancel'
+        },
+        {
+          text: 'Yes',
+          onPress: async () => {
+            setDeletingCustomCategories(true);
+            try {
+              console.log('Deleting custom categories with IDs:', selectedCategories);
+              await inventoryService.deleteCustomCategories(branchId, selectedCategories);
+              
+              // Show success message
+              ToastAndroid.show('Categories deleted successfully', ToastAndroid.SHORT);
+              
+              // Reset selection mode and refresh categories
+              setCustomDeletionMode(false);
+              setSelectedCategories([]);
+              fetchBranchCategories(branchId);
+            } catch (error) {
+              console.error('Error deleting custom categories:', error);
+              // More detailed error message
+              if (error instanceof Error) {
+                ToastAndroid.show(`Error: ${error.message}`, ToastAndroid.LONG);
+              } else {
+                ToastAndroid.show('Failed to delete categories', ToastAndroid.LONG);
+              }
+            } finally {
+              setDeletingCustomCategories(false);
+            }
+          }
+        }
+      ]
+    );
+  };
+
   const toggleCategorySelection = (categoryId: string) => {
-    setSelectedCategories(prev => {
-      if (prev.includes(categoryId)) {
-        return prev.filter(id => id !== categoryId);
-      } else {
-        return [...prev, categoryId];
-      }
-    });
+    if (selectedCategories.includes(categoryId)) {
+      setSelectedCategories(selectedCategories.filter(id => id !== categoryId));
+    } else {
+      setSelectedCategories([...selectedCategories, categoryId]);
+    }
+  };
+
+  // Toggle custom category deletion mode
+  const toggleCustomDeletionMode = () => {
+    // If we're exiting deletion mode, clear selections
+    if (customDeletionMode) {
+      setSelectedCategories([]);
+    }
+    setCustomDeletionMode(!customDeletionMode);
   };
 
   const renderCategoryItem = (category: Category) => {
     const isSelected = selectedCategories.includes(category._id);
-    
     return (
-      <TouchableOpacity 
-        key={category._id} 
-        style={[styles.gridItem, selectionMode && isSelected && styles.categorySelectedItem]}
+      <TouchableOpacity
+        key={category._id}
+        style={[styles.gridItem, isSelected && styles.categorySelectedItem]}
         onPress={() => {
-          if (selectionMode) {
+          if (selectionMode || customDeletionMode) {
             toggleCategorySelection(category._id);
           } else {
             handleCategoryPress(category);
           }
         }}
       >
-        {selectionMode && (
+        {(selectionMode || customDeletionMode) && (
           <View style={styles.checkboxContainer}>
             <View style={[styles.checkbox, isSelected && styles.checkboxSelected]}>
               {isSelected && <Text style={styles.checkmark}>✓</Text>}
@@ -140,9 +194,14 @@ const InventoryItemDisplay = () => {
           </View>
         )}
         {category.imageUrl ? (
-          <Image source={{ uri: category.imageUrl }} style={styles.categoryImage} />
-        ) : null}
-        <Text style={styles.itemName} numberOfLines={1}>{category.name}</Text>
+          <Image
+            source={{ uri: category.imageUrl }}
+            style={styles.categoryImage}
+          />
+        ) : (
+          <View style={[styles.categoryImage, { backgroundColor: '#e9ecef' }]} />
+        )}
+        <Text style={styles.itemName}>{category.name}</Text>
       </TouchableOpacity>
     );
   };
@@ -240,25 +299,54 @@ const InventoryItemDisplay = () => {
           <TabView.Item style={styles.tabContent}>
             <ScrollView style={styles.scrollView}>
               {activeCategories.loading ? (
-                <Text style={styles.loadingText}>Loading categories...</Text>
+                <ActivityIndicator size="large" color="#007AFF" style={{ marginTop: 20 }} />
               ) : activeCategories.error ? (
-                <Text style={styles.errorText}>{activeCategories.error}</Text>
+                <View style={styles.emptyState}>
+                  <Text style={styles.errorText}>{activeCategories.error}</Text>
+                </View>
               ) : (
                 <>
                   {customCategories.length === 0 ? (
                     <View style={styles.emptyState}>
-                      <Text style={styles.emptyStateText}>No custom categories added yet</Text>
-                      <CustomButton title="Create Category" onPress={() => navigation.navigate('CreateCustomCategories')} />
+                      <Text style={styles.emptyStateText}>No custom categories yet. Create one!</Text>
+                      <CustomButton
+                        title="Create Category"
+                        onPress={() => navigation.navigate('CreateCustomCategories')}
+                      />
                     </View>
                   ) : (
                     <>
-                      <Text style={styles.sectionTitle}>Created Custom Categories</Text>
-                    <View style={styles.gridContainer}>
-                      {customCategories.map(renderCategoryItem)}
-                    </View>
-                      <View style={styles.addButtonContainer}>
-                        <CustomButton title="Create Category" onPress={() => navigation.navigate('CreateCustomCategories')} />
+                      <View style={styles.headerContainer}>
+                        <Text style={styles.sectionTitle}>Custom Categories</Text>
+                        <TouchableOpacity
+                          style={styles.deleteIcon}
+                          onPress={toggleCustomDeletionMode}
+                        >
+                          <Icon
+                            name={customDeletionMode ? "close" : "delete"}
+                            type="material"
+                            color={customDeletionMode ? "#F44336" : "#007AFF"}
+                            size={24}
+                          />
+                        </TouchableOpacity>
                       </View>
+                      <View style={styles.gridContainer}>
+                        {customCategories.map(renderCategoryItem)}
+                      </View>
+                      {customDeletionMode && selectedCategories.length > 0 && (
+                        <View style={styles.removeButtonContainer}>
+                          <CustomButton
+                            title={`Delete Selected (${selectedCategories.length})`}
+                            onPress={handleDeleteCustomCategories}
+                            loading={deletingCustomCategories}
+                          />
+                        </View>
+                      )}
+                      {!customDeletionMode && (
+                        <View style={styles.addButtonContainer}>
+                          <CustomButton title="Create Category" onPress={() => navigation.navigate('CreateCustomCategories')} />
+                        </View>
+                      )}
                     </>
                   )}
                 </>
