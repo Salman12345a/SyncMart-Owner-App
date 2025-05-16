@@ -15,6 +15,7 @@ import {StackScreenProps} from '@react-navigation/stack';
 import {RootStackParamList} from '../../../navigation/types';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import {verifyOTP, sendOTP, completeLogin} from '../../../services/api';
+import {config} from '../../../config';
 import {storage} from '../../../utils/storage';
 import {useStore} from '../../../store/ordersStore';
 import {jwtDecode} from 'jwt-decode';
@@ -54,6 +55,26 @@ const OTPVerificationScreen: React.FC<OTPVerificationScreenProps> = ({
   const resendTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Initialize timers based on backend response or use defaults
+  // Check if the phone number is a test number that should bypass OTP verification
+  const isTestPhoneNumber = useCallback(() => {
+    return (
+      config.TESTING?.ENABLED &&
+      config.TESTING?.TEST_PHONE_NUMBERS?.includes(phone)
+    );
+  }, [phone]);
+
+  // Auto-fill OTP if it's a test phone number
+  useEffect(() => {
+    if (isTestPhoneNumber()) {
+      console.log('Test phone number detected. Auto-filling OTP.');
+      const testOtp = config.TESTING.DEFAULT_TEST_OTP || '1234';
+      const otpDigits = testOtp.split('');
+      // Fill in available digits
+      const filledOtp = otpDigits.slice(0, 4).concat(Array(Math.max(0, 4 - otpDigits.length)).fill(''));
+      setOtpValues(filledOtp);
+    }
+  }, [phone]);
+
   useEffect(() => {
     // Use stored values from backend or defaults
     const validityPeriod = storage.getNumber('otpValidityPeriod') || 600; // 10 minutes
@@ -201,6 +222,64 @@ const OTPVerificationScreen: React.FC<OTPVerificationScreenProps> = ({
   };
 
   const handleLoginVerification = async () => {
+    // Check if this is a test phone number that should bypass verification
+    if (isTestPhoneNumber()) {
+      console.log('Bypassing OTP verification for test phone number:', phone);
+      setIsLoading(true);
+      
+      try {
+        // Auto-verifying test phone number after delay to make it feel more realistic
+        console.log('Auto-verifying test phone number after delay');
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        // Create a mock JWT token that will work with jwtDecode
+        const mockAccessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiJ0ZXN0X3VzZXJfaWQiLCJicmFuY2hJZCI6InRlc3RfYnJhbmNoX2lkIiwicm9sZSI6ImJyYW5jaF9vd25lciJ9.test_signature';
+        const mockRefreshToken = 'test_refresh_token_' + Date.now();
+        
+        // For test numbers, we'll simulate a successful login response
+        const mockResponse = {
+          token: mockAccessToken,
+          refreshToken: mockRefreshToken,
+          branch: {
+            _id: 'test_branch_id',
+            name: 'Test Branch',
+            ownerName: 'Test Owner',
+            status: 'approved',
+            isApproved: true,
+            isRegistered: true
+          }
+        };
+        
+        // Store all required authentication data
+        storage.set('accessToken', mockAccessToken);
+        storage.set('refreshToken', mockRefreshToken);
+        storage.set('userId', 'test_user_id');
+        setUserId('test_user_id');
+        storage.set('isRegistered', true);
+        storage.set('isApproved', true);
+        storage.set('branchId', 'test_branch_id');
+        storage.set('branchName', 'Test Branch');
+        storage.set('ownerName', 'Test Owner');
+        storage.set('phoneNumber', phone);
+        
+        console.log('Stored mock accessToken and all required auth data');
+        
+        // Navigate to Home screen
+        console.log('Test login successful, navigating to Home');
+        navigation.reset({
+          index: 0,
+          routes: [{name: 'HomeScreen'}],
+        });
+        return;
+      } catch (error) {
+        console.error('Test login simulation error:', error);
+        // Fall back to normal verification if test simulation fails
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    
+    // Normal verification flow for non-test numbers
     const otpCode = otpValues.join('');
     if (!otpCode || otpCode.length < 4) {
       Alert.alert('Error', 'Please enter a valid 4-digit OTP.');
@@ -280,6 +359,48 @@ const OTPVerificationScreen: React.FC<OTPVerificationScreenProps> = ({
   };
 
   const handleRegistrationVerification = async () => {
+    // Check if this is a test phone number that should bypass verification
+    if (isTestPhoneNumber()) {
+      console.log('Bypassing OTP verification for test phone number:', phone);
+      setIsLoading(true);
+      
+      try {
+        // For test numbers, we'll simulate a successful verification response
+        const mockResponse = {
+          data: {
+            verified: true,
+            validFor: 3600 // 1 hour in seconds
+          }
+        };
+        
+        // Store verification status
+        storage.set('phoneVerified', true);
+        
+        // Store OTP validation period
+        if (mockResponse.data.validFor) {
+          storage.set('otpValidFor', mockResponse.data.validFor);
+        }
+        
+        // Store form data for the next screen
+        storage.set('branchFormData', JSON.stringify(formData));
+        
+        // Navigate to the registered branch details screen
+        navigation.navigate('RegisteredBranchDetails', {
+          phone,
+          formData,
+          branchId,
+          isResubmit,
+        });
+        return;
+      } catch (error) {
+        console.error('Test registration verification simulation error:', error);
+        // Fall back to normal verification if test simulation fails
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    
+    // Normal verification flow for non-test numbers
     const otpCode = otpValues.join('');
     if (!otpCode || otpCode.length < 4) {
       Alert.alert('Error', 'Please enter a valid 4-digit OTP.');
@@ -337,6 +458,18 @@ const OTPVerificationScreen: React.FC<OTPVerificationScreenProps> = ({
   };
 
   const isOtpComplete = otpValues.every(value => value !== '');
+
+  // Auto-verify for test phone numbers after a short delay
+  useEffect(() => {
+    if (isTestPhoneNumber() && isOtpComplete) {
+      console.log('Auto-verifying test phone number after delay');
+      const autoVerifyTimer = setTimeout(() => {
+        handleVerifyOTP();
+      }, 800);
+      
+      return () => clearTimeout(autoVerifyTimer);
+    }
+  }, [isTestPhoneNumber, isOtpComplete, otpValues]);
 
   return (
     <SafeAreaView style={styles.safeArea}>

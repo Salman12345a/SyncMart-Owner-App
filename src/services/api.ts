@@ -42,6 +42,79 @@ const api: AxiosInstance = axios.create({
   baseURL: config.BASE_URL, // Use BASE_URL from config
 });
 
+// Utility function to check if a token is a test token
+const isTestToken = (token: string | null | undefined): boolean => {
+  // Check if the token exists and starts with our test token prefix
+  return !!token && token.startsWith('eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiJ0ZXN0X3VzZXJfaWQiLCJicmFuY2hJZCI6InRlc3RfYnJhbmNoX2lkIiwicm9sZSI6ImJyYW5jaF9vd25lciJ9');
+};
+
+// Mock data for test mode
+const mockApiResponses: Record<string, any> = {
+  // Store status
+  '/syncmarts/status': {
+    message: 'Store status retrieved successfully',
+    storeStatus: 'open',
+    deliveryServiceAvailable: true,
+    balance: 5000,
+  },
+  // Wallet balance
+  '/wallet/balance': {
+    balance: 5000,
+  },
+  // Wallet transactions
+  '/wallet/transactions': {
+    transactions: [
+      { amount: 500, type: 'payment', timestamp: new Date().toISOString() },
+      { amount: 200, type: 'platform_charge', timestamp: new Date(Date.now() - 86400000).toISOString() },
+    ],
+  },
+  // Wallet payments
+  '/wallet/payments': {
+    payments: [
+      { amount: 500, type: 'payment', timestamp: new Date().toISOString() },
+      { amount: 300, type: 'payment', timestamp: new Date(Date.now() - 86400000).toISOString() },
+    ],
+  },
+  // Orders
+  '/orders': [
+    {
+      _id: 'test_order_1',
+      orderId: 'ORD123456',
+      status: 'pending',
+      totalPrice: 450,
+      createdAt: new Date().toISOString(),
+      items: [
+        { _id: 'item1', item: { name: 'Test Product 1', price: 150 }, count: 2 },
+        { _id: 'item2', item: { name: 'Test Product 2', price: 150 }, count: 1 },
+      ],
+      customer: 'Test Customer',
+    },
+  ],
+};
+
+// Function to get mock response for a specific URL
+const getMockResponse = (url: string, params?: any): any => {
+  // Extract the base endpoint from the URL
+  const baseEndpoint = url.split('/').slice(0, 2).join('/');
+  
+  // Check for specific endpoints with dynamic IDs
+  if (url.includes('/wallet/balance/')) {
+    return mockApiResponses['/wallet/balance'];
+  }
+  if (url.includes('/wallet/transactions/')) {
+    return mockApiResponses['/wallet/transactions'];
+  }
+  if (url.includes('/wallet/payments/')) {
+    return mockApiResponses['/wallet/payments'];
+  }
+  if (url === '/orders/') {
+    return mockApiResponses['/orders'];
+  }
+  
+  // Return the exact match if available
+  return mockApiResponses[url] || { message: 'Mock data not available for this endpoint' };
+};
+
 api.interceptors.request.use(async config => {
   const token = storage.getString('accessToken'); // Use MMKV
   if (token) {
@@ -51,6 +124,15 @@ api.interceptors.request.use(async config => {
       'Request Authorization Header:',
       `Bearer ${token.substring(0, 15)}...`,
     );
+    
+    // Check if this is a test token
+    if (isTestToken(token)) {
+      console.log('Test token detected, will use mock data for:', config.url);
+      
+      // Set a flag on the config to indicate this is a test request
+      // @ts-ignore - Adding custom property to config
+      config.isTestRequest = true;
+    }
   } else {
     console.log('No auth token available for request:', config.url);
   }
@@ -62,6 +144,8 @@ api.interceptors.request.use(async config => {
     baseURL: config.baseURL,
     params: config.params,
     hasAuth: !!token,
+    // @ts-ignore - Custom property
+    isTestRequest: config.isTestRequest || false,
   };
   console.log('Request Config:', safeConfig);
 
@@ -88,6 +172,32 @@ api.interceptors.response.use(
     return response;
   },
   async (error: AxiosError) => {
+    // Check if this is a test request with an invalid token
+    // @ts-ignore - Custom property
+    if (error.config?.isTestRequest) {
+      console.log('Intercepting error for test request:', error.config.url);
+      
+      // Create a mock successful response
+      const mockData = getMockResponse(error.config.url || '', error.config.params);
+      
+      console.log('Returning mock data for test request:', 
+        typeof mockData === 'object' 
+          ? Array.isArray(mockData) 
+            ? `Array with ${mockData.length} items` 
+            : Object.keys(mockData)
+          : mockData
+      );
+      
+      // Return a resolved promise with mock data
+      return Promise.resolve({
+        data: mockData,
+        status: 200,
+        statusText: 'OK',
+        headers: {},
+        config: error.config,
+      });
+    }
+    
     console.error(
       'API Error:',
       error.response?.status,
@@ -522,6 +632,27 @@ export const initiateLogin = async (phone: string) => {
       phoneNumber = '+91' + phoneNumber;
     }
 
+    // Check if this is a test phone number
+    if (config.TESTING?.ENABLED && config.TESTING?.TEST_PHONE_NUMBERS?.includes(phoneNumber)) {
+      console.log('Test phone number detected. Bypassing server login initiation.');
+      
+      // Set default OTP timing values
+      storage.set('otpValidityPeriod', 600); // 10 minutes
+      storage.set('otpRetryAfter', 60); // 1 minute
+      
+      // Return a mock successful response
+      return {
+        status: 'success',
+        message: 'OTP sent successfully (simulated for test number)',
+        data: {
+          validityPeriod: 600,
+          retryAfter: 60,
+          phone: phoneNumber
+        }
+      };
+    }
+
+    // For real phone numbers, proceed with the actual API call
     const response = await api.post('/auth/branch/login/initiate', {
       phone: phoneNumber,
     });
@@ -561,6 +692,66 @@ export const completeLogin = async (phone: string, otp: string) => {
       phoneNumber = '+91' + phoneNumber;
     }
 
+    // Check if this is a test phone number
+    if (config.TESTING?.ENABLED && config.TESTING?.TEST_PHONE_NUMBERS?.includes(phoneNumber)) {
+      console.log('Test phone number detected. Bypassing server login completion.');
+      // Check if the OTP matches the test OTP
+      const testOtp = config.TESTING.DEFAULT_TEST_OTP || '1234';
+      
+      if (otp === testOtp) {
+        // Create simple mock data that doesn't rely on complex encoding
+        const mockBranchId = 'test_branch_' + phoneNumber.substring(phoneNumber.length - 4);
+        const mockUserId = 'test_user_id';
+        
+        // Create a simple token that can be directly used
+        const mockAccessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiJ0ZXN0X3VzZXJfaWQiLCJicmFuY2hJZCI6InRlc3RfYnJhbmNoX2lkIiwicm9sZSI6ImJyYW5jaF9vd25lciJ9.test_signature';
+        const mockRefreshToken = 'test_refresh_token_' + Date.now();
+        
+        // Store all required authentication data
+        storage.set('accessToken', mockAccessToken);
+        storage.set('refreshToken', mockRefreshToken);
+        storage.set('userId', mockUserId);
+        storage.set('branchId', mockBranchId);
+        storage.set('isApproved', true);
+        storage.set('isRegistered', true);
+        
+        // Store branch and user information
+        storage.set('branchName', 'Test Branch');
+        storage.set('ownerName', 'Test Owner');
+        storage.set('phoneNumber', phoneNumber);
+        
+        console.log('Stored mock authentication data with fixed accessToken');
+        
+        console.log('Stored mock accessToken with userId and branchId in payload');
+        
+        console.log('Mock login successful for test number with userId:', mockUserId, 'branchId:', mockBranchId);
+        
+        return {
+          token: mockAccessToken,
+          refreshToken: mockRefreshToken,
+          branch: {
+            _id: mockBranchId,
+            name: 'Test Branch',
+            phone: phoneNumber,
+            isApproved: true,
+            isRegistered: true,
+            userId: mockUserId
+          }
+        };
+      } else {
+        // Simulate an invalid OTP error
+        throw {
+          response: {
+            data: {
+              error: 'Invalid OTP',
+              message: 'The OTP entered does not match the expected test OTP'
+            }
+          }
+        };
+      }
+    }
+
+    // For real phone numbers, proceed with the actual API call
     const response = await api.post('/auth/branch/login/complete', {
       phoneNumber: phoneNumber,
       otp: otp,
@@ -739,6 +930,21 @@ export const sendOTP = async (phoneNumber: string) => {
       console.warn('Phone number does not start with +, adding default +91');
       phoneNumber = '+91' + phoneNumber;
     }
+
+    // Check if this is a test phone number
+    if (config.TESTING?.ENABLED && config.TESTING?.TEST_PHONE_NUMBERS?.includes(phoneNumber)) {
+      console.log('Test phone number detected. Bypassing server OTP request.');
+      // Return a mock successful response
+      return {
+        data: {
+          message: 'OTP sent successfully (simulated for test number)',
+          validityPeriod: 600, // 10 minutes
+          retryAfter: 60 // 1 minute
+        }
+      };
+    }
+
+    // For real phone numbers, proceed with the actual API call
     const response = await api.post('/auth/branch/send-otp', {phoneNumber});
     console.log('Send OTP Success:', response.data);
     return response.data;
@@ -757,6 +963,35 @@ export const verifyOTP = async (phoneNumber: string, otp: string) => {
       console.warn('Phone number does not start with +, adding default +91');
       phoneNumber = '+91' + phoneNumber;
     }
+
+    // Check if this is a test phone number
+    if (config.TESTING?.ENABLED && config.TESTING?.TEST_PHONE_NUMBERS?.includes(phoneNumber)) {
+      console.log('Test phone number detected. Bypassing server OTP verification.');
+      // Check if the OTP matches the test OTP
+      const testOtp = config.TESTING.DEFAULT_TEST_OTP || '1234';
+      
+      if (otp === testOtp) {
+        // Return a mock successful response
+        return {
+          data: {
+            message: 'OTP verified successfully (simulated for test number)',
+            verified: true
+          }
+        };
+      } else {
+        // Simulate an invalid OTP error
+        throw {
+          response: {
+            data: {
+              error: 'Invalid OTP',
+              message: 'The OTP entered does not match the expected test OTP'
+            }
+          }
+        };
+      }
+    }
+
+    // For real phone numbers, proceed with the actual API call
     const response = await api.post('/auth/branch/verify-otp', {
       phoneNumber,
       otp,
