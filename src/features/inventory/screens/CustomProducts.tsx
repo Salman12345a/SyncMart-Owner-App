@@ -122,7 +122,9 @@ const CustomProducts = () => {
           productId,
           uploadUrl: uploadUrlResponse.uploadUrl,
           key: uploadUrlResponse.key,
-          branchId
+          branchId,
+          categoryId,
+          categoryName
         });
       } catch (err: any) {
         // Check if the error is about duplicate product name
@@ -152,7 +154,9 @@ const CustomProducts = () => {
             productId,
             uploadUrl: uploadUrlResponse.uploadUrl,
             key: uploadUrlResponse.key,
-            branchId
+            branchId,
+            categoryId,
+            categoryName
           });
         } else {
           // If it's a different error, rethrow it

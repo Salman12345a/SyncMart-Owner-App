@@ -63,7 +63,7 @@ export type RootStackParamList = {
   ProductsScreen: { categoryId: string; categoryName: string; isDefault: boolean; refresh?: boolean; refreshTimestamp?: number; defaultCategoryId?: string };
   SelectDefaultProducts: { categoryId: string; categoryName: string; defaultCategoryId?: string };
   CustomProducts: { categoryId: string; categoryName: string; isCustom: boolean };
-  UploadProductImage: { productId: string; uploadUrl: string; key: string; branchId: string };
+  UploadProductImage: { productId: string; uploadUrl: string; key: string; branchId: string; categoryId: string; categoryName: string };
   EditProductDetails: { productId: string; categoryId: string; categoryName: string };
 };
 

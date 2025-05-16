@@ -122,10 +122,13 @@ const UploadProductImage = () => {
           {
             text: 'OK',
             onPress: () => {
-              // Navigate back to inventory display with refresh flag
-              navigation.navigate('InventoryItemDisplay', {
+              // First navigate back to ProductsScreen with refresh flag
+              navigation.navigate('ProductsScreen', {
+                categoryId: route.params.categoryId,
+                categoryName: route.params.categoryName,
+                isDefault: false, // Custom products are in the custom tab
                 refresh: true,
-                refreshTimestamp: Date.now(),
+                refreshTimestamp: Date.now()
               });
             },
           },

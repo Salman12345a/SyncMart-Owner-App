@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator
 import { Tab, TabView } from '@rneui/themed';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import useInventoryStore from '../../../store/inventoryStore';
-import { Product } from '../../../services/inventoryService';
+import { Product, Category } from '../../../services/inventoryService';
 import inventoryService from '../../../services/inventoryService';
 import CustomHeader from '../../../components/ui/CustomHeader';
 import CustomButton from '../../../components/ui/CustomButton';
@@ -37,37 +37,77 @@ const ProductsScreen = () => {
   
   // Get params from route
   const { categoryId, categoryName, isDefault, refresh, refreshTimestamp, defaultCategoryId } = route.params;
+  
+  // Determine if this is a custom category directly from the route params
+  // If defaultCategoryId exists, it's an imported category (not custom)
+  // Otherwise, if isDefault is false, it's a custom category
+  const isCustomCategory = !defaultCategoryId && !isDefault;
+  
+  console.log(`Category ${categoryName} is ${isCustomCategory ? 'custom' : 'default/imported'}`);
+  console.log(`defaultCategoryId: ${defaultCategoryId}, isDefault: ${isDefault}`);
 
-  // Effect to handle initial load and refreshes
-  useEffect(() => {
-    if (categoryId && branchId) {
-      // Initial tab selection based on isDefault parameter
-      if (isDefault) {
-        setActiveProductTab('default');
-      } else {
-        setActiveProductTab('custom');
-      }
-      
+  // Function to fetch all products for the category
+  const fetchAllProducts = async () => {
+    if (!categoryId || !branchId) return;
+    
+    try {
       console.log('Fetching products for category:', categoryId);
       
-      // Fetch both types of products for this category
-      const fetchAllProducts = async () => {
-        try {
-          // First fetch default products (from template)
-          await fetchBranchCategoryProducts(branchId, categoryId);
-          console.log('Default products fetched successfully');
-          
-          // Then fetch custom products (created by branch)
-          await fetchCustomProducts(branchId, categoryId);
-          console.log('Custom products fetched successfully');
-        } catch (err) {
-          console.error('Error fetching products:', err);
+      if (isCustomCategory) {
+        // For custom categories, only fetch custom products
+        console.log('Custom category - only fetching custom products');
+        await fetchCustomProducts(branchId, categoryId);
+        console.log('Custom products fetched successfully');
+      } else {
+        // For default categories, fetch both default and custom products
+        // First fetch default products (from template)
+        await fetchBranchCategoryProducts(branchId, categoryId);
+        console.log('Default products fetched successfully');
+        
+        // Then fetch custom products (created by branch)
+        await fetchCustomProducts(branchId, categoryId);
+        console.log('Custom products fetched successfully');
+      }
+    } catch (err) {
+      console.error('Error fetching products:', err);
+    }
+  };
+
+  // Effect to handle initial load
+  useEffect(() => {
+    if (categoryId && branchId) {
+      // For custom categories, automatically set the active tab to 'custom'
+      if (isCustomCategory) {
+        setActiveProductTab('custom');
+        setProductIndex(1);
+      } else {
+        // For non-custom categories, handle initial tab selection based on isDefault parameter
+        if (isDefault) {
+          setActiveProductTab('default');
+          setProductIndex(0);
+        } else {
+          setActiveProductTab('custom');
+          setProductIndex(1);
         }
-      };
+      }
       
       fetchAllProducts();
     }
-  }, [categoryId, isDefault, branchId, fetchBranchCategoryProducts, fetchCustomProducts, setActiveProductTab, refreshTimestamp]);
+  }, [categoryId, isDefault, branchId, isCustomCategory]);
+  
+  // Effect to handle refreshes
+  useEffect(() => {
+    if (refresh && refreshTimestamp && categoryId && branchId) {
+      console.log('Refreshing products due to navigation parameter with timestamp:', refreshTimestamp);
+      fetchAllProducts();
+      
+      // If not custom category and not default, ensure we're on the custom tab
+      if (!isCustomCategory && !isDefault) {
+        setProductIndex(1); // Switch to custom tab
+        setActiveProductTab('custom');
+      }
+    }
+  }, [refresh, refreshTimestamp, isCustomCategory]);
 
   // Clear selections when component mounts or category changes
   useEffect(() => {
@@ -226,29 +266,40 @@ const ProductsScreen = () => {
 
   // Get products based on the active tab and filter by createdFromTemplate flag
   const getProductsForTab = () => {
-    // For default tab, use only the default store
-    // For custom tab, use only the custom store
-    // This ensures proper separation of products
+    // For custom categories, always return custom products
+    if (isCustomCategory) {
+      if (products.custom.loading || products.custom.error) {
+        return [];
+      }
+      
+      const customItems = products.custom.items[categoryId] || [];
+      const filteredProducts = customItems.filter(
+        (product: Product) => product.createdFromTemplate === false
+      );
+      
+      return filteredProducts;
+    }
     
+    // For regular categories, handle based on active tab
     if (products.activeTab === 'default') {
-      // Default tab: Get products only from default store
-      const defaultProducts = products.default.items[categoryId] || [];
-      console.log(`Default store has ${defaultProducts.length} products`);
+      if (products.default.loading || products.default.error) {
+        return [];
+      }
       
-      // Filter to ensure only products with createdFromTemplate = true are shown
-      const filteredProducts = defaultProducts.filter(product => {
-        return product.createdFromTemplate === true;
-      });
+      const defaultItems = products.default.items[categoryId] || [];
+      const filteredProducts = defaultItems.filter(
+        (product: Product) => product.createdFromTemplate === true
+      );
       
-      console.log(`Filtered ${filteredProducts.length} products for DEFAULT tab`);
       return filteredProducts;
     } else {
-      // Custom tab: Get products only from custom store
-      const customProducts = products.custom.items[categoryId] || [];
-      console.log(`Custom store has ${customProducts.length} products`);
+      if (products.custom.loading || products.custom.error) {
+        return [];
+      }
       
       // Filter to ensure only products with createdFromTemplate = false are shown
-      const filteredProducts = customProducts.filter(product => {
+      const customItems = products.custom.items[categoryId] || [];
+      const filteredProducts = customItems.filter((product: Product) => {
         return product.createdFromTemplate === false;
       });
       
@@ -266,115 +317,163 @@ const ProductsScreen = () => {
       <CustomHeader title={`${categoryName} Products`} />
       
       <View style={styles.container}>
-        <Tab
-          value={productIndex}
-          onChange={(index) => {
-            setProductIndex(index);
-            setActiveProductTab(index === 0 ? 'default' : 'custom');
-          }}
-          indicatorStyle={styles.tabIndicator}
-        >
-          <Tab.Item
-            title="Default"
-            titleStyle={styles.tabTitle}
-          />
-          <Tab.Item
-            title="Custom"
-            titleStyle={styles.tabTitle}
-          />
-        </Tab>
+        {isCustomCategory ? (
+          // For custom categories, only show custom products without tabs
+          <View style={styles.tabContentContainer}>
+            {products.custom.loading ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color="#007AFF" />
+                <Text style={styles.loadingText}>Loading custom products...</Text>
+              </View>
+            ) : products.custom.error ? (
+              <Text style={styles.errorText}>{products.custom.error}</Text>
+            ) : (
+              <>
+                {selectedCategoryProducts.length === 0 ? (
+                  <View style={styles.emptyState}>
+                    <Text style={styles.emptyStateText}>No custom products added yet</Text>
+                    <View style={styles.buttonContainer}>
+                      <CustomButton
+                        title="Create New Product"
+                        onPress={navigateToCreateProduct}
+                      />
+                    </View>
+                  </View>
+                ) : (
+                  <>
+                    <FlatList
+                      data={selectedCategoryProducts}
+                      renderItem={renderProductItem}
+                      keyExtractor={(item) => item._id}
+                      numColumns={2}
+                      columnWrapperStyle={styles.gridRow}
+                      contentContainerStyle={styles.gridContainer}
+                    />
+                    <View style={styles.buttonContainer}>
+                      <CustomButton
+                        title="Create New Product"
+                        onPress={navigateToCreateProduct}
+                      />
+                    </View>
+                  </>
+                )}
+              </>
+            )}
+          </View>
+        ) : (
+          // For regular categories (default/imported), show tabs with both default and custom products
+          <>
+            <Tab
+              value={productIndex}
+              onChange={(index) => {
+                setProductIndex(index);
+                setActiveProductTab(index === 0 ? 'default' : 'custom');
+              }}
+              indicatorStyle={styles.tabIndicator}
+            >
+              <Tab.Item
+                title="Default"
+                titleStyle={styles.tabTitle}
+              />
+              <Tab.Item
+                title="Custom"
+                titleStyle={styles.tabTitle}
+              />
+            </Tab>
 
-        <TabView value={productIndex} onChange={setProductIndex} animationType="spring">
-          {/* Default Products Tab */}
-          <TabView.Item style={styles.tabContent}>
-            <View style={styles.tabContentContainer}>
-              {products.default.loading ? (
-                <View style={styles.loadingContainer}>
-                  <ActivityIndicator size="large" color="#007AFF" />
-                  <Text style={styles.loadingText}>Loading default products...</Text>
-                </View>
-              ) : products.default.error ? (
-                <Text style={styles.errorText}>{products.default.error}</Text>
-              ) : (
-                <>
-                  {selectedCategoryProducts.length === 0 ? (
-                    <View style={styles.emptyState}>
-                      <Text style={styles.emptyStateText}>No products imported for this category yet</Text>
-                      <View style={styles.buttonContainer}>
-                        <CustomButton
-                          title="Import New Products"
-                          onPress={navigateToSelectDefaultProducts}
-                        />
-                      </View>
+            <TabView value={productIndex} onChange={setProductIndex} animationType="spring">
+              {/* Default Products Tab */}
+              <TabView.Item style={styles.tabContent}>
+                <View style={styles.tabContentContainer}>
+                  {products.default.loading ? (
+                    <View style={styles.loadingContainer}>
+                      <ActivityIndicator size="large" color="#007AFF" />
+                      <Text style={styles.loadingText}>Loading default products...</Text>
                     </View>
+                  ) : products.default.error ? (
+                    <Text style={styles.errorText}>{products.default.error}</Text>
                   ) : (
                     <>
-                      <FlatList
-                        data={selectedCategoryProducts}
-                        renderItem={renderProductItem}
-                        keyExtractor={(item) => item._id}
-                        numColumns={2}
-                        columnWrapperStyle={styles.gridRow}
-                        contentContainerStyle={styles.gridContainer}
-                      />
-                      <View style={styles.buttonContainer}>
-                        <CustomButton
-                          title="Import New Products"
-                          onPress={navigateToSelectDefaultProducts}
-                        />
-                      </View>
+                      {selectedCategoryProducts.length === 0 ? (
+                        <View style={styles.emptyState}>
+                          <Text style={styles.emptyStateText}>No products imported for this category yet</Text>
+                          <View style={styles.buttonContainer}>
+                            <CustomButton
+                              title="Import New Products"
+                              onPress={navigateToSelectDefaultProducts}
+                            />
+                          </View>
+                        </View>
+                      ) : (
+                        <>
+                          <FlatList
+                            data={selectedCategoryProducts}
+                            renderItem={renderProductItem}
+                            keyExtractor={(item) => item._id}
+                            numColumns={2}
+                            columnWrapperStyle={styles.gridRow}
+                            contentContainerStyle={styles.gridContainer}
+                          />
+                          <View style={styles.buttonContainer}>
+                            <CustomButton
+                              title="Import New Products"
+                              onPress={navigateToSelectDefaultProducts}
+                            />
+                          </View>
+                        </>
+                      )}
                     </>
                   )}
-                </>
-              )}
-            </View>
-          </TabView.Item>
-          
-          {/* Custom Products Tab */}
-          <TabView.Item style={styles.tabContent}>
-            <View style={styles.tabContentContainer}>
-              {products.custom.loading ? (
-                <View style={styles.loadingContainer}>
-                  <ActivityIndicator size="large" color="#007AFF" />
-                  <Text style={styles.loadingText}>Loading custom products...</Text>
                 </View>
-              ) : products.custom.error ? (
-                <Text style={styles.errorText}>{products.custom.error}</Text>
-              ) : (
-                <>
-                  {selectedCategoryProducts.length === 0 ? (
-                    <View style={styles.emptyState}>
-                      <Text style={styles.emptyStateText}>No custom products added yet</Text>
-                      <View style={styles.buttonContainer}>
-                        <CustomButton
-                          title="Create New Product"
-                          onPress={navigateToCreateProduct}
-                        />
-                      </View>
+              </TabView.Item>
+              
+              {/* Custom Products Tab */}
+              <TabView.Item style={styles.tabContent}>
+                <View style={styles.tabContentContainer}>
+                  {products.custom.loading ? (
+                    <View style={styles.loadingContainer}>
+                      <ActivityIndicator size="large" color="#007AFF" />
+                      <Text style={styles.loadingText}>Loading custom products...</Text>
                     </View>
+                  ) : products.custom.error ? (
+                    <Text style={styles.errorText}>{products.custom.error}</Text>
                   ) : (
                     <>
-                      <FlatList
-                        data={selectedCategoryProducts}
-                        renderItem={renderProductItem}
-                        keyExtractor={(item) => item._id}
-                        numColumns={2}
-                        columnWrapperStyle={styles.gridRow}
-                        contentContainerStyle={styles.gridContainer}
-                      />
-                      <View style={styles.buttonContainer}>
-                        <CustomButton
-                          title="Create New Product"
-                          onPress={navigateToCreateProduct}
-                        />
-                      </View>
+                      {selectedCategoryProducts.length === 0 ? (
+                        <View style={styles.emptyState}>
+                          <Text style={styles.emptyStateText}>No custom products added yet</Text>
+                          <View style={styles.buttonContainer}>
+                            <CustomButton
+                              title="Create New Product"
+                              onPress={navigateToCreateProduct}
+                            />
+                          </View>
+                        </View>
+                      ) : (
+                        <>
+                          <FlatList
+                            data={selectedCategoryProducts}
+                            renderItem={renderProductItem}
+                            keyExtractor={(item) => item._id}
+                            numColumns={2}
+                            columnWrapperStyle={styles.gridRow}
+                            contentContainerStyle={styles.gridContainer}
+                          />
+                          <View style={styles.buttonContainer}>
+                            <CustomButton
+                              title="Create New Product"
+                              onPress={navigateToCreateProduct}
+                            />
+                          </View>
+                        </>
+                      )}
                     </>
                   )}
-                </>
-              )}
-            </View>
-          </TabView.Item>
-        </TabView>
+                </View>
+              </TabView.Item>
+            </TabView>
+          </>
+        )}
       </View>
     </View>
   );
