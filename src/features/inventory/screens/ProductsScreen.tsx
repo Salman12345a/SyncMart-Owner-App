@@ -1,9 +1,10 @@
-import React, { useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, FlatList, Image, Dimensions } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, FlatList, Image, Dimensions, Alert } from 'react-native';
 import { Tab, TabView } from '@rneui/themed';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import useInventoryStore from '../../../store/inventoryStore';
 import { Product } from '../../../services/inventoryService';
+import inventoryService from '../../../services/inventoryService';
 import CustomHeader from '../../../components/ui/CustomHeader';
 import CustomButton from '../../../components/ui/CustomButton';
 import { useRoute } from '@react-navigation/native';
@@ -100,6 +101,47 @@ const ProductsScreen = () => {
       categoryName
     });
   };
+  
+  // Function to handle removing a product
+  const handleRemoveProduct = (productId: string, productName: string) => {
+    Alert.alert(
+      'Remove Product',
+      `Are you sure you want to remove ${productName}?`,
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Yes',
+          onPress: async () => {
+            try {
+              if (!branchId) {
+                ToastAndroid.show('Branch ID not found', ToastAndroid.SHORT);
+                return;
+              }
+              
+              // Show loading indicator or disable interaction here if needed
+              
+              // Call API to remove the product
+              const result = await inventoryService.removeImportedProducts(branchId, [productId]);
+              
+              // Show success message
+              ToastAndroid.show('Product removed successfully', ToastAndroid.SHORT);
+              
+              // Refresh the product list
+              fetchBranchCategoryProducts(branchId, categoryId);
+            } catch (error: any) {
+              console.error('Error removing product:', error);
+              ToastAndroid.show(error?.message || 'Failed to remove product', ToastAndroid.LONG);
+            }
+          },
+          style: 'destructive',
+        },
+      ],
+      { cancelable: true }
+    );
+  };
 
   // Product card component for grid layout
   const renderProductItem = ({ item: product }: { item: Product }) => {
@@ -147,13 +189,23 @@ const ProductsScreen = () => {
           <Text style={styles.itemDescription} numberOfLines={2}>{product.description || 'No description'}</Text>
         </View>
         
-        {/* Show edit icon for all products (both default and custom) */}
+        {/* Edit icon container */}
         <TouchableOpacity 
           style={styles.editButton} 
           onPress={() => navigateToEditProduct(product._id)}
         >
           <Icon name="edit" size={16} color="#ffffff" />
         </TouchableOpacity>
+        
+        {/* Show delete icon only for default (imported) products - at bottom right */}
+        {products.activeTab === 'default' && product.createdFromTemplate && (
+          <TouchableOpacity 
+            style={styles.deleteButton} 
+            onPress={() => handleRemoveProduct(product._id, product.name)}
+          >
+            <Icon name="delete" size={20} color="#DC3545" />
+          </TouchableOpacity>
+        )}
         
         {/* Custom product indicator (hidden but kept as flag) */}
         {!product.createdFromTemplate && (
@@ -490,6 +542,15 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 2,
+  },
+  deleteButton: {
+    position: 'absolute',
+    bottom: 5,
+    right: 5,
+    padding: 5,
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 2,

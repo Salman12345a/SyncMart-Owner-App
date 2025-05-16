@@ -120,26 +120,18 @@ export const inventoryService = {
     }
   },
 
-  // Get branch-specific products for a category (imported products)
+  // Get branch-specific products for a category (both default and custom)
   getBranchCategoryProducts: async (branchId: string, categoryId: string) => {
     try {
-      console.log(`Fetching branch category products for branch ${branchId} and category ${categoryId}`);
+      console.log(`Fetching all category products for branch ${branchId} and category ${categoryId}`);
       const response = await api.get(`/branch/${branchId}/categories/${categoryId}/products`);
       
-      // Filter to only include products that are created from template
-      const defaultProducts = response.data.filter((product: Product) => 
-        product.createdFromTemplate === true
-      );
+      console.log(`Found ${response.data.length} total products in category`);
       
-      console.log(`Found ${defaultProducts.length} default products out of ${response.data.length} total`);
-      
-      // Return products, ensuring createdFromTemplate is explicitly set to true
-      return defaultProducts.map((product: Product) => ({
-        ...product,
-        createdFromTemplate: true
-      }));
+      // Return all products (both default and custom)
+      return response.data;
     } catch (error) {
-      console.error('Error fetching branch category products:', error);
+      console.error('Error fetching category products:', error);
       throw error;
     }
   },
@@ -250,6 +242,29 @@ export const inventoryService = {
       return true;
     } catch (error) {
       console.error('Error in uploadImageToPresignedUrl:', error);
+      throw error;
+    }
+  },
+
+  // Remove imported default products
+  removeImportedProducts: async (branchId: string, productIds: string[], reason?: string) => {
+    try {
+      console.log(`Removing imported products for branch ${branchId}, products: ${productIds.join(', ')}`);
+      
+      const payload: { productIds: string[], reason?: string } = {
+        productIds
+      };
+      
+      // Add reason if provided
+      if (reason && reason.trim()) {
+        payload.reason = reason.trim();
+      }
+      
+      const response = await api.put(`/branch/${branchId}/products/remove-imported`, payload);
+      console.log('Remove products response:', response.data);
+      return response.data;
+    } catch (error: any) {
+      console.error('Error removing imported products:', error.response?.data || error.message);
       throw error;
     }
   },

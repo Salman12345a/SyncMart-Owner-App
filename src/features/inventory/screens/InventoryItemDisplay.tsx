@@ -35,6 +35,9 @@ const InventoryItemDisplay = () => {
   // New state for custom categories deletion mode
   const [customDeletionMode, setCustomDeletionMode] = React.useState(false);
   const [deletingCustomCategories, setDeletingCustomCategories] = React.useState(false);
+  // Map to cache categories with products
+  const [categoriesWithProducts, setCategoriesWithProducts] = React.useState<Record<string, boolean>>({});
+  const [checkingProducts, setCheckingProducts] = React.useState(false);
 
   // Get branchId from MMKV storage (userId)
   const branchId = storage.getString('userId');
@@ -59,6 +62,13 @@ const InventoryItemDisplay = () => {
       fetchBranchCategories(branchId);
     }
   }, [branchId, fetchBranchCategories]);
+  
+  // Reset the product cache when exiting selection or deletion mode
+  useEffect(() => {
+    if (!selectionMode && !customDeletionMode) {
+      setCategoriesWithProducts({});
+    }
+  }, [selectionMode, customDeletionMode]);
 
   const handleAddInventory = () => {
     navigation.navigate('DefaultCategories');
@@ -75,39 +85,55 @@ const InventoryItemDisplay = () => {
     });
   };
 
-  const handleRemoveSelectedCategories = async () => {
+  const handleRemoveSelectedCategories = () => {
     if (!branchId || selectedCategories.length === 0) return;
     
-    setIsRemoving(true);
-    try {
-      console.log('Removing categories with IDs:', selectedCategories);
-      
-      // Use the api service which handles the base URL, authentication, and error handling
-      // The endpoint path matches what was shown in the screenshot
-      const response = await api.put(`/branch/${branchId}/categories/remove-imported`, {
-        categoryIds: selectedCategories
-      });
-      
-      console.log('Response data:', response.data);
-      
-      // Show success message
-      ToastAndroid.show('Categories removed successfully', ToastAndroid.SHORT);
-      
-      // Reset selection mode and refresh categories
-      setSelectionMode(false);
-      setSelectedCategories([]);
-      fetchBranchCategories(branchId);
-    } catch (error) {
-      console.error('Error removing categories:', error);
-      // More detailed error message
-      if (error instanceof Error) {
-        ToastAndroid.show(`Error: ${error.message}`, ToastAndroid.LONG);
-      } else {
-        ToastAndroid.show('Failed to remove categories', ToastAndroid.LONG);
-      }
-    } finally {
-      setIsRemoving(false);
-    }
+    // Show confirmation dialog
+    Alert.alert(
+      'Remove Categories',
+      'Are you sure you want to remove these selected categories?',
+      [
+        {
+          text: 'No',
+          style: 'cancel'
+        },
+        {
+          text: 'Yes',
+          onPress: async () => {
+            setIsRemoving(true);
+            try {
+              console.log('Removing categories with IDs:', selectedCategories);
+              
+              // Use the api service which handles the base URL, authentication, and error handling
+              // The endpoint path matches what was shown in the screenshot
+              const response = await api.put(`/branch/${branchId}/categories/remove-imported`, {
+                categoryIds: selectedCategories
+              });
+              
+              console.log('Response data:', response.data);
+              
+              // Show success message
+              ToastAndroid.show('Categories removed successfully', ToastAndroid.SHORT);
+              
+              // Reset selection mode and refresh categories
+              setSelectionMode(false);
+              setSelectedCategories([]);
+              fetchBranchCategories(branchId);
+            } catch (error) {
+              console.error('Error removing categories:', error);
+              // More detailed error message
+              if (error instanceof Error) {
+                ToastAndroid.show(`Error: ${error.message}`, ToastAndroid.LONG);
+              } else {
+                ToastAndroid.show('Failed to remove categories', ToastAndroid.LONG);
+              }
+            } finally {
+              setIsRemoving(false);
+            }
+          }
+        }
+      ]
+    );
   };
 
   // Handle custom category deletion
@@ -155,12 +181,63 @@ const InventoryItemDisplay = () => {
     );
   };
 
-  const toggleCategorySelection = (categoryId: string) => {
+  // Check if a category has products before allowing selection
+  const checkCategoryForProducts = async (categoryId: string) => {
+    if (!branchId) return false;
+    
+    // If we already checked this category, use cached result
+    if (categoriesWithProducts[categoryId] !== undefined) {
+      return categoriesWithProducts[categoryId];
+    }
+    
+    setCheckingProducts(true);
+    try {
+      // Fetch both types of products for this category
+      const products = await inventoryService.getBranchCategoryProducts(branchId, categoryId);
+      const hasProducts = products.length > 0;
+      
+      // Cache the result
+      setCategoriesWithProducts(prev => ({
+        ...prev,
+        [categoryId]: hasProducts
+      }));
+      
+      return hasProducts;
+    } catch (error) {
+      console.error('Error checking category products:', error);
+      // If there's an error, we assume there are no products
+      return false;
+    } finally {
+      setCheckingProducts(false);
+    }
+  };
+
+  const toggleCategorySelection = async (categoryId: string) => {
+    // If we're deselecting, always allow it
     if (selectedCategories.includes(categoryId)) {
       setSelectedCategories(selectedCategories.filter(id => id !== categoryId));
-    } else {
-      setSelectedCategories([...selectedCategories, categoryId]);
+      return;
     }
+    
+    // Check for products in both default and custom categories
+    // when in their respective deletion modes
+    if ((selectionMode && categories.activeTab === 'default') || customDeletionMode) {
+      const hasProducts = await checkCategoryForProducts(categoryId);
+      
+      if (hasProducts) {
+        // Show alert that category has products
+        Alert.alert(
+          customDeletionMode ? 'Cannot Delete Category' : 'Cannot Remove Category',
+          'This category contains products. You must delete all products in this category before ' + 
+          (customDeletionMode ? 'deleting' : 'removing') + ' it.',
+          [{ text: 'Got it', style: 'default' }]
+        );
+        return;
+      }
+    }
+    
+    // If no products or not in selection/deletion mode, allow selection
+    setSelectedCategories([...selectedCategories, categoryId]);
   };
 
   // Toggle custom category deletion mode
@@ -190,6 +267,9 @@ const InventoryItemDisplay = () => {
           <View style={styles.checkboxContainer}>
             <View style={[styles.checkbox, isSelected && styles.checkboxSelected]}>
               {isSelected && <Text style={styles.checkmark}>✓</Text>}
+              {checkingProducts && category._id === selectedCategories[selectedCategories.length - 1] && (
+                <ActivityIndicator size="small" color="#007AFF" style={styles.smallLoader} />
+              )}
             </View>
           </View>
         )}
@@ -530,6 +610,11 @@ const styles = StyleSheet.create({
     color: '#333',
     marginBottom: 16,
     marginLeft: 4,
+  },
+  smallLoader: {
+    position: 'absolute',
+    right: -10,
+    top: -10,
   },
 });
 
