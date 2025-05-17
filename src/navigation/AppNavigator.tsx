@@ -26,6 +26,7 @@ import UploadProductImage from '../features/inventory/screens/UploadProductImage
 import EditProductDetails from '../features/inventory/screens/EditProductDetails';
 // Financial screens
 import Financial from '../features/financial/screens/FinancialSummaryScreen';
+import PaymentGatewayScreen from '../features/financial/screens/PaymentGatewayScreen';
 // Delivery screens
 import DeliveryService from '../features/delivery/screens/DeliveryService';
 import DeliveryPartnerAuth from '../features/delivery/screens/DeliveryPartnerAuth';
@@ -59,6 +60,10 @@ export type RootStackParamList = {
   UserDetails: undefined;
   Order: undefined;
   Finance: undefined;
+  PaymentGateway: {
+    paymentAmount: number;
+    branchId: string;
+  };
   DeliveryService: undefined;
   OrderDetail: {order: Order; fromPackedTab?: boolean};
   AssignDeliveryPartner: {order: Order};
@@ -255,6 +260,7 @@ const AppNavigator: React.FC = () => (
 
     {/* Financial screens */}
     <Stack.Screen name="Finance" component={Financial} />
+    <Stack.Screen name="PaymentGateway" component={PaymentGatewayScreen} options={{ headerShown: false }} />
 
     {/* Order screens */}
     <Stack.Screen name="Order" component={Order} />

@@ -11,7 +11,7 @@ import {
   Modal,
   TextInput,
 } from 'react-native';
-import {useFocusEffect} from '@react-navigation/native';
+import {useFocusEffect, useNavigation} from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import {
   fetchWalletBalance,
@@ -38,6 +38,7 @@ const formatDate = (dateString: string) => {
 };
 
 const WalletScreen = () => {
+  const navigation = useNavigation();
   const {
     walletBalance,
     walletTransactions,
@@ -51,8 +52,6 @@ const WalletScreen = () => {
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [paymentModalVisible, setPaymentModalVisible] = useState(false);
-  const [paymentAmount, setPaymentAmount] = useState('');
   const [activeTab, setActiveTab] = useState<'transactions' | 'payments'>(
     'transactions',
   );
@@ -125,42 +124,13 @@ const WalletScreen = () => {
     fetchWalletData();
   };
 
-  // Payment submission handler
-  const handlePaymentSubmit = async () => {
-    if (!paymentAmount || parseFloat(paymentAmount) <= 0) {
-      Alert.alert('Error', 'Please enter a valid amount');
-      return;
-    }
-
-    try {
-      setLoading(true);
-      const response = await makeWalletPayment(parseFloat(paymentAmount));
-
-      // Create payment object
-      const payment: WalletPayment = {
-        _id: Date.now().toString(),
-        amount: parseFloat(paymentAmount),
-        timestamp: new Date().toISOString(),
-        status: 'completed',
-      };
-      addWalletPayment(payment);
-
-      // Update balance
-      setWalletBalance(response.newBalance);
-      storage.set('walletBalance', response.newBalance);
-
-      setPaymentModalVisible(false);
-      setPaymentAmount('');
-      Alert.alert('Success', 'Payment submitted successfully');
-    } catch (error: any) {
-      const message =
-        error.response?.data?.error ||
-        error.message ||
-        'Failed to submit payment';
-      Alert.alert('Error', message);
-    } finally {
-      setLoading(false);
-    }
+  // Direct navigation to payment gateway with current wallet balance
+  const navigateToPaymentGateway = () => {
+    // Navigate to payment gateway with current wallet balance and branch ID
+    navigation.navigate('PaymentGateway' as never, {
+      paymentAmount: Math.abs(walletBalance), // Use absolute value of current balance
+      branchId: storage.getString('branchId') || '',
+    } as never);
   };
 
   // Initialize cached balance and fetch data
@@ -255,7 +225,7 @@ const WalletScreen = () => {
         </View>
         <TouchableOpacity
           style={styles.payButton}
-          onPress={() => setPaymentModalVisible(true)}>
+          onPress={navigateToPaymentGateway}>
           <Text style={styles.payButtonText}>Pay Now</Text>
         </TouchableOpacity>
       </View>
@@ -331,39 +301,6 @@ const WalletScreen = () => {
           contentContainerStyle={styles.listContentContainer}
         />
       )}
-
-      {/* Payment Modal */}
-      <Modal
-        animationType="slide"
-        transparent={true}
-        visible={paymentModalVisible}
-        onRequestClose={() => setPaymentModalVisible(false)}>
-        <View style={styles.modalContainer}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Make Payment</Text>
-              <TouchableOpacity onPress={() => setPaymentModalVisible(false)}>
-                <Icon name="close" size={24} color="#333" />
-              </TouchableOpacity>
-            </View>
-
-            <Text style={styles.inputLabel}>Amount</Text>
-            <TextInput
-              style={styles.input}
-              value={paymentAmount}
-              onChangeText={setPaymentAmount}
-              placeholder="Enter amount"
-              keyboardType="numeric"
-            />
-
-            <TouchableOpacity
-              style={styles.submitButton}
-              onPress={handlePaymentSubmit}>
-              <Text style={styles.submitButtonText}>Submit Payment</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
     </View>
   );
 };
