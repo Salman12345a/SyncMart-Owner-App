@@ -46,6 +46,7 @@ interface InventoryState {
   toggleProductSelection: (productId: string, categoryId: string) => void;
   importSelectedProducts: (branchId: string, categoryId: string) => Promise<void>;
   clearProductSelections: (categoryId: string) => void;
+  deleteCustomProducts: (branchId: string, productIds: string[], categoryId: string) => Promise<void>;
 }
 
 const useInventoryStore = create<InventoryState>()((set, get) => ({
@@ -330,6 +331,69 @@ const useInventoryStore = create<InventoryState>()((set, get) => ({
         }
       }
     })),
+    
+  // Custom products deletion function
+  deleteCustomProducts: async (branchId: string, productIds: string[], categoryId: string) => {
+    if (productIds.length === 0) {
+      throw new Error('No products selected for deletion');
+    }
+
+    set((state) => ({
+      products: {
+        ...state.products,
+        custom: { ...state.products.custom, loading: true, error: null }
+      }
+    }));
+
+    try {
+      // Call the service method to delete the custom products
+      await inventoryService.deleteCustomProducts(branchId, productIds);
+      
+      // After successful deletion, refresh the product list by removing deleted products
+      set((state) => {
+        // If we have products for this category, filter out the deleted ones
+        const currentCategoryProducts = state.products.custom.items[categoryId] || [];
+        const updatedProducts = currentCategoryProducts.filter(
+          product => !productIds.includes(product._id)
+        );
+        
+        return {
+          products: {
+            ...state.products,
+            custom: {
+              ...state.products.custom,
+              items: {
+                ...state.products.custom.items,
+                [categoryId]: updatedProducts
+              },
+              // Clear selections for this category
+              selected: {
+                ...state.products.custom.selected,
+                [categoryId]: []
+              },
+              loading: false
+            }
+          }
+        };
+      });
+      
+      // Return success
+      return;
+    } catch (err: any) {
+      const error = err?.message || 'Failed to delete custom products';
+      set((state) => ({
+        products: {
+          ...state.products,
+          custom: {
+            ...state.products.custom,
+            error,
+            loading: false
+          }
+        }
+      }));
+      throw error;
+    }
+  },
 }));
 
-export default useInventoryStore; 
+export default useInventoryStore;

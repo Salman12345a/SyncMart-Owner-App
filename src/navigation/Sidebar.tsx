@@ -8,6 +8,7 @@ import HelpScreen from '../features/common/screens/HelpScreen';
 import OrderHistory from '../features/orders/screens/OrderHistory';
 import PrivacyPolicyScreen from '../features/common/screens/PrivacyPolicyScreen';
 import TermsConditionsScreen from '../features/common/screens/TermsConditionsScreen';
+import DeliveryService from '../features/delivery/screens/DeliveryService';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import CustomDrawerContent from '../components/navigation/CustomDrawerContent';
 
@@ -17,6 +18,7 @@ export type DrawerParamList = {
   StoreManagement: undefined;
   Help: undefined;
   OrderHistory: undefined;
+  DeliveryService: undefined;
   PrivacyPolicy: undefined;
   TermsConditions: undefined;
   Authentication: undefined;
@@ -94,6 +96,17 @@ const Sidebar: React.FC = () => {
           title: 'Order History',
           drawerIcon: ({color}) => (
             <Icon name="history" size={24} color={color} />
+          ),
+        }}
+      />
+      <Drawer.Screen
+        name="DeliveryService"
+        component={DeliveryService}
+        options={{
+          headerShown: false,
+          title: 'Delivery Service',
+          drawerIcon: ({color}) => (
+            <Icon name="local-shipping" size={24} color={color} />
           ),
         }}
       />

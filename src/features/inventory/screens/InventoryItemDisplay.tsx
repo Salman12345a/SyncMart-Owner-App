@@ -331,7 +331,7 @@ const InventoryItemDisplay = () => {
                   {defaultCategories.length === 0 ? (
                     <View style={styles.emptyState}>
                       <Text style={styles.emptyStateText}>No default categories added yet</Text>
-                      <CustomButton title="Add Inventory" onPress={handleAddInventory} />
+                      <CustomButton title="Import Category" onPress={handleAddInventory} />
                     </View>
                   ) : (
                     <>
@@ -366,7 +366,7 @@ const InventoryItemDisplay = () => {
                         </View>
                       ) : (
                         <View style={styles.addButtonContainer}>
-                          <CustomButton title="Add Inventory" onPress={handleAddInventory} />
+                          <CustomButton title="Import Category" onPress={handleAddInventory} />
                         </View>
                       )}
                     </>
@@ -567,6 +567,8 @@ const styles = StyleSheet.create({
   },
   addButtonContainer: {
     marginTop: 16,
+    marginBottom: 20, // Added bottom margin for spacing
+    paddingBottom: 10, // Extra padding at the bottom
   },
   emptyState: {
     flex: 1,

@@ -1,9 +1,8 @@
 import React from 'react';
-import {View, Text, StyleSheet} from 'react-native';
+import {View, StyleSheet} from 'react-native';
 import {DrawerNavigationProp} from '@react-navigation/drawer';
 import {DrawerParamList} from '../../navigation/Sidebar';
-
-import BottomTabNavigator from '../../navigation/BottomTabNavigator';
+import InventoryItemDisplay from '../../features/inventory/screens/InventoryItemDisplay';
 
 type InventoryScreenNavigationProp = DrawerNavigationProp<DrawerParamList>;
 
@@ -16,7 +15,7 @@ const InventoryManagementScreen: React.FC<InventoryScreenProps> = ({
 }) => {
   return (
     <View style={styles.container}>
-      <BottomTabNavigator />
+      <InventoryItemDisplay />
     </View>
   );
 };

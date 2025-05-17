@@ -6,7 +6,6 @@ import {StackNavigationProp} from '@react-navigation/stack';
 import Icon from 'react-native-vector-icons/Ionicons';
 import InventoryItemDisplay from '../features/inventory/screens/InventoryItemDisplay';
 import Financial from '../features/financial/screens/FinancialSummaryScreen';
-import DeliveryService from '../features/delivery/screens/DeliveryService';
 import AddProduct from '../features/inventory/screens/AddProduct';
 import {RootStackParamList} from './AppNavigator';
 import HomeScreen from '../features/orders/screens/HomeScreen';
@@ -26,7 +25,6 @@ const BottomTabNavigator: React.FC = () => {
             InventoryItemDisplay: 'home',
             HomeScreen: 'cart',
             Finance: 'cash',
-            DeliveryService: 'layers',
             Add: 'add', // Add the missing Add tab
           };
           return (
@@ -89,16 +87,7 @@ const BottomTabNavigator: React.FC = () => {
           },
         }}
       />
-      <Tab.Screen
-        name="DeliveryService"
-        component={DeliveryService} // Updated from () => <DeliveryService socket />
-        listeners={{
-          tabPress: e => {
-            e.preventDefault();
-            navigation.navigate('DeliveryService');
-          },
-        }}
-      />
+
     </Tab.Navigator>
   );
 };

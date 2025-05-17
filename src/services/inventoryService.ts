@@ -279,6 +279,21 @@ export const inventoryService = {
       throw error;
     }
   },
+  deleteCustomProducts: async (branchId: string, productIds: string[]) => {
+    try {
+      console.log(`Deleting custom products for branch ${branchId}, products: ${productIds.join(', ')}`);
+      
+      const response = await api.delete(`/branch/${branchId}/products/custom`, {
+        data: { productIds }
+      });
+      
+      console.log('Delete custom products response:', response.data);
+      return response.data;
+    } catch (error: any) {
+      console.error('Error deleting custom products:', error.response?.data || error.message);
+      throw error;
+    }
+  },
 };
 
 

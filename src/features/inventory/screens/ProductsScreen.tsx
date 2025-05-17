@@ -27,7 +27,8 @@ const ProductsScreen = () => {
     fetchBranchCategoryProducts,
     toggleProductSelection,
     setActiveProductTab,
-    clearProductSelections
+    clearProductSelections,
+    deleteCustomProducts
   } = useInventoryStore();
 
   const [productIndex, setProductIndex] = React.useState(0);
@@ -143,43 +144,46 @@ const ProductsScreen = () => {
   };
   
   // Function to handle removing a product
-  const handleRemoveProduct = (productId: string, productName: string) => {
+  const handleRemoveProduct = (productId: string, productName: string, isCustom: boolean) => {
+    if (!branchId || !categoryId) {
+      ToastAndroid.show('Missing branch or category information', ToastAndroid.SHORT);
+      return;
+    }
+    
+    const actionText = isCustom ? 'delete' : 'remove';
+    
+    // Show confirmation dialog
     Alert.alert(
-      'Remove Product',
-      `Are you sure you want to remove ${productName}?`,
+      `${isCustom ? 'Delete' : 'Remove'} Product`,
+      `Are you sure you want to ${actionText} ${productName}?${isCustom ? '\nThis action cannot be undone.' : ''}`,
       [
         {
-          text: 'Cancel',
-          style: 'cancel',
+          text: 'No',
+          style: 'cancel'
         },
         {
           text: 'Yes',
           onPress: async () => {
             try {
-              if (!branchId) {
-                ToastAndroid.show('Branch ID not found', ToastAndroid.SHORT);
-                return;
+              if (isCustom) {
+                // For custom products, completely delete them
+                await deleteCustomProducts(branchId, [productId], categoryId);
+                ToastAndroid.show('Custom product deleted successfully', ToastAndroid.SHORT);
+              } else {
+                // For imported products, just mark as removed
+                await inventoryService.removeImportedProducts(branchId, [productId]);
+                ToastAndroid.show('Product removed successfully', ToastAndroid.SHORT);
               }
               
-              // Show loading indicator or disable interaction here if needed
-              
-              // Call API to remove the product
-              const result = await inventoryService.removeImportedProducts(branchId, [productId]);
-              
-              // Show success message
-              ToastAndroid.show('Product removed successfully', ToastAndroid.SHORT);
-              
-              // Refresh the product list
-              fetchBranchCategoryProducts(branchId, categoryId);
-            } catch (error: any) {
-              console.error('Error removing product:', error);
-              ToastAndroid.show(error?.message || 'Failed to remove product', ToastAndroid.LONG);
+              // Refresh products list
+              fetchAllProducts();
+            } catch (error) {
+              console.error(`Error ${actionText}ing product:`, error);
+              ToastAndroid.show(`Failed to ${actionText} product`, ToastAndroid.SHORT);
             }
-          },
-          style: 'destructive',
-        },
-      ],
-      { cancelable: true }
+          }
+        }
+      ]
     );
   };
 
@@ -218,9 +222,9 @@ const ProductsScreen = () => {
               </View>
             ) : null}
           </View>
-          {/* Show price with unit or 'pack' based on isPacket */}
-          {product.isPacket === true ? (
-            <Text style={styles.itemPrice}>₹{product.price}/pack</Text>
+          {/* Show price with quantity and unit regardless of isPacket */}
+          {product.unit && product.quantity ? (
+            <Text style={styles.itemPrice}>₹{product.price}/{product.quantity}{product.unit}</Text>
           ) : product.unit ? (
             <Text style={styles.itemPrice}>₹{product.price}/{product.unit}</Text>
           ) : (
@@ -229,21 +233,31 @@ const ProductsScreen = () => {
           <Text style={styles.itemDescription} numberOfLines={2}>{product.description || 'No description'}</Text>
         </View>
         
-        {/* Edit icon container */}
+        {/* Edit button */}
         <TouchableOpacity 
           style={styles.editButton} 
           onPress={() => navigateToEditProduct(product._id)}
         >
-          <Icon name="edit" size={16} color="#ffffff" />
+          <Icon name="edit" size={16} color="#fff" />
         </TouchableOpacity>
-        
-        {/* Show delete icon only for default (imported) products - at bottom right */}
+
+        {/* Delete button for default products */}
         {products.activeTab === 'default' && product.createdFromTemplate && (
           <TouchableOpacity 
             style={styles.deleteButton} 
-            onPress={() => handleRemoveProduct(product._id, product.name)}
+            onPress={() => handleRemoveProduct(product._id, product.name, false)}
           >
-            <Icon name="delete" size={20} color="#DC3545" />
+            <Icon name="delete" size={20} color="#FF6347" />
+          </TouchableOpacity>
+        )}
+        
+        {/* Delete button for custom products */}
+        {products.activeTab === 'custom' && !product.createdFromTemplate && (
+          <TouchableOpacity 
+            style={styles.deleteButton} 
+            onPress={() => handleRemoveProduct(product._id, product.name, true)}
+          >
+            <Icon name="delete" size={20} color="#FF6347" />
           </TouchableOpacity>
         )}
         
@@ -406,19 +420,21 @@ const ProductsScreen = () => {
                         </View>
                       ) : (
                         <>
-                          <FlatList
-                            data={selectedCategoryProducts}
-                            renderItem={renderProductItem}
-                            keyExtractor={(item) => item._id}
-                            numColumns={2}
-                            columnWrapperStyle={styles.gridRow}
-                            contentContainerStyle={styles.gridContainer}
-                          />
-                          <View style={styles.buttonContainer}>
-                            <CustomButton
-                              title="Import New Products"
-                              onPress={navigateToSelectDefaultProducts}
+                          <View style={{flex: 1}}>
+                            <FlatList
+                              data={selectedCategoryProducts}
+                              renderItem={renderProductItem}
+                              keyExtractor={(item) => item._id}
+                              numColumns={2}
+                              columnWrapperStyle={styles.gridRow}
+                              contentContainerStyle={styles.gridContainer}
                             />
+                            <View style={styles.fixedButtonContainer}>
+                              <CustomButton
+                                title="Import New Products"
+                                onPress={navigateToSelectDefaultProducts}
+                              />
+                            </View>
                           </View>
                         </>
                       )}
@@ -451,19 +467,21 @@ const ProductsScreen = () => {
                         </View>
                       ) : (
                         <>
-                          <FlatList
-                            data={selectedCategoryProducts}
-                            renderItem={renderProductItem}
-                            keyExtractor={(item) => item._id}
-                            numColumns={2}
-                            columnWrapperStyle={styles.gridRow}
-                            contentContainerStyle={styles.gridContainer}
-                          />
-                          <View style={styles.buttonContainer}>
-                            <CustomButton
-                              title="Create New Product"
-                              onPress={navigateToCreateProduct}
+                          <View style={{flex: 1}}>
+                            <FlatList
+                              data={selectedCategoryProducts}
+                              renderItem={renderProductItem}
+                              keyExtractor={(item) => item._id}
+                              numColumns={2}
+                              columnWrapperStyle={styles.gridRow}
+                              contentContainerStyle={styles.gridContainer}
                             />
+                            <View style={styles.fixedButtonContainer}>
+                              <CustomButton
+                                title="Create New Product"
+                                onPress={navigateToCreateProduct}
+                              />
+                            </View>
                           </View>
                         </>
                       )}
@@ -508,7 +526,8 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   gridContainer: {
-    paddingVertical: 10,
+    paddingTop: 10,
+    paddingBottom: 50, // Added extra bottom padding to ensure content doesn't get hidden behind button
     paddingHorizontal: 5,
   },
   gridRow: {
@@ -682,10 +701,21 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   buttonContainer: {
-    paddingHorizontal: 10,
-    marginTop: 15,
-    marginBottom: 20,
+    paddingHorizontal: 5,
+    marginTop: 5,
+    marginBottom: 10,
     width: '100%',
+  },
+  fixedButtonContainer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    paddingHorizontal: 10,
+    paddingBottom: 10,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    borderTopWidth: 1,
+    borderTopColor: '#eee',
   },
 });
 

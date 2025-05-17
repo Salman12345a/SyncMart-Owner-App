@@ -50,7 +50,9 @@ const EditProductDetails = () => {
   // Unit options
   const unitOptions = [
     { label: 'Kilogram (kg)', value: 'kg' },
-    { label: 'Liter (L)', value: 'L' }
+    { label: 'Liter (L)', value: 'L' },
+    { label: 'Gram (g)', value: 'g' },
+    { label: 'Milliliter (ml)', value: 'ml' },
    
   ];
   
@@ -231,6 +233,17 @@ const EditProductDetails = () => {
           
           {!isPacket && (
             <>
+                      <View style={styles.formGroup}>
+                        <Text style={styles.label}>Quantity</Text>
+                        <TextInput
+                          style={styles.input}
+                          value={quantity}
+                          onChangeText={setQuantity}
+                          placeholder="Enter quantity"
+                          placeholderTextColor="#999"
+                          keyboardType="numeric"
+                        />
+                      </View>
 
               <View style={styles.formGroup}>
                 <Text style={styles.label}>Unit*</Text>

@@ -233,8 +233,7 @@ const CustomProducts = () => {
                 <Picker.Item label="Gram (g)" value="g" />
                 <Picker.Item label="Liter (L)" value="L" />
                 <Picker.Item label="Milliliter (ml)" value="ml" />
-                <Picker.Item label="Piece (pc)" value="pc" />
-                <Picker.Item label="Packet (pkt)" value="pkt" />
+               
               </Picker>
             </View>
           </View>
