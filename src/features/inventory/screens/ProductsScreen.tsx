@@ -328,7 +328,10 @@ const ProductsScreen = () => {
 
   return (
     <View style={styles.mainContainer}>
-      <CustomHeader title={`${categoryName} Products`} />
+      <CustomHeader 
+        title={`${categoryName} Products`} 
+        onBackPress={() => navigation.goBack()} 
+      />
       
       <View style={styles.container}>
         {isCustomCategory ? (
@@ -395,7 +398,15 @@ const ProductsScreen = () => {
               />
             </Tab>
 
-            <TabView value={productIndex} onChange={setProductIndex} animationType="spring">
+            <TabView 
+              value={productIndex} 
+              onChange={(index) => {
+                setProductIndex(index);
+                // Ensure activeProductTab is always updated when tab changes, including swipes
+                setActiveProductTab(index === 0 ? 'default' : 'custom');
+              }} 
+              animationType="spring"
+            >
               {/* Default Products Tab */}
               <TabView.Item style={styles.tabContent}>
                 <View style={styles.tabContentContainer}>
@@ -499,7 +510,7 @@ const ProductsScreen = () => {
 
 // Get screen width to calculate grid item width
 const { width } = Dimensions.get('window');
-const itemWidth = (width - 40) / 2; // 2 columns with padding
+const itemWidth = (width - 10) / 2; // 2 columns with minimal padding
 
 const styles = StyleSheet.create({
   mainContainer: {
@@ -508,7 +519,7 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
-    padding: 10,
+    padding: 0, // Removed padding to use full width
   },
   tabIndicator: {
     backgroundColor: '#007AFF',
@@ -527,8 +538,8 @@ const styles = StyleSheet.create({
   },
   gridContainer: {
     paddingTop: 10,
-    paddingBottom: 50, // Added extra bottom padding to ensure content doesn't get hidden behind button
-    paddingHorizontal: 5,
+    paddingBottom: 120, // Increased bottom padding to ensure proper spacing at the bottom
+    paddingHorizontal: 2, // Minimal horizontal padding to maximize screen usage
   },
   gridRow: {
     justifyContent: 'space-between',

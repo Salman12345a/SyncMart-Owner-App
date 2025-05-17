@@ -6,15 +6,16 @@ import {RFValue} from 'react-native-responsive-fontsize';
 import {goBack} from '../../utils/NavigationUtils';
 import CustomText from './CustomText';
 
-const CustomHeader: FC<{title: string; search?: boolean}> = ({
+const CustomHeader: FC<{title: string; search?: boolean; onBackPress?: () => void}> = ({
   title,
   search,
+  onBackPress,
 }) => {
   return (
     <SafeAreaView>
       <View style={styles.flexRow}>
         {/* Chevron Back Icon */}
-        <Pressable onPress={() => goBack()}>
+        <Pressable onPress={onBackPress || (() => {})}>
           <Icon name="chevron-back" color={Colors.text} size={RFValue(16)} />
         </Pressable>
 
