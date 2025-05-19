@@ -9,10 +9,12 @@ import {
   SafeAreaView,
   StatusBar,
   Image,
+  Switch,
 } from 'react-native';
 import {StackScreenProps} from '@react-navigation/stack';
 import {RootStackParamList} from '../../../navigation/AppNavigator';
 import UniversalAdd from '../../../components/common/UniversalAdd';
+import ToggleButton from '../../../components/common/ToggleButton';
 import api from '../../../services/api';
 import {useStore, Order} from '../../../store/ordersStore';
 import socketService from '../../../services/socket';
@@ -22,11 +24,21 @@ interface Item {
   _id: string;
   name: string;
   price: number;
+  isPacket?: boolean;
+  unit?: string;
 }
 
-// Extended Order type with deliveryEnabled property which exists at runtime
+// Extended Order type with additional runtime properties
 interface ExtendedOrder extends Order {
   deliveryEnabled?: boolean;
+  totalPrice?: number;
+  customer?: string;
+  modificationLocked?: boolean;
+  amount?: {
+    delivery?: number;
+    tax?: number;
+  };
+  branch?: string;
 }
 
 interface OrderDetailProps
@@ -53,7 +65,22 @@ const OrderDetail: React.FC<OrderDetailProps> = ({route, navigation}) => {
       try {
         setLoading(true);
         const response = await api.get(`/orders/${currentOrder._id}`);
-        setUpdatedItems(response.data.items);
+        // Process and log the items to understand their structure
+        const items = response.data.items.map(item => {
+          // Check if this is a loose product
+          if (item.item.isPacket === false) {
+            console.log('Loose product details:', {
+              name: item.item.name,
+              isPacket: item.item.isPacket,
+              quantity: item.quantity,
+              count: item.count, 
+              finalPrice: item.finalPrice,
+              price: item.item.price
+            });
+          }
+          return item;
+        });
+        setUpdatedItems(items);
         setTotalAmountState(response.data.totalPrice || 0);
       } catch (error: any) {
         console.error('Fetch Order Details Error:', error);
@@ -70,7 +97,20 @@ const OrderDetail: React.FC<OrderDetailProps> = ({route, navigation}) => {
     ) {
       fetchDetails();
     } else {
-      setUpdatedItems(currentOrder.items);
+      // Process current items to capture quantity for loose products
+      const processedItems = currentOrder.items.map(item => {
+        if (item.item.isPacket === false) {
+          console.log('Processing loose product:', {
+            name: item.item.name,
+            isPacket: item.item.isPacket,
+            quantity: item.quantity,
+            count: item.count,
+            finalPrice: item.finalPrice
+          });
+        }
+        return item;
+      });
+      setUpdatedItems(processedItems);
       setTotalAmountState(currentOrder.totalPrice || 0);
     }
   }, [currentOrder]);
@@ -85,6 +125,18 @@ const OrderDetail: React.FC<OrderDetailProps> = ({route, navigation}) => {
   // Update total amount when items are modified
   useEffect(() => {
     const newTotal = updatedItems.reduce((sum, item) => {
+      // Skip items that have been toggled off
+      if (item.isIncluded === false) {
+        return sum;
+      }
+      
+      // For loose products, use quantity field from API
+      if (item.item.isPacket === false) {
+        // API provides quantity field for loose products
+        const looseQuantity = typeof item.quantity === 'number' ? item.quantity : 
+                             (typeof item.customQuantity === 'number' ? item.customQuantity : item.count);
+        return sum + item.item.price * looseQuantity;
+      }
       return sum + item.item.price * item.count;
     }, 0);
     setTotalAmountState(newTotal);
@@ -124,6 +176,22 @@ const OrderDetail: React.FC<OrderDetailProps> = ({route, navigation}) => {
         i._id === itemId ? {...i, count: Math.max(0, i.count - 1)} : i,
       ),
     );
+  };
+
+  // Toggle loose product availability
+  const toggleLooseProduct = (itemId: string, isIncluded: boolean) => {
+    setUpdatedItems(prev =>
+      prev.map(i =>
+        i._id === itemId
+          ? {
+              ...i,
+              isIncluded: isIncluded,
+              count: isIncluded ? initialOrder.items.find(o => o._id === i._id)?.count || i.count : 0,
+            }
+          : i,
+      ),
+    );
+    setHasModified(true);
   };
 
   const startCancelProcess = () => {
@@ -224,10 +292,21 @@ const OrderDetail: React.FC<OrderDetailProps> = ({route, navigation}) => {
               if (currentOrder.status !== 'accepted') {
                 await handleAccept();
               }
-              const modifiedItems = updatedItems.map(item => ({
-                item: (item.item as Item)._id || item.item,
-                count: item.count,
-              }));
+              const modifiedItems = updatedItems.map(item => {
+                // Skip items that have been toggled off (loose products marked as unavailable)
+                if (item.isIncluded === false) {
+                  return {
+                    item: (item.item as Item)._id || item.item,
+                    count: 0, // Set count to 0 for removed loose products
+                  };
+                }
+                
+                return {
+                  item: (item.item as Item)._id || item.item,
+                  count: item.count,
+                  customQuantity: item.customQuantity,
+                };
+              });
 
               await api.patch(`/orders/${currentOrder._id}/modify`, {
                 modifiedItems,
@@ -444,25 +523,83 @@ const OrderDetail: React.FC<OrderDetailProps> = ({route, navigation}) => {
           ListEmptyComponent={renderEmptyList}
           ItemSeparatorComponent={renderItemSeparator}
           renderItem={({item}) => (
-            <View style={styles.itemRow}>
+            <View style={[styles.itemRow, (item.isIncluded === false || getItemCount(item._id) === 0) && styles.removedItemRow]}>
               <View style={styles.itemDetails}>
-                <Text style={styles.itemName}>{item.item.name}</Text>
-                <Text style={styles.itemPrice}>₹{item.item.price}</Text>
+                <View style={styles.nameContainer}>
+                  <Text style={[styles.itemName, (item.isIncluded === false || getItemCount(item._id) === 0) && styles.removedItemText]}>{item.item.name}</Text>
+                  {item.item.isPacket === false && (
+                    <View style={styles.looseTag}>
+                      <Text style={styles.looseTagText}>Loose</Text>
+                    </View>
+                  )}
+                  {/* Show cancel icon for removed products */}
+                  {(item.isIncluded === false || getItemCount(item._id) === 0) && (
+                    <View style={styles.removedTag}>
+                      <Icon name="cancel" size={14} color="#FFFFFF" />
+                      <Text style={styles.removedTagText}>Removed</Text>
+                    </View>
+                  )}
+                </View>
+                
+                {/* Display unit price and calculated price for loose products */}
+                <View>
+                  <Text style={styles.itemPrice}>₹{item.item.price}/{item.item.unit || 'unit'}</Text>
+                  {item.item.isPacket === false && (
+                    <View>
+                      {/* Show only the final price for loose products */}
+                      <Text style={styles.finalPrice}>
+                        {item.finalPrice ? 
+                          `Total: ₹${item.finalPrice.toFixed(2)}` : 
+                          `Total: ₹${(item.item.price * (typeof item.quantity === 'number' ? item.quantity : 
+                                         (typeof item.customQuantity === 'number' ? item.customQuantity : item.count))).toFixed(2)}`
+                        }
+                      </Text>
+                    </View>
+                  )}
+                </View>
               </View>
 
               <View style={styles.quantityContainer}>
-                {currentOrder.status !== 'packed' &&
-                !currentOrder.modificationLocked ? (
-                  <UniversalAdd
-                    item={item}
-                    count={getItemCount}
-                    addItem={addItem}
-                    removeItem={removeItem}
-                  />
+                {currentOrder.status !== 'packed' && !currentOrder.modificationLocked ? (
+                  // Different UI for loose vs packed products
+                  item.item.isPacket === false ? (
+                    <View style={styles.looseItemControls}>
+                      {item.isIncluded === false ? (
+                        <Text style={[styles.quantityText, styles.unavailableText]}>
+                          Unavailable
+                        </Text>
+                      ) : (
+                        <View style={styles.toggleContainer}>
+                          <Text style={styles.quantityText}>
+                            {typeof item.quantity === 'number' ? item.quantity : 
+                             (typeof item.customQuantity === 'number' ? item.customQuantity : item.count)} {item.item.unit || 'unit'}
+                          </Text>
+                          <ToggleButton
+                            item={item}
+                            isIncluded={item.isIncluded !== false}
+                            onToggle={toggleLooseProduct}
+                          />
+                          {item.isIncluded === false && (
+                            <Icon name="cancel" size={18} color="#FF4D4F" style={styles.cancelIcon} />
+                          )}
+                        </View>
+                      )}
+                    </View>
+                  ) : (
+                    <UniversalAdd
+                      item={item}
+                      count={getItemCount}
+                      addItem={addItem}
+                      removeItem={removeItem}
+                    />
+                  )
                 ) : (
                   <View style={styles.quantityBadge}>
                     <Text style={styles.quantityText}>
-                      {getItemCount(item._id)}
+                      {item.item.isPacket === false
+                        ? `${typeof item.quantity === 'number' ? item.quantity : 
+                            (typeof item.customQuantity === 'number' ? item.customQuantity : item.count)} ${item.item.unit || 'unit'}`
+                        : getItemCount(item._id)}
                     </Text>
                   </View>
                 )}
@@ -475,6 +612,40 @@ const OrderDetail: React.FC<OrderDetailProps> = ({route, navigation}) => {
 
         {/* Summary */}
         <View style={styles.summary}>
+          {/* Display individual item breakdowns for loose products */}
+          {updatedItems.some(item => item.item.isPacket === false && !item.isIncluded === false) && (
+            <View style={styles.itemBreakdown}>
+              <Text style={styles.breakdownHeader}>Item Breakdown:</Text>
+              {updatedItems
+                .filter(item => item.item.isPacket === false)
+                .map((item, index) => {
+                  // Use quantity field from API for loose products
+                  const looseQuantity = typeof item.quantity === 'number' ? item.quantity : 
+                                      (typeof item.customQuantity === 'number' ? item.customQuantity : item.count);
+                  return (
+                    <View key={index} style={[styles.breakdownItem, item.isIncluded === false && styles.removedBreakdownItem]}>
+                      <View style={styles.breakdownItemNameContainer}>
+                        <Text style={[styles.breakdownItemName, item.isIncluded === false && styles.removedItemText]}>
+                          {item.item.name} ({looseQuantity} {item.item.unit || 'unit'})
+                        </Text>
+                        {item.isIncluded === false && (
+                          <Icon name="cancel" size={14} color="#FF4D4F" style={styles.breakdownCancelIcon} />
+                        )}
+                      </View>
+                      <Text style={[styles.breakdownItemPrice, item.isIncluded === false && styles.removedItemText]}>
+                        {item.isIncluded === false ? 'Removed' : 
+                          (item.finalPrice ? 
+                            `₹${item.finalPrice.toFixed(2)}` : 
+                            `₹${(item.item.price * looseQuantity).toFixed(2)}`
+                          )
+                        }
+                      </Text>
+                    </View>
+                  );
+                })}
+            </View>
+          )}
+          
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Items Total</Text>
             <Text style={styles.summaryValue}>
@@ -702,8 +873,111 @@ const styles = StyleSheet.create({
   },
   quantityText: {
     fontSize: 14,
+    fontWeight: '500',
+    color: '#333',
+  },
+  unavailableText: {
+    color: '#FF4D4F',
+    fontStyle: 'italic',
+  },
+  nameContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  itemBreakdown: {
+    marginBottom: 12,
+    padding: 10,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 8,
+  },
+  breakdownHeader: {
+    fontSize: 14,
     fontWeight: '600',
-    color: '#374151',
+    color: '#111827',
+    marginBottom: 8,
+  },
+  breakdownItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 4,
+  },
+  breakdownItemName: {
+    fontSize: 13,
+    color: '#4B5563',
+    flex: 1,
+  },
+  breakdownItemNameContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  breakdownCancelIcon: {
+    marginLeft: 8,
+  },
+  removedBreakdownItem: {
+    backgroundColor: '#FFF5F5',
+    borderRadius: 4,
+    paddingHorizontal: 4,
+  },
+  breakdownItemPrice: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#111827',
+  },
+  looseTag: {
+    backgroundColor: '#FF9800',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  looseTagText: {
+    color: 'white',
+    fontSize: 10,
+    fontWeight: 'bold',
+  },
+  looseItemControls: {
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  removedItemRow: {
+    backgroundColor: '#FFF5F5',
+    opacity: 0.8,
+    borderLeftWidth: 3,
+    borderLeftColor: '#FF4D4F',
+  },
+  removedItemText: {
+    color: '#FF4D4F',
+    textDecorationLine: 'line-through',
+  },
+  removedTag: {
+    backgroundColor: '#FF4D4F',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    marginLeft: 8,
+  },
+  removedTagText: {
+    color: 'white',
+    fontSize: 10,
+    fontWeight: 'bold',
+    marginLeft: 2,
+  },
+  finalPrice: {
+    fontSize: 12,
+    color: '#5E60CE',
+    fontWeight: '500',
+    marginTop: 4,
+  },
+  toggleContainer: {
+    flexDirection: 'column',
+    alignItems: 'center',
+  },
+  cancelIcon: {
+    marginTop: 5,
   },
   itemSeparator: {
     height: 1,

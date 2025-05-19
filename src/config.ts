@@ -11,8 +11,7 @@ export const config = {
     // Format should match your app's phone number format (with or without country code)
     TEST_PHONE_NUMBERS: [
       '+919999999999',  // Test number 1
-      '+918888888888',  // Test number 2
-      '+911234567890'   // Test number 3
+
     ],
     // Default OTP code to use for test numbers (for logging purposes)
     DEFAULT_TEST_OTP: '1234'
