@@ -188,30 +188,71 @@ const ProductsScreen = () => {
   };
 
   // Product card component for grid layout
+  // Handler for product view or edit operations
+  const handleProductPress = (product: Product) => {
+    if (!product.isAvailable) {
+      // Show alert for unavailable products
+      Alert.alert(
+        "Product Unavailable",
+        `${product.name} is temporarily disabled due to unavailability.`,
+        [{ text: "OK", style: "default" }]
+      );
+      return;
+    }
+    
+    // Navigate to product detail/edit screen instead of selecting it
+    navigateToEditProduct(product._id);
+  };
+  
+  // Separate handler for explicitly selecting products (e.g., for batch operations)
+  const handleProductLongPress = (product: Product) => {
+    if (!product.isAvailable) return; // Don't allow selection of unavailable products
+    toggleProductSelection(product._id, categoryId);
+  };
+
   const renderProductItem = ({ item: product }: { item: Product }) => {
     const isSelected = products[products.activeTab].selected[categoryId]?.includes(product._id) || false;
+    const isUnavailable = product.isAvailable === false;
     
     return (
       <TouchableOpacity
-        style={[styles.gridItem, isSelected && styles.selectedItem]}
-        onPress={() => handleProductSelect(product._id)}
+        style={[
+          styles.gridItem, 
+          isSelected && styles.selectedItem,
+          isUnavailable && styles.unavailableItem
+        ]}
+        onPress={() => handleProductPress(product)}
+        onLongPress={() => handleProductLongPress(product)}
+        delayLongPress={500}
+        activeOpacity={isUnavailable ? 1 : 0.7} // Less responsive press effect for unavailable items
       >
         <View style={styles.imageContainer}>
           {product.imageUrl ? (
             <Image 
               source={{ uri: product.imageUrl }} 
-              style={styles.productImage} 
+              style={[
+                styles.productImage,
+                isUnavailable && styles.grayedImage
+              ]} 
               resizeMode="cover"
             />
           ) : (
-            <View style={styles.placeholderImage}>
+            <View style={[
+              styles.placeholderImage,
+              isUnavailable && styles.grayedPlaceholder
+            ]}>
               <Text style={styles.placeholderText}>No Image</Text>
             </View>
           )}
         </View>
         <View style={styles.productInfo}>
           <View style={styles.nameContainer}>
-            <Text style={styles.itemName} numberOfLines={1}>{product.name}</Text>
+            <Text style={[
+              styles.itemName, 
+              isUnavailable && styles.unavailableText
+            ]} numberOfLines={1}>
+              {product.name}
+            </Text>
             {product.isPacket === false ? (
               <View style={styles.inlineLooseTag}>
                 <Text style={styles.looseProductText}>Loose</Text>
@@ -221,25 +262,47 @@ const ProductsScreen = () => {
                 <Text style={styles.packProductText}>Pack</Text>
               </View>
             ) : null}
+            
+            {/* Show unavailable tag if product is not available */}
+            {isUnavailable && (
+              <View style={styles.unavailableTag}>
+                <Text style={styles.unavailableTagText}>Unavailable</Text>
+              </View>
+            )}
           </View>
+          
           {/* Show price with quantity and unit regardless of isPacket */}
           {product.unit && product.quantity ? (
-            <Text style={styles.itemPrice}>₹{product.price}/{product.quantity}{product.unit}</Text>
+            <Text style={[
+              styles.itemPrice,
+              isUnavailable && styles.unavailableText
+            ]}>₹{product.price}/{product.quantity}{product.unit}</Text>
           ) : product.unit ? (
-            <Text style={styles.itemPrice}>₹{product.price}/{product.unit}</Text>
+            <Text style={[
+              styles.itemPrice,
+              isUnavailable && styles.unavailableText
+            ]}>₹{product.price}/{product.unit}</Text>
           ) : (
-            <Text style={styles.itemPrice}>₹{product.price}</Text>
+            <Text style={[
+              styles.itemPrice,
+              isUnavailable && styles.unavailableText
+            ]}>₹{product.price}</Text>
           )}
-          <Text style={styles.itemDescription} numberOfLines={2}>{product.description || 'No description'}</Text>
+          <Text style={[
+            styles.itemDescription,
+            isUnavailable && styles.unavailableText
+          ]} numberOfLines={2}>{product.description || 'No description'}</Text>
         </View>
         
-        {/* Edit button */}
-        <TouchableOpacity 
-          style={styles.editButton} 
-          onPress={() => navigateToEditProduct(product._id)}
-        >
-          <Icon name="edit" size={16} color="#fff" />
-        </TouchableOpacity>
+        {/* Edit button - only shown for available products */}
+        {!isUnavailable && (
+          <TouchableOpacity 
+            style={styles.editButton} 
+            onPress={() => navigateToEditProduct(product._id)}
+          >
+            <Icon name="edit" size={16} color="#fff" />
+          </TouchableOpacity>
+        )}
 
         {/* Delete button for default products */}
         {products.activeTab === 'default' && product.createdFromTemplate && (
@@ -268,7 +331,6 @@ const ProductsScreen = () => {
           </View>
         )}
         
-
         {isSelected && (
           <View style={styles.selectedBadge}>
             <Text style={styles.selectedBadgeText}>✓</Text>
@@ -557,6 +619,12 @@ const styles = StyleSheet.create({
     elevation: 3,
     position: 'relative',
   },
+  unavailableItem: {
+    backgroundColor: '#f9f9f9',
+    opacity: 0.7,
+    borderColor: '#d3d3d3',
+    borderWidth: 1,
+  },
   imageContainer: {
     width: '100%',
     height: 120,
@@ -566,12 +634,18 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
+  grayedImage: {
+    opacity: 0.5,
+  },
   placeholderImage: {
     width: '100%',
     height: '100%',
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: '#e0e0e0',
+  },
+  grayedPlaceholder: {
+    backgroundColor: '#d7d7d7',
   },
   placeholderText: {
     color: '#888',
@@ -583,6 +657,21 @@ const styles = StyleSheet.create({
   selectedItem: {
     borderColor: '#007AFF',
     borderWidth: 2,
+  },
+  unavailableText: {
+    color: '#999',
+  },
+  unavailableTag: {
+    backgroundColor: '#dc3545',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+    marginLeft: 5,
+  },
+  unavailableTagText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: 'bold',
   },
   selectedBadge: {
     position: 'absolute',

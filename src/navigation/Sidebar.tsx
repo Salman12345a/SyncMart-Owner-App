@@ -9,6 +9,7 @@ import OrderHistory from '../features/orders/screens/OrderHistory';
 import PrivacyPolicyScreen from '../features/common/screens/PrivacyPolicyScreen';
 import TermsConditionsScreen from '../features/common/screens/TermsConditionsScreen';
 import DeliveryService from '../features/delivery/screens/DeliveryService';
+import DisabledProductsScreen from '../features/inventory/screens/DisabledProductsScreen';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import CustomDrawerContent from '../components/navigation/CustomDrawerContent';
 
@@ -19,6 +20,7 @@ export type DrawerParamList = {
   Help: undefined;
   OrderHistory: undefined;
   DeliveryService: undefined;
+  DisabledProducts: undefined;
   PrivacyPolicy: undefined;
   TermsConditions: undefined;
   Authentication: undefined;
@@ -96,6 +98,17 @@ const Sidebar: React.FC = () => {
           title: 'Order History',
           drawerIcon: ({color}) => (
             <Icon name="history" size={24} color={color} />
+          ),
+        }}
+      />
+      <Drawer.Screen
+        name="DisabledProducts"
+        component={DisabledProductsScreen}
+        options={{
+          headerShown: false,
+          title: 'Disabled Products',
+          drawerIcon: ({color}) => (
+            <Icon name="visibility-off" size={24} color={color} />
           ),
         }}
       />

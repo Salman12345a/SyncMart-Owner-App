@@ -58,6 +58,8 @@ const OrderDetail: React.FC<OrderDetailProps> = ({route, navigation}) => {
   const [showCancelFeedback, setShowCancelFeedback] = useState(false);
   const [cancelCountdown, setCancelCountdown] = useState(30);
   const cancelTimerRef = useRef<NodeJS.Timeout | null>(null);
+  // Track if modification has been submitted
+  const [modificationSubmitted, setModificationSubmitted] = useState(false);
 
   // Fetch detailed order data if price or totalPrice is missing
   useEffect(() => {
@@ -187,6 +189,8 @@ const OrderDetail: React.FC<OrderDetailProps> = ({route, navigation}) => {
               ...i,
               isIncluded: isIncluded,
               count: isIncluded ? initialOrder.items.find(o => o._id === i._id)?.count || i.count : 0,
+              // Always keep the item in the list (just marked as unavailable)
+              visible: true
             }
           : i,
       ),
@@ -313,6 +317,9 @@ const OrderDetail: React.FC<OrderDetailProps> = ({route, navigation}) => {
                 totalPrice: totalAmountState,
               });
               setHasModified(false);
+              
+              // Set modification as submitted to show cancel icons
+              setModificationSubmitted(true);
 
               // Update order with a flag to prevent further modifications
               updateOrder(currentOrder._id, {
@@ -517,23 +524,28 @@ const OrderDetail: React.FC<OrderDetailProps> = ({route, navigation}) => {
         </View>
 
         {/* Order Items */}
-        <FlatList
-          data={updatedItems}
-          ListHeaderComponent={renderListHeader}
-          ListEmptyComponent={renderEmptyList}
-          ItemSeparatorComponent={renderItemSeparator}
-          renderItem={({item}) => (
-            <View style={[styles.itemRow, (item.isIncluded === false || getItemCount(item._id) === 0) && styles.removedItemRow]}>
+        {updatedItems.length === 0 ? (
+          <View>
+            {renderListHeader()}
+            {renderEmptyList()}
+          </View>
+        ) : (
+          <FlatList
+            data={updatedItems}
+            ListHeaderComponent={renderListHeader}
+            ItemSeparatorComponent={renderItemSeparator}
+            renderItem={({item}) => (
+            <View style={[styles.itemRow, modificationSubmitted && (item.isIncluded === false || getItemCount(item._id) === 0) && styles.removedItemRow]}>
               <View style={styles.itemDetails}>
                 <View style={styles.nameContainer}>
-                  <Text style={[styles.itemName, (item.isIncluded === false || getItemCount(item._id) === 0) && styles.removedItemText]}>{item.item.name}</Text>
+                  <Text style={[styles.itemName, modificationSubmitted && (item.isIncluded === false || getItemCount(item._id) === 0) && styles.removedItemText]}>{item.item.name}</Text>
                   {item.item.isPacket === false && (
                     <View style={styles.looseTag}>
                       <Text style={styles.looseTagText}>Loose</Text>
                     </View>
                   )}
-                  {/* Show cancel icon for removed products */}
-                  {(item.isIncluded === false || getItemCount(item._id) === 0) && (
+                  {/* Show cancel icon for removed products only after modification is submitted */}
+                  {modificationSubmitted && (item.isIncluded === false || getItemCount(item._id) === 0) && (
                     <View style={styles.removedTag}>
                       <Icon name="cancel" size={14} color="#FFFFFF" />
                       <Text style={styles.removedTagText}>Removed</Text>
@@ -564,25 +576,27 @@ const OrderDetail: React.FC<OrderDetailProps> = ({route, navigation}) => {
                   // Different UI for loose vs packed products
                   item.item.isPacket === false ? (
                     <View style={styles.looseItemControls}>
-                      {item.isIncluded === false ? (
-                        <Text style={[styles.quantityText, styles.unavailableText]}>
-                          Unavailable
-                        </Text>
-                      ) : (
-                        <View style={styles.toggleContainer}>
-                          <Text style={styles.quantityText}>
-                            {typeof item.quantity === 'number' ? item.quantity : 
-                             (typeof item.customQuantity === 'number' ? item.customQuantity : item.count)} {item.item.unit || 'unit'}
+                      {/* Always show quantity */}
+                      <Text style={styles.quantityText}>
+                        {typeof item.quantity === 'number' ? item.quantity : 
+                         (typeof item.customQuantity === 'number' ? item.customQuantity : item.count)} {item.item.unit || 'unit'}
+                      </Text>
+                      
+                      {/* Always show the toggle button */}
+                      <ToggleButton
+                        item={item}
+                        isIncluded={item.isIncluded !== false}
+                        onToggle={toggleLooseProduct}
+                      />
+                      
+                      {/* Only show these elements after modification is submitted */}
+                      {modificationSubmitted && item.isIncluded === false && (
+                        <>
+                          <Text style={[styles.quantityText, styles.unavailableText]}>
+                            Unavailable
                           </Text>
-                          <ToggleButton
-                            item={item}
-                            isIncluded={item.isIncluded !== false}
-                            onToggle={toggleLooseProduct}
-                          />
-                          {item.isIncluded === false && (
-                            <Icon name="cancel" size={18} color="#FF4D4F" style={styles.cancelIcon} />
-                          )}
-                        </View>
+                          <Icon name="cancel" size={18} color="#FF4D4F" style={styles.cancelIcon} />
+                        </>
                       )}
                     </View>
                   ) : (
@@ -608,7 +622,8 @@ const OrderDetail: React.FC<OrderDetailProps> = ({route, navigation}) => {
           )}
           keyExtractor={item => item._id}
           contentContainerStyle={styles.list}
-        />
+          />
+        )}
 
         {/* Summary */}
         <View style={styles.summary}>
@@ -623,17 +638,17 @@ const OrderDetail: React.FC<OrderDetailProps> = ({route, navigation}) => {
                   const looseQuantity = typeof item.quantity === 'number' ? item.quantity : 
                                       (typeof item.customQuantity === 'number' ? item.customQuantity : item.count);
                   return (
-                    <View key={index} style={[styles.breakdownItem, item.isIncluded === false && styles.removedBreakdownItem]}>
+                    <View key={index} style={[styles.breakdownItem, modificationSubmitted && item.isIncluded === false && styles.removedBreakdownItem]}>
                       <View style={styles.breakdownItemNameContainer}>
-                        <Text style={[styles.breakdownItemName, item.isIncluded === false && styles.removedItemText]}>
+                        <Text style={[styles.breakdownItemName, modificationSubmitted && item.isIncluded === false && styles.removedItemText]}>
                           {item.item.name} ({looseQuantity} {item.item.unit || 'unit'})
                         </Text>
-                        {item.isIncluded === false && (
+                        {modificationSubmitted && item.isIncluded === false && (
                           <Icon name="cancel" size={14} color="#FF4D4F" style={styles.breakdownCancelIcon} />
                         )}
                       </View>
-                      <Text style={[styles.breakdownItemPrice, item.isIncluded === false && styles.removedItemText]}>
-                        {item.isIncluded === false ? 'Removed' : 
+                      <Text style={[styles.breakdownItemPrice, modificationSubmitted && item.isIncluded === false && styles.removedItemText]}>
+                        {modificationSubmitted && item.isIncluded === false ? 'Removed' : 
                           (item.finalPrice ? 
                             `₹${item.finalPrice.toFixed(2)}` : 
                             `₹${(item.item.price * looseQuantity).toFixed(2)}`

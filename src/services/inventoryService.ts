@@ -102,18 +102,74 @@ export const inventoryService = {
       console.log(`Fetching custom products for branch ${branchId} and category ${categoryId}`);
       const response = await api.get(`/branch/${branchId}/categories/${categoryId}/products`);
       
-      // Filter to only include products that are not created from template
-      const customProducts = response.data.filter((product: Product) => 
-        product.createdFromTemplate === false
-      );
+      // Add detailed debug logging
+      console.log('API Response status:', response.status);
+      console.log('API Response structure:', Object.keys(response.data));
+      console.log('Response data type:', typeof response.data);
       
-      console.log(`Found ${customProducts.length} custom products out of ${response.data.length} total`);
-      
-      // Return products, ensuring createdFromTemplate is explicitly set to false
-      return customProducts.map((product: Product) => ({
-        ...product,
-        createdFromTemplate: false
-      }));
+      // Handle the new response structure properly
+      if (response.data && response.data.status === 'SUCCESS' && response.data.data && response.data.data.products) {
+        // New API format with nested structure
+        console.log('Using new API format with data.data.products');
+        const productsArray = response.data.data.products;
+        
+        // Log the number of products and sample
+        console.log(`Total products from API: ${productsArray.length}`);
+        if (productsArray.length > 0) {
+          console.log('Sample product:', JSON.stringify(productsArray[0]));
+        }
+        
+        // Filter to only include products that are not created from template
+        const customProducts = productsArray.filter((product: Product) => 
+          product.createdFromTemplate === false
+        );
+        
+        console.log(`Found ${customProducts.length} custom products out of ${productsArray.length} total`);
+        
+        // Return products, ensuring createdFromTemplate is explicitly set to false
+        return customProducts.map((product: Product) => ({
+          ...product,
+          createdFromTemplate: false
+        }));
+      } else if (Array.isArray(response.data)) {
+        // Old API format with direct array
+        console.log('Using old API format with direct array');
+        const productsArray = response.data;
+        
+        // Filter to only include products that are not created from template
+        const customProducts = productsArray.filter((product: Product) => 
+          product.createdFromTemplate === false
+        );
+        
+        console.log(`Found ${customProducts.length} custom products out of ${productsArray.length} total`);
+        
+        // Return products, ensuring createdFromTemplate is explicitly set to false
+        return customProducts.map((product: Product) => ({
+          ...product,
+          createdFromTemplate: false
+        }));
+      } else if (response.data && response.data.products && Array.isArray(response.data.products)) {
+        // Alternative format with data.products
+        console.log('Using alternative API format with data.products');
+        const productsArray = response.data.products;
+        
+        // Filter to only include products that are not created from template
+        const customProducts = productsArray.filter((product: Product) => 
+          product.createdFromTemplate === false
+        );
+        
+        console.log(`Found ${customProducts.length} custom products out of ${productsArray.length} total`);
+        
+        // Return products, ensuring createdFromTemplate is explicitly set to false
+        return customProducts.map((product: Product) => ({
+          ...product,
+          createdFromTemplate: false
+        }));
+      } else {
+        // Unexpected format, log details and return empty array
+        console.error('Unexpected API response format:', JSON.stringify(response.data));
+        return [];
+      }
     } catch (error) {
       console.error('Error fetching custom products:', error);
       throw error;
@@ -126,10 +182,35 @@ export const inventoryService = {
       console.log(`Fetching all category products for branch ${branchId} and category ${categoryId}`);
       const response = await api.get(`/branch/${branchId}/categories/${categoryId}/products`);
       
-      console.log(`Found ${response.data.length} total products in category`);
+      // Add detailed debug logging
+      console.log('API Response status:', response.status);
+      console.log('API Response structure:', Object.keys(response.data));
+      console.log('Response data type:', typeof response.data);
       
-      // Return all products (both default and custom)
-      return response.data;
+      // Handle the new response structure properly
+      if (response.data && response.data.status === 'SUCCESS' && response.data.data && response.data.data.products) {
+        // New API format with nested structure
+        console.log('Using new API format with data.data.products');
+        const productsArray = response.data.data.products;
+        console.log(`Found ${productsArray.length} total products in category`);
+        return productsArray;
+      } else if (Array.isArray(response.data)) {
+        // Old API format with direct array
+        console.log('Using old API format with direct array');
+        const productsArray = response.data;
+        console.log(`Found ${productsArray.length} total products in category`);
+        return productsArray;
+      } else if (response.data && response.data.products && Array.isArray(response.data.products)) {
+        // Alternative format with data.products
+        console.log('Using alternative API format with data.products');
+        const productsArray = response.data.products;
+        console.log(`Found ${productsArray.length} total products in category`);
+        return productsArray;
+      } else {
+        // Unexpected format, log details and return empty array
+        console.error('Unexpected API response format:', JSON.stringify(response.data));
+        return [];
+      }
     } catch (error) {
       console.error('Error fetching category products:', error);
       throw error;
