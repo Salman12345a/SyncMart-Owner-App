@@ -1,4 +1,4 @@
-package com.syncmart
+package com.dkbranch
 
 import android.app.Application
 import com.facebook.react.PackageList
@@ -11,8 +11,8 @@ import com.facebook.react.defaults.DefaultReactHost.getDefaultReactHost
 import com.facebook.react.defaults.DefaultReactNativeHost
 import com.facebook.react.soloader.OpenSourceMergedSoMapping
 import com.facebook.soloader.SoLoader
-import com.syncmart.socket.OrderSocketPackage
-import com.syncmart.FloatingOverlay.FloatingOverlayPackage
+import com.dkbranch.socket.OrderSocketPackage
+import com.dkbranch.FloatingOverlay.FloatingOverlayPackage
 
 class MainApplication : Application(), ReactApplication {
 

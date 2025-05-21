@@ -1,4 +1,4 @@
-package com.syncmart.FloatingOverlay;
+package com.dkbranch.FloatingOverlay;
 
 import androidx.annotation.NonNull;
 

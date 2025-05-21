@@ -1,4 +1,4 @@
-package com.syncmart.FloatingOverlay;
+package com.dkbranch.FloatingOverlay;
 
 import android.app.Notification;
 import android.app.NotificationChannel;
@@ -23,7 +23,7 @@ import android.widget.ImageView;
 import androidx.annotation.Nullable;
 import androidx.core.app.NotificationCompat;
 
-import com.syncmart.R;
+import com.dkbranch.R;
 
 public class FloatingOverlayService extends Service {
     private static final String TAG = "FloatingOverlayService";

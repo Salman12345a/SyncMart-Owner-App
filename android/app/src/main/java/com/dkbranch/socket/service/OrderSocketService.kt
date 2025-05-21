@@ -1,11 +1,11 @@
-package com.syncmart.socket.service
+package com.dkbranch.socket.service
 
 import android.app.*
 import android.content.Intent
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
-import com.syncmart.socket.OrderSocketManager
-import com.syncmart.socket.data.AppDatabase
+import com.dkbranch.socket.OrderSocketManager
+import com.dkbranch.socket.data.AppDatabase
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job

@@ -1,10 +1,10 @@
-package com.syncmart.socket
+package com.dkbranch.socket
 
 import android.util.Log
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.WritableMap
-import com.syncmart.socket.data.AppDatabase
-import com.syncmart.socket.data.OrderEntity
+import com.dkbranch.socket.data.AppDatabase
+import com.dkbranch.socket.data.OrderEntity
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import okhttp3.*

@@ -1,4 +1,4 @@
-package com.syncmart.socket.data
+package com.dkbranch.socket.data
 
 import androidx.room.Entity
 import androidx.room.PrimaryKey

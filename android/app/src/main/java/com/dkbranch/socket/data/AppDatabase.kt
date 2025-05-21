@@ -1,4 +1,4 @@
-package com.syncmart.socket.data
+package com.dkbranch.socket.data
 
 import android.content.Context
 import androidx.room.Database

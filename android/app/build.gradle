@@ -79,9 +79,9 @@ android {
     buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdk rootProject.ext.compileSdkVersion
 
-    namespace "com.syncmart"
+    namespace "com.dkbranch"
     defaultConfig {
-        applicationId "com.syncmart"
+        applicationId "com.dkbranch"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1

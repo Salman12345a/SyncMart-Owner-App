@@ -1,4 +1,4 @@
-package com.syncmart.socket
+package com.dkbranch.socket
 
 import com.facebook.react.ReactPackage
 import com.facebook.react.bridge.NativeModule

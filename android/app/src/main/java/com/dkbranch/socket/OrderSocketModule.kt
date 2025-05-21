@@ -1,10 +1,10 @@
-package com.syncmart.socket
+package com.dkbranch.socket
 
 import android.content.Intent
 import com.facebook.react.bridge.*
 import com.facebook.react.modules.core.DeviceEventManagerModule
-import com.syncmart.socket.data.AppDatabase
-import com.syncmart.socket.service.OrderSocketService
+import com.dkbranch.socket.data.AppDatabase
+import com.dkbranch.socket.service.OrderSocketService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
