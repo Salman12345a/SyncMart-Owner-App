@@ -3,37 +3,39 @@ import {
   View, 
   Text, 
   StyleSheet, 
-  ScrollView, 
   TextInput, 
-  Switch, 
-  ActivityIndicator, 
-  ToastAndroid, 
+  TouchableOpacity, 
+  ScrollView, 
+  Platform, 
   KeyboardAvoidingView, 
-  Platform,
+  Switch,
+  Modal,
   Alert,
-  TouchableOpacity,
-  Modal
+  ActivityIndicator,
+  ToastAndroid
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
-import { StackNavigationProp } from '@react-navigation/stack';
-import { StackScreenProps } from '@react-navigation/stack';
-import { RootStackParamList } from '../../../navigation/types';
-import CustomButton from '../../../components/ui/CustomButton';
 import api from '../../../services/api';
+import CustomButton from '../../../components/ui/CustomButton';
+import { inventoryService } from '../../../services/inventoryService';
 import { storage } from '../../../utils/storage';
-import useInventoryStore from '../../../store/inventoryStore';
+import Icon from 'react-native-vector-icons/MaterialIcons';
 
-type EditProductDetailsProps = StackScreenProps<RootStackParamList, 'EditProductDetails'>;
+interface EditProductDetailsProps {}
 
-const EditProductDetails = () => {
-  const navigation = useNavigation<StackNavigationProp<RootStackParamList>>();
-  const route = useRoute<EditProductDetailsProps['route']>();
-  const { productId, categoryId, categoryName } = route.params;
-  
+const EditProductDetails: React.FC<EditProductDetailsProps> = () => {
+  const navigation = useNavigation();
+  const route = useRoute();
+  const { productId, categoryId, categoryName } = route.params as {
+    productId: string;
+    categoryId: string;
+    categoryName: string;
+  };
+
   // Get branchId from storage
-  const branchId = storage.getString('userId') || '';
-  
-  // State for form fields
+  const branchId = storage.getString('userId');
+
+  // Form state
   const [name, setName] = useState('');
   const [price, setPrice] = useState('');
   const [quantity, setQuantity] = useState('');
@@ -69,33 +71,25 @@ const EditProductDetails = () => {
   const [initialLoading, setInitialLoading] = useState(true);
   const [error, setError] = useState('');
 
-  const { fetchBranchCategoryProducts } = useInventoryStore();
-
   // Fetch product details on component mount
   useEffect(() => {
     const fetchProductDetails = async () => {
+      if (!branchId || !productId) {
+        setInitialLoading(false);
+        return;
+      }
+
       try {
-        const response = await api.get(`/branch/${branchId}/categories/${categoryId}/products/${productId}`);
+        const response = await api.get(`/branch/products/${productId}`);
         const product = response.data;
-        
-        // Set form values with product data
+
         setName(product.name || '');
         setPrice(product.price?.toString() || '');
-        setQuantity(product.quantity || '');
-        
-        // Set the isPacket value first
-        const productIsPacket = product.isPacket || false;
-        setIsPacket(productIsPacket);
-        
-        // Set unit with validation for non-packaged products
-        let productUnit = product.unit || 'kg';
-        if (!productIsPacket && productUnit !== 'kg' && productUnit !== 'L') {
-          productUnit = 'kg'; // Default to kg for non-packaged products if unit is not valid
-        }
-        setUnit(productUnit);
-        
+        setIsPacket(product.isPacket || false);
+        setQuantity(product.quantity?.toString() || '');
+        setUnit(product.unit || 'kg');
         setDescription(product.description || '');
-        setIsAvailable(product.isAvailable ?? true);
+        setIsAvailable(product.isAvailable !== false); // Default to true if not specified
         setDisabledReason(product.disabledReason || '');
         
         // Determine if this is a default product or custom product
@@ -146,15 +140,13 @@ const EditProductDetails = () => {
     
     try {
       // Prepare product data
-      const productData = {
+      const productData: any = {
         name: name.trim(),
         price: Number(price),
         isPacket,
         description: description.trim(),
         isAvailable,
       };
-      
-      // Discount price is now removed from the form
       
       if (quantity.trim()) {
         productData.quantity = quantity.trim();
@@ -176,10 +168,11 @@ const EditProductDetails = () => {
       
       // Refresh product list
       if (branchId && categoryId) {
-        await fetchBranchCategoryProducts(branchId, categoryId);
+        await inventoryService.getBranchCategoryProducts(branchId, categoryId);
       }
       
       // Navigate back to products screen with the correct tab selected
+      // @ts-ignore - Ignoring navigation type error
       navigation.navigate('ProductsScreen', {
         categoryId,
         categoryName,
@@ -237,8 +230,6 @@ const EditProductDetails = () => {
             />
           </View>
           
-
-          
           <View style={styles.switchContainer}>
             <Text style={styles.label}>Is Packet?</Text>
             <Switch
@@ -252,6 +243,16 @@ const EditProductDetails = () => {
               }}
               trackColor={{ false: '#d3d3d3', true: '#007AFF' }}
               thumbColor={isPacket ? '#fff' : '#f4f3f4'}
+            />
+          </View>
+
+          <View style={styles.switchContainer}>
+            <Text style={styles.label}>Available for Sale</Text>
+            <Switch
+              value={isAvailable}
+              onValueChange={setIsAvailable}
+              trackColor={{ false: '#d3d3d3', true: '#4CAF50' }}
+              thumbColor={isAvailable ? '#fff' : '#f4f3f4'}
             />
           </View>
           
@@ -298,16 +299,12 @@ const EditProductDetails = () => {
                         setIsUnitModalVisible(false);
                       }}
                     >
-                      <Text 
-                        style={[styles.optionText, unit === option.value && styles.selectedOptionText]}
-                      >
-                        {option.label}
-                      </Text>
+                      <Text style={styles.optionText}>{option.label}</Text>
                     </TouchableOpacity>
                   ))}
                   
                   <TouchableOpacity
-                    style={styles.cancelButton}
+                    style={[styles.optionItem, styles.cancelButton]}
                     onPress={() => setIsUnitModalVisible(false)}
                   >
                     <Text style={styles.cancelButtonText}>Cancel</Text>
@@ -323,22 +320,22 @@ const EditProductDetails = () => {
               style={[styles.input, styles.textArea]}
               value={description}
               onChangeText={setDescription}
-              placeholder="Enter product description"
+              placeholder="Enter product description (optional)"
               multiline
               numberOfLines={4}
             />
           </View>
           
-         
-          
           {!isAvailable && (
             <View style={styles.formGroup}>
-              <Text style={styles.label}>Reason*</Text>
+              <Text style={styles.label}>Reason for Unavailability*</Text>
               <TextInput
-                style={styles.input}
+                style={[styles.input, styles.textArea]}
                 value={disabledReason}
                 onChangeText={setDisabledReason}
-                placeholder="Enter reason for unavailability"
+                placeholder="Enter reason (out of stock, seasonal, discontinued, etc.)"
+                multiline
+                numberOfLines={3}
               />
             </View>
           )}
@@ -459,21 +456,16 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#333',
   },
-  selectedOptionText: {
-    color: '#007AFF',
-    fontWeight: 'bold',
-  },
   cancelButton: {
     marginTop: 15,
-    padding: 12,
-    backgroundColor: '#f2f2f2',
+    borderBottomWidth: 0,
+    backgroundColor: '#f0f0f0',
     borderRadius: 8,
     alignItems: 'center',
   },
   cancelButtonText: {
-    fontSize: 16,
-    color: '#666',
-    fontWeight: '500',
+    color: '#ff3b30',
+    fontWeight: '600',
   },
 });
 

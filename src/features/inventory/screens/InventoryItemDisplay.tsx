@@ -27,6 +27,9 @@ const InventoryItemDisplay = () => {
     setSelectedCategory,
   } = useInventoryStore();
 
+  // Add loading state for initial screen load
+  const [isLoading, setIsLoading] = useState(true);
+
   const [categoryIndex, setCategoryIndex] = React.useState(0);
   // productIndex state removed as it's now in ProductsScreen
   const [selectionMode, setSelectionMode] = React.useState(false);
@@ -48,19 +51,45 @@ const InventoryItemDisplay = () => {
     const params = route.params as { refresh?: boolean; refreshTimestamp?: number } | undefined;
     if (params?.refresh && branchId) {
       console.log('Refreshing categories due to navigation parameter');
-      fetchBranchCategories(branchId);
+      setIsLoading(true);
       
-      // After refresh, optionally set the tab to custom categories
-      setCategoryIndex(1); // Switch to custom tab
-      setActiveCategoryTab('custom');
+      (async () => {
+        try {
+          await fetchBranchCategories(branchId);
+          // After refresh, optionally set the tab to custom categories
+          setCategoryIndex(1); // Switch to custom tab
+          setActiveCategoryTab('custom');
+        } catch (error) {
+          console.error('Error refreshing categories:', error);
+        } finally {
+          // Small delay for smooth transition
+          setTimeout(() => {
+            setIsLoading(false);
+          }, 800);
+        }
+      })();
     }
   }, [route.params, branchId, fetchBranchCategories, setActiveCategoryTab]);
 
   // Initial categories fetch
   useEffect(() => {
-    if (branchId) {
-      fetchBranchCategories(branchId);
-    }
+    const loadData = async () => {
+      setIsLoading(true);
+      try {
+        if (branchId) {
+          await fetchBranchCategories(branchId);
+        }
+      } catch (error) {
+        console.error('Error loading categories:', error);
+      } finally {
+        // Delay turning off the loading state for a smoother experience
+        setTimeout(() => {
+          setIsLoading(false);
+        }, 800);
+      }
+    };
+    
+    loadData();
   }, [branchId, fetchBranchCategories]);
   
   // Reset the product cache when exiting selection or deletion mode
@@ -453,6 +482,13 @@ const InventoryItemDisplay = () => {
   return (
     <View style={styles.mainContainer}>
       {renderCategories()}
+      
+      {/* Loading Overlay */}
+      {isLoading && (
+        <View style={styles.loadingOverlay}>
+          <ActivityIndicator size="large" color="#340e5c" />
+        </View>
+      )}
     </View>
   );
 };
@@ -461,6 +497,17 @@ const styles = StyleSheet.create({
   mainContainer: {
     flex: 1,
     backgroundColor: '#fff',
+  },
+  loadingOverlay: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(255, 255, 255, 0.8)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 999,
   },
   headerContainer: {
     flexDirection: 'row',

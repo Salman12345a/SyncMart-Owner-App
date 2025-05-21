@@ -1,5 +1,5 @@
-import React, {useState} from 'react';
-import {View, Text, FlatList, TouchableOpacity, StyleSheet} from 'react-native';
+import React, {useState, useEffect} from 'react';
+import {View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator} from 'react-native';
 import {StackScreenProps} from '@react-navigation/stack';
 import {RootStackParamList} from '../../../navigation/AppNavigator';
 import OrderCard from '../../../components/order/OrderCard';
@@ -13,6 +13,7 @@ type OrderPackedScreenProps = StackScreenProps<
 const MainPackedScreen: React.FC<OrderPackedScreenProps> = ({navigation}) => {
   const {orders} = useStore();
   const [activeTab, setActiveTab] = useState<'delivery' | 'pickup'>('delivery');
+  const [isLoading, setIsLoading] = useState(true);
 
   // Filter orders based on deliveryEnabled instead of deliveryServiceAvailable
   const deliveryOrders = orders.filter(
@@ -23,6 +24,16 @@ const MainPackedScreen: React.FC<OrderPackedScreenProps> = ({navigation}) => {
   const pickupOrders = orders.filter(
     o => o.status === 'packed' && !o.deliveryEnabled,
   );
+
+  // Add loading effect that simulates loading time
+  useEffect(() => {
+    setIsLoading(true);
+    const timer = setTimeout(() => {
+      setIsLoading(false);
+    }, 800); // Short delay for visual feedback
+    
+    return () => clearTimeout(timer);
+  }, []); // Run once when component mounts
 
   const handleNavigation = (item: any) => {
     if (item.deliveryEnabled) {
@@ -77,12 +88,30 @@ const MainPackedScreen: React.FC<OrderPackedScreenProps> = ({navigation}) => {
         }
         contentContainerStyle={styles.list}
       />
+      
+      {/* Loading Overlay */}
+      {isLoading && (
+        <View style={styles.loadingOverlay}>
+          <ActivityIndicator size="large" color="#340e5c" />
+        </View>
+      )}
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {flex: 1, backgroundColor: '#f5f5f5'},
+  loadingOverlay: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(255, 255, 255, 0.8)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 999,
+  },
   tabContainer: {
     flexDirection: 'row',
     justifyContent: 'space-around',

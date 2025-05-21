@@ -10,6 +10,7 @@ import {
   StatusBar,
   Image,
   Switch,
+  ActivityIndicator,
 } from 'react-native';
 import {StackScreenProps} from '@react-navigation/stack';
 import {RootStackParamList} from '../../../navigation/AppNavigator';
@@ -29,9 +30,9 @@ interface Item {
 }
 
 // Extended Order type with additional runtime properties
-interface ExtendedOrder extends Order {
+interface ExtendedOrder extends Omit<Order, 'totalPrice'> {
   deliveryEnabled?: boolean;
-  totalPrice?: number;
+  totalPrice: number;
   customer?: string;
   modificationLocked?: boolean;
   amount?: {
@@ -61,14 +62,17 @@ const OrderDetail: React.FC<OrderDetailProps> = ({route, navigation}) => {
   // Track if modification has been submitted
   const [modificationSubmitted, setModificationSubmitted] = useState(false);
 
+  // Simplified loading state management
+
   // Fetch detailed order data if price or totalPrice is missing
   useEffect(() => {
     const fetchDetails = async () => {
       try {
         setLoading(true);
+        console.log('Loading order details for:', currentOrder._id);
         const response = await api.get(`/orders/${currentOrder._id}`);
         // Process and log the items to understand their structure
-        const items = response.data.items.map(item => {
+        const items = response.data.items.map((item: any) => {
           // Check if this is a loose product
           if (item.item.isPacket === false) {
             console.log('Loose product details:', {
@@ -84,11 +88,15 @@ const OrderDetail: React.FC<OrderDetailProps> = ({route, navigation}) => {
         });
         setUpdatedItems(items);
         setTotalAmountState(response.data.totalPrice || 0);
+        console.log('Order details loaded successfully');
       } catch (error: any) {
         console.error('Fetch Order Details Error:', error);
         Alert.alert('Error', 'Failed to load order details');
       } finally {
-        setLoading(false);
+        // Add a small delay before hiding the loading indicator to ensure UI has time to update
+        setTimeout(() => {
+          setLoading(false);
+        }, 300);
       }
     };
 
@@ -326,8 +334,9 @@ const OrderDetail: React.FC<OrderDetailProps> = ({route, navigation}) => {
                 ...currentOrder,
                 items: updatedItems,
                 totalPrice: totalAmountState,
+                status: currentOrder.status,
                 modificationLocked: true,
-              });
+              } as Order);
 
               // Show success message
               Alert.alert(
@@ -456,6 +465,12 @@ const OrderDetail: React.FC<OrderDetailProps> = ({route, navigation}) => {
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
+      {/* Simple Modern Loading Overlay - No Background Box */}
+      {loading && (
+        <View style={styles.loadingOverlay}>
+          <ActivityIndicator size="large" color="#5E60CE" />
+        </View>
+      )}
       <View style={styles.container}>
         {/* Header */}
         <View style={styles.header}>
@@ -1098,6 +1113,17 @@ const styles = StyleSheet.create({
   },
   disabledButton: {
     opacity: 0.6,
+  },
+  loadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(255, 255, 255, 0.85)',
+    zIndex: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   disabledCancelButton: {
     borderColor: '#EEEEEE',

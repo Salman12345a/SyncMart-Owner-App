@@ -87,6 +87,7 @@ const Sidebar: React.FC = () => {
         name="Help"
         component={HelpScreen}
         options={{
+          headerShown: false,
           drawerIcon: ({color}) => <Icon name="help" size={24} color={color} />,
         }}
       />

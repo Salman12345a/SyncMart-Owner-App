@@ -72,7 +72,8 @@ const SplashScreen: React.FC = () => {
         );
         navigation.replace('StatusScreen', {branchId});
       }
-      // If approved and token exists - go to HomeScreen
+      // If approved and token exists - go directly to HomeScreen
+      // The HomeScreen now has its own prepare.json animation overlay
       else if (token && (isApproved || userId)) {
         console.log('User is logged in with token - going to HomeScreen');
         navigation.replace('HomeScreen');

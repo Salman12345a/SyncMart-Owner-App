@@ -4,6 +4,7 @@ import {Easing} from 'react-native';
 import {TransitionSpecs, CardStyleInterpolators} from '@react-navigation/stack';
 // Common screens
 import SplashScreen from '../features/common/screens/SplashScreen';
+import LoadingScreen from '../features/common/screens/LoadingScreen';
 // Auth screens
 import EntryScreen from '../features/auth/screens/EntryScreen';
 import AuthenticationScreen from '../features/auth/screens/AuthenticationScreen';
@@ -51,6 +52,7 @@ import SalesSummary from '../features/orders/screens/SalesSummaryScreen';
 
 export type RootStackParamList = {
   SplashScreen: undefined;
+  LoadingScreen: undefined;
   EntryScreen: undefined;
   OrderHistory: undefined;
   Authentication: undefined;
@@ -131,6 +133,7 @@ export type RootStackParamList = {
   SelectDefaultProducts: { categoryId: string; categoryName: string };
   CustomProducts: { categoryId: string; categoryName: string; isCustom: boolean };
   UploadProductImage: { productId: string; uploadUrl: string; key: string; branchId: string };
+  EditProductDetails: { productId: string; categoryId: string; isCustom: boolean; isDefault: boolean };
 };
 
 interface Order {
@@ -196,6 +199,7 @@ const fadeScreens = [
   'DeliveryStatus',
   'OrderDetail',
   'EntryScreen',
+  'LoadingScreen',
 ];
 
 const AppNavigator: React.FC = () => (
@@ -226,6 +230,7 @@ const AppNavigator: React.FC = () => (
     initialRouteName="SplashScreen">
     {/* Common screens */}
     <Stack.Screen name="SplashScreen" component={SplashScreen} />
+    <Stack.Screen name="LoadingScreen" component={LoadingScreen} />
 
     {/* Auth screens */}
     <Stack.Screen name="EntryScreen" component={EntryScreen} />

@@ -1,4 +1,4 @@
-import React, {useEffect, useCallback, useState, useMemo} from 'react';
+import React, {useEffect, useCallback, useState, useMemo, useRef} from 'react';
 import {
   View,
   StyleSheet,
@@ -9,6 +9,8 @@ import {
   ActivityIndicator,
   AppState,
   AppStateStatus,
+  Animated,
+  Easing,
 } from 'react-native';
 import {storage} from '../../../utils/storage';
 import Header from '../../../components/dashboard/Header';
@@ -68,6 +70,11 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
   const [appState, setAppState] = useState<AppStateStatus>(
     AppState.currentState,
   );
+  
+  // Animation prep overlay state
+  const [showPrepOverlay, setShowPrepOverlay] = useState(true);
+  const fadeAnim = useRef(new Animated.Value(1)).current;
+  const lottieRef = useRef<LottieView>(null);
 
   // Initialize order ring sound
   useEffect(() => {
@@ -766,6 +773,25 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
       setShowLowBalanceModal(true);
     }
   }, [walletBalance, storeStatus]);
+  
+  // Handle preparation overlay animation and fade out
+  useEffect(() => {
+    // If not loading anymore, fade out the overlay
+    if (!isLoading && showPrepOverlay) {
+      console.log('Data loaded, starting fade out animation');
+      // Give components some time to render
+      setTimeout(() => {
+        Animated.timing(fadeAnim, {
+          toValue: 0,
+          duration: 500,
+          useNativeDriver: true,
+          easing: Easing.out(Easing.ease),
+        }).start(() => {
+          setShowPrepOverlay(false);
+        });
+      }, 1000); // Wait 1 second after loading before starting fade out
+    }
+  }, [isLoading, fadeAnim, showPrepOverlay]);
 
   // Add new useEffect for floating overlay
   useEffect(() => {
@@ -823,9 +849,8 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
     }
   }, [filteredOrders.length, appState, storeStatus]);
 
-  if (isLoading) {
-    return <Text>Loading authentication...</Text>;
-  }
+  // Show only authentication loading internally, but keep the prep overlay visible
+  // This allows components to load in the background while animation is showing
 
   if (!userId || !accessToken) {
     return null;
@@ -833,6 +858,21 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
 
   return (
     <View style={styles.container}>
+      {/* Preparation animation overlay */}
+      {showPrepOverlay && (
+        <Animated.View style={[styles.prepOverlay, { opacity: fadeAnim }]}>
+          <View style={styles.prepContainer}>
+            <LottieView
+              ref={lottieRef}
+              source={require('../../../assets/animations/prepare.json')}
+              autoPlay
+              loop
+              style={styles.prepAnimation}
+            />
+          </View>
+        </Animated.View>
+      )}
+      
       <Header
         navigation={navigation}
         showStoreStatus
@@ -923,6 +963,25 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
 const styles = StyleSheet.create({
   container: {flex: 1, backgroundColor: '#f8f8f8'},
   content: {padding: 20, flex: 1},
+  prepOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(255, 255, 255, 0.98)',
+    zIndex: 1000,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  prepContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  prepAnimation: {
+    width: 160,
+    height: 160,
+  },
   titleRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -1018,7 +1077,7 @@ const styles = StyleSheet.create({
     borderTopColor: '#e0e0e0',
   },
   packedOrderButtonText: {
-    color: '#fff',
+    color: 'white',
     fontSize: 16,
     fontWeight: 'bold',
   },
