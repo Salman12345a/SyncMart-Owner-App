@@ -42,6 +42,23 @@ const CustomProducts = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   
+  // Unit options for packaged products
+  const packetUnitOptions = [
+    { label: 'Kilogram (kg)', value: 'kg' },
+    { label: 'Gram (g)', value: 'g' },
+    { label: 'Liter (L)', value: 'L' },
+    { label: 'Milliliter (ml)', value: 'ml' }
+  ];
+
+  // Unit options for non-packaged products (only kg and litre)
+  const nonPacketUnitOptions = [
+    { label: 'Kilogram (kg)', value: 'kg' },
+    { label: 'Liter (L)', value: 'L' }
+  ];
+
+  // Get the appropriate unit options based on isPacket flag
+  const unitOptions = isPacket ? packetUnitOptions : nonPacketUnitOptions;
+  
   // Validation
   const validateForm = () => {
     if (!name.trim()) {
@@ -59,8 +76,8 @@ const CustomProducts = () => {
       return false;
     }
     
-    if (quantity.trim() && isNaN(Number(quantity))) {
-      Alert.alert('Error', 'Quantity must be a valid number');
+    if (!quantity.trim() || isNaN(Number(quantity))) {
+      Alert.alert('Error', 'Quantity is required and must be a valid number');
       return false;
     }
     
@@ -210,30 +227,28 @@ const CustomProducts = () => {
 
           
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Quantity</Text>
+            <Text style={styles.label}>{isPacket ? 'Packet Quantity*' : 'Quantity*'}</Text>
             <TextInput
               style={styles.input}
               value={quantity}
               onChangeText={setQuantity}
-              placeholder="Enter quantity"
+              placeholder={isPacket ? 'Enter packet quantity' : 'Enter quantity'}
               placeholderTextColor="#999"
               keyboardType="numeric"
             />
           </View>
           
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Unit</Text>
+            <Text style={styles.label}>Unit*</Text>
             <View style={styles.pickerContainer}>
               <Picker
                 selectedValue={unit}
                 onValueChange={(itemValue) => setUnit(itemValue)}
                 style={styles.picker}
               >
-                <Picker.Item label="Kilogram (kg)" value="kg" />
-                <Picker.Item label="Gram (g)" value="g" />
-                <Picker.Item label="Liter (L)" value="L" />
-                <Picker.Item label="Milliliter (ml)" value="ml" />
-               
+                {unitOptions.map((option) => (
+                  <Picker.Item key={option.value} label={option.label} value={option.value} />
+                ))}
               </Picker>
             </View>
           </View>
@@ -250,7 +265,13 @@ const CustomProducts = () => {
               
               <TouchableOpacity
                 style={[styles.radioButton, !isPacket && styles.radioButtonSelected]}
-                onPress={() => setIsPacket(false)}
+                onPress={() => {
+                  setIsPacket(false);
+                  // When switching to non-packet, ensure unit is valid
+                  if (unit !== 'kg' && unit !== 'L') {
+                    setUnit('kg');
+                  }
+                }}
               >
                 <Text style={styles.radioText}>No</Text>
               </TouchableOpacity>

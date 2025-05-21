@@ -47,14 +47,22 @@ const EditProductDetails = () => {
   // Track if this is a default product (true) or custom product (false)
   const [isDefaultProduct, setIsDefaultProduct] = useState(true);
   
-  // Unit options
-  const unitOptions = [
+  // Unit options for packaged products
+  const packetUnitOptions = [
     { label: 'Kilogram (kg)', value: 'kg' },
     { label: 'Liter (L)', value: 'L' },
     { label: 'Gram (g)', value: 'g' },
-    { label: 'Milliliter (ml)', value: 'ml' },
-   
+    { label: 'Milliliter (ml)', value: 'ml' }
   ];
+
+  // Unit options for non-packaged products (only kg and litre)
+  const nonPacketUnitOptions = [
+    { label: 'Kilogram (kg)', value: 'kg' },
+    { label: 'Liter (L)', value: 'L' }
+  ];
+
+  // Get the appropriate unit options based on isPacket flag
+  const unitOptions = isPacket ? packetUnitOptions : nonPacketUnitOptions;
   
   // Loading and error states
   const [loading, setLoading] = useState(false);
@@ -74,8 +82,18 @@ const EditProductDetails = () => {
         setName(product.name || '');
         setPrice(product.price?.toString() || '');
         setQuantity(product.quantity || '');
-        setUnit(product.unit || 'kg');
-        setIsPacket(product.isPacket || false);
+        
+        // Set the isPacket value first
+        const productIsPacket = product.isPacket || false;
+        setIsPacket(productIsPacket);
+        
+        // Set unit with validation for non-packaged products
+        let productUnit = product.unit || 'kg';
+        if (!productIsPacket && productUnit !== 'kg' && productUnit !== 'L') {
+          productUnit = 'kg'; // Default to kg for non-packaged products if unit is not valid
+        }
+        setUnit(productUnit);
+        
         setDescription(product.description || '');
         setIsAvailable(product.isAvailable ?? true);
         setDisabledReason(product.disabledReason || '');
@@ -106,8 +124,8 @@ const EditProductDetails = () => {
       return false;
     }
     
-    if (!isPacket && !quantity.trim()) {
-      Alert.alert('Error', 'Quantity is required for non-packaged items');
+    if (!quantity.trim()) {
+      Alert.alert('Error', 'Quantity is required');
       return false;
     }
     
@@ -225,77 +243,79 @@ const EditProductDetails = () => {
             <Text style={styles.label}>Is Packet?</Text>
             <Switch
               value={isPacket}
-              onValueChange={setIsPacket}
+              onValueChange={(value) => {
+                setIsPacket(value);
+                // When switching from packet to non-packet, ensure unit is valid
+                if (!value && unit !== 'kg' && unit !== 'L') {
+                  setUnit('kg');
+                }
+              }}
               trackColor={{ false: '#d3d3d3', true: '#007AFF' }}
               thumbColor={isPacket ? '#fff' : '#f4f3f4'}
             />
           </View>
           
-          {!isPacket && (
-            <>
-                      <View style={styles.formGroup}>
-                        <Text style={styles.label}>Quantity</Text>
-                        <TextInput
-                          style={styles.input}
-                          value={quantity}
-                          onChangeText={setQuantity}
-                          placeholder="Enter quantity"
-                          placeholderTextColor="#999"
-                          keyboardType="numeric"
-                        />
-                      </View>
+          <View style={styles.formGroup}>
+            <Text style={styles.label}>{isPacket ? 'Packet Quantity*' : 'Quantity*'}</Text>
+            <TextInput
+              style={styles.input}
+              value={quantity}
+              onChangeText={setQuantity}
+              placeholder={isPacket ? 'Enter packet quantity' : 'Enter quantity'}
+              placeholderTextColor="#999"
+              keyboardType="numeric"
+            />
+          </View>
 
-              <View style={styles.formGroup}>
-                <Text style={styles.label}>Unit*</Text>
-                <TouchableOpacity 
-                  style={styles.selectInput}
-                  onPress={() => setIsUnitModalVisible(true)}
-                >
-                  <Text style={styles.selectInputText}>
-                    {unitOptions.find(option => option.value === unit)?.label || 'Select unit'}
-                  </Text>
-                </TouchableOpacity>
-                
-                {/* Unit selection modal */}
-                <Modal
-                  visible={isUnitModalVisible}
-                  transparent={true}
-                  animationType="slide"
-                  onRequestClose={() => setIsUnitModalVisible(false)}
-                >
-                  <View style={styles.modalOverlay}>
-                    <View style={styles.modalContent}>
-                      <Text style={styles.modalTitle}>Select Unit</Text>
-                      
-                      {unitOptions.map((option) => (
-                        <TouchableOpacity
-                          key={option.value}
-                          style={styles.optionItem}
-                          onPress={() => {
-                            setUnit(option.value);
-                            setIsUnitModalVisible(false);
-                          }}
-                        >
-                          <Text 
-                            style={[styles.optionText, unit === option.value && styles.selectedOptionText]}
-                          >
-                            {option.label}
-                          </Text>
-                        </TouchableOpacity>
-                      ))}
-                      
-                      <TouchableOpacity
-                        style={styles.cancelButton}
-                        onPress={() => setIsUnitModalVisible(false)}
+          <View style={styles.formGroup}>
+            <Text style={styles.label}>Unit*</Text>
+            <TouchableOpacity 
+              style={styles.selectInput}
+              onPress={() => setIsUnitModalVisible(true)}
+            >
+              <Text style={styles.selectInputText}>
+                {unitOptions.find(option => option.value === unit)?.label || 'Select unit'}
+              </Text>
+            </TouchableOpacity>
+            
+            {/* Unit selection modal */}
+            <Modal
+              visible={isUnitModalVisible}
+              transparent={true}
+              animationType="slide"
+              onRequestClose={() => setIsUnitModalVisible(false)}
+            >
+              <View style={styles.modalOverlay}>
+                <View style={styles.modalContent}>
+                  <Text style={styles.modalTitle}>Select Unit</Text>
+                  
+                  {unitOptions.map((option) => (
+                    <TouchableOpacity
+                      key={option.value}
+                      style={styles.optionItem}
+                      onPress={() => {
+                        setUnit(option.value);
+                        setIsUnitModalVisible(false);
+                      }}
+                    >
+                      <Text 
+                        style={[styles.optionText, unit === option.value && styles.selectedOptionText]}
                       >
-                        <Text style={styles.cancelButtonText}>Cancel</Text>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                </Modal>
+                        {option.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                  
+                  <TouchableOpacity
+                    style={styles.cancelButton}
+                    onPress={() => setIsUnitModalVisible(false)}
+                  >
+                    <Text style={styles.cancelButtonText}>Cancel</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
-            </>
-          )}
+            </Modal>
+          </View>
           
           <View style={styles.formGroup}>
             <Text style={styles.label}>Description</Text>
