@@ -1,4 +1,4 @@
-import React, {useState, useCallback, useEffect} from 'react';
+import React, {useState, useCallback, useEffect, useRef} from 'react';
 import {
   View,
   TextInput,
@@ -10,6 +10,9 @@ import {
   ActivityIndicator,
   Platform,
   PermissionsAndroid,
+  ToastAndroid,
+  Linking,
+  AppState,
 } from 'react-native';
 import {Picker} from '@react-native-picker/picker';
 import Icon from 'react-native-vector-icons/MaterialIcons';
@@ -19,6 +22,7 @@ import {RootStackParamList} from '../../../navigation/AppNavigator';
 import Geolocation from '@react-native-community/geolocation';
 import {storage} from '../../../utils/storage';
 import DateTimePickerModal from 'react-native-modal-datetime-picker';
+import NetInfo from '@react-native-community/netinfo';
 
 type BranchAuthNavigationProp = StackNavigationProp<
   RootStackParamList,
@@ -57,9 +61,110 @@ const BranchAuth: React.FC<BranchAuthProps> = ({navigation, route}) => {
     useState(false);
   const [isClosingTimePickerVisible, setClosingTimePickerVisible] =
     useState(false);
+  const [manualLocationEntryMode, setManualLocationEntryMode] = useState(false);
+  const [manualLatitude, setManualLatitude] = useState('');
+  const [manualLongitude, setManualLongitude] = useState('');
+  const [locationError, setLocationError] = useState<string | null>(null);
+  const [isLocationServiceEnabled, setIsLocationServiceEnabled] = useState<boolean | null>(null);
+  const locationWatchIdRef = useRef<number | null>(null);
+  const appStateRef = useRef(AppState.currentState);
 
   useEffect(() => {
-    const checkLocationPermission = async () => {
+    // Set up AppState listener to detect when app comes to foreground
+    const subscription = AppState.addEventListener('change', nextAppState => {
+      if (appStateRef.current.match(/inactive|background/) && nextAppState === 'active') {
+        // App has come to the foreground, check location service status again
+        checkLocationServiceStatus();
+      }
+      appStateRef.current = nextAppState;
+    });
+    
+    // Clean up when component unmounts
+    return () => {
+      if (locationWatchIdRef.current !== null) {
+        Geolocation.clearWatch(locationWatchIdRef.current);
+      }
+      subscription.remove();
+    };
+  }, []);
+
+  // Function to check if location service is enabled
+  const checkLocationServiceStatus = useCallback(async () => {
+    try {
+      // Use a quick Geolocation call to check if service is enabled
+      const result = await new Promise<boolean>((resolve) => {
+        // Set a timeout in case the request hangs
+        const timeoutId = setTimeout(() => {
+          resolve(false); // Assume disabled if timeout
+        }, 3000);
+        
+        Geolocation.getCurrentPosition(
+          () => {
+            clearTimeout(timeoutId);
+            resolve(true); // Location service is enabled
+          },
+          (error) => {
+            clearTimeout(timeoutId);
+            // Error code 2 means location service is disabled
+            if (error.code === 2 || error.message === 'POSITION_UNAVAILABLE') {
+              resolve(false);
+            } else {
+              // For other errors, we assume location service might be enabled
+              resolve(true);
+            }
+          },
+          { timeout: 2000, maximumAge: 0 }
+        );
+      });
+      
+      setIsLocationServiceEnabled(result);
+      return result;
+    } catch (error) {
+      console.error('Error checking location service:', error);
+      setIsLocationServiceEnabled(false);
+      return false;
+    }
+  }, []);
+  
+  // Direct navigation to location settings
+  const openLocationSettings = useCallback(async () => {
+    try {
+      if (Platform.OS === 'android') {
+        // For Android: try to directly open location settings
+        // This intent is specific to location settings
+        await Linking.sendIntent('android.settings.LOCATION_SOURCE_SETTINGS');
+      } else {
+        // For iOS or fallback
+        Linking.openSettings();
+      }
+    } catch (error) {
+      console.error('Could not open location settings:', error);
+      // Fallback to opening general settings
+      try {
+        await Linking.openSettings();
+      } catch (settingsError) {
+        console.error('Could not open settings:', settingsError);
+        Alert.alert(
+          'Location Settings',
+          'Please manually enable location services in your device settings.'
+        );
+      }
+    }
+  }, []);
+  
+  useEffect(() => {
+    // Check both location permission and service status when component mounts
+    const initialChecks = async () => {
+      await checkLocationPermission();
+      await checkLocationServiceStatus();
+    };
+    
+    initialChecks();
+  }, []);
+  
+  // Check location permission
+  const checkLocationPermission = async () => {
+    try {
       if (Platform.OS === 'android') {
         const granted = await PermissionsAndroid.check(
           PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
@@ -67,71 +172,297 @@ const BranchAuth: React.FC<BranchAuthProps> = ({navigation, route}) => {
         setHasLocationPermission(granted);
         storage.set('locationPermission', granted ? 'granted' : 'denied');
       } else {
+        // For iOS, we check the stored permission value
         const storedPermission = storage.getString('locationPermission');
         setHasLocationPermission(storedPermission === 'granted');
       }
-    };
-    checkLocationPermission();
-  }, []);
+    } catch (error) {
+      console.warn('Error checking location permission:', error);
+      // If permission check fails, we default to false
+      setHasLocationPermission(false);
+    }
+  };
 
+  /**
+   * Enhanced permission request with fallbacks and detailed error handling
+   */
   const requestLocationPermission = async (): Promise<boolean> => {
-    if (Platform.OS === 'android') {
-      try {
+    try {
+      if (Platform.OS === 'android') {
+        // First, check if permission is already granted
+        const alreadyGranted = await PermissionsAndroid.check(
+          PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+        );
+        
+        if (alreadyGranted) {
+          storage.set('locationPermission', 'granted');
+          return true;
+        }
+        
+        // Request permission if not granted
         const granted = await PermissionsAndroid.request(
           PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
           {
             title: 'Location Permission',
-            message:
-              'SyncMart needs access to your location to fetch branch coordinates.',
+            message: 'SyncMart needs access to your location to fetch branch coordinates.',
             buttonPositive: 'OK',
             buttonNegative: 'Cancel',
           },
         );
+        
         const isGranted = granted === PermissionsAndroid.RESULTS.GRANTED;
         storage.set('locationPermission', isGranted ? 'granted' : 'denied');
+        
+        // If permission denied, provide helpful instructions
+        if (!isGranted) {
+          console.log('Location permission denied by user');
+        }
+        
         return isGranted;
-      } catch (err) {
-        console.warn(err);
-        return false;
+      } else {
+        // iOS handling through Geolocation API
+        return new Promise<boolean>(resolve => {
+          Geolocation.requestAuthorization(
+            () => {
+              storage.set('locationPermission', 'granted');
+              resolve(true);
+            },
+            () => {
+              storage.set('locationPermission', 'denied');
+              resolve(false);
+            }
+          );
+        });
       }
+    } catch (error) {
+      console.error('Error requesting location permission:', error);
+      reportLocationError(error, 'permission_request');
+      return false;
     }
-    return true;
   };
 
-  const fetchCurrentLocation = useCallback(async () => {
-    let permissionGranted = hasLocationPermission;
-    if (!hasLocationPermission) {
-      permissionGranted = await requestLocationPermission();
-      setHasLocationPermission(permissionGranted);
-    }
+  /**
+   * Helper function to get location with better timeout handling
+   */
+  // Define GeoPosition interface since it's not exposed from the Geolocation module
+  interface GeoPosition {
+    coords: {
+      latitude: number;
+      longitude: number;
+      altitude: number | null;
+      accuracy: number;
+      altitudeAccuracy: number | null;
+      heading: number | null;
+      speed: number | null;
+    };
+    timestamp: number;
+  }
 
-    if (!permissionGranted) {
-      Alert.alert(
-        'Permission Required',
-        'Please grant location permission in the app settings to fetch your current location.',
-        [
-          {
-            text: 'OK',
-            onPress: () => {
-              Alert.alert(
-                'Location Permission',
-                'Please go to your device settings and enable location permission for SyncMart.',
-              );
+  const getLocationWithTimeout = (options: {
+    enableHighAccuracy: boolean;
+    timeout: number;
+    maximumAge: number;
+  }): Promise<GeoPosition> => {
+    return new Promise((resolve, reject) => {
+      // Clear any existing watch
+      if (locationWatchIdRef.current !== null) {
+        Geolocation.clearWatch(locationWatchIdRef.current);
+      }
+
+      // Watch for position updates
+      locationWatchIdRef.current = Geolocation.watchPosition(
+        position => {
+          if (locationWatchIdRef.current !== null) {
+            Geolocation.clearWatch(locationWatchIdRef.current);
+            locationWatchIdRef.current = null;
+          }
+          resolve(position);
+        },
+        error => {
+          if (locationWatchIdRef.current !== null) {
+            Geolocation.clearWatch(locationWatchIdRef.current);
+            locationWatchIdRef.current = null;
+          }
+          reject(error);
+        },
+        options
+      );
+
+      // Set a backup timeout to clear the watch if it hangs
+      setTimeout(() => {
+        if (locationWatchIdRef.current !== null) {
+          Geolocation.clearWatch(locationWatchIdRef.current);
+          locationWatchIdRef.current = null;
+          reject(new Error('Location request timed out'));
+        }
+      }, options.timeout + 2000); // Add 2 seconds buffer
+    });
+  };
+
+  /**
+   * Progressive enhancement location fetching with fallbacks
+   */
+  const fetchLocation = async (): Promise<GeoPosition> => {
+    try {
+      // Try high accuracy first (GPS)
+      return await getLocationWithTimeout({
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 5000,
+      });
+    } catch (highAccuracyError) {
+      console.warn('High accuracy location failed, trying low accuracy:', highAccuracyError);
+      
+      // Fall back to low accuracy (network/cell towers)
+      try {
+        return await getLocationWithTimeout({
+          enableHighAccuracy: false,
+          timeout: 10000,
+          maximumAge: 30000,
+        });
+      } catch (lowAccuracyError) {
+        console.error('Low accuracy location also failed:', lowAccuracyError);
+        reportLocationError(lowAccuracyError, 'low_accuracy_fetch');
+        throw new Error('Could not fetch location using any method');
+      }
+    }
+  };
+
+  /**
+   * Error reporting function
+   */
+  const reportLocationError = (error: any, context: string) => {
+    // Log to console with context
+    console.error(`Location error (${context}):`, error);
+    
+    // Store error details for analytics/reporting
+    const errorDetails = {
+      errorCode: error.code,
+      errorMessage: error.message,
+      context,
+      timestamp: new Date().toISOString(),
+    };
+    
+    // Set UI error state
+    setLocationError(error.message || 'Unknown location error');
+    
+    // Here you would send to your error tracking service
+    // Example: api.logError(errorDetails);
+  };
+
+  // Use the openLocationSettings function defined above
+
+  /**
+   * Apply manually entered coordinates
+   */
+  const applyManualCoordinates = useCallback(() => {
+    // Validate the manual entries
+    const lat = parseFloat(manualLatitude);
+    const lng = parseFloat(manualLongitude);
+    
+    if (isNaN(lat) || isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+      Alert.alert('Invalid Coordinates', 'Please enter valid latitude (-90 to 90) and longitude (-180 to 180) values.');
+      return;
+    }
+    
+    // Update the form with manual coordinates
+    setForm(prev => ({
+      ...prev,
+      branchLocation: `${lat.toFixed(6)}, ${lng.toFixed(6)}`,
+    }));
+    
+    setIsLocationFetched(true);
+    setManualLocationEntryMode(false);
+    ToastAndroid.show('Location set manually', ToastAndroid.SHORT);
+  }, [manualLatitude, manualLongitude]);
+
+  /**
+   * Check network connectivity before attempting location fetch
+   */
+  const checkNetworkAndFetchLocation = useCallback(async () => {
+    try {
+      const networkState = await NetInfo.fetch();
+      
+      if (!networkState.isConnected) {
+        Alert.alert(
+          'No Network Connection',
+          'Your device is offline. Location services may be limited. Would you like to enter coordinates manually or try anyway?',
+          [
+            {
+              text: 'Enter Manually',
+              onPress: () => {
+                setManualLocationEntryMode(true);
+                setLocationError('No network connection');
+              },
             },
+            {
+              text: 'Try Anyway',
+              onPress: () => handleLocationFetching(),
+            },
+          ]
+        );
+        return;
+      }
+      
+      // Proceed with location fetching if network is available
+      handleLocationFetching();
+    } catch (error) {
+      console.error('Network check failed:', error);
+      // Fall back to attempting location fetch anyway
+      handleLocationFetching();
+    }
+  }, []);
+
+  /**
+   * Main location fetching handler with comprehensive error handling
+   */
+  const handleLocationFetching = useCallback(async () => {
+    // Reset error state
+    setLocationError(null);
+    
+    // Check if location service is enabled again just to be sure
+    const serviceEnabled = await checkLocationServiceStatus();
+    if (!serviceEnabled) {
+      Alert.alert(
+        'Location Service Disabled',
+        'Your device location/GPS service is turned off. Please enable it to fetch your branch location.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { 
+            text: 'Enable Location', 
+            onPress: openLocationSettings
           },
-        ],
+          {
+            text: 'Enter Manually',
+            onPress: () => setManualLocationEntryMode(true)
+          }
+        ]
       );
       return;
     }
-
+    
+    // Check if already fetched
     if (isLocationFetched) {
-      Alert.alert('Info', 'Location has already been fetched.');
+      Alert.alert('Info', 'Location has already been fetched. Do you want to update it?', [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Update',
+          onPress: () => {
+            setIsLocationFetched(false);
+            handleLocationFetching();
+          },
+        },
+      ]);
       return;
     }
 
+    // Confirm user wants to fetch location
     Alert.alert(
       'Confirm Location',
-      'Are you sure you are at your shop?',
+      'Are you sure you are at your shop? This will record your current location.',
       [
         {
           text: 'Cancel',
@@ -139,40 +470,122 @@ const BranchAuth: React.FC<BranchAuthProps> = ({navigation, route}) => {
         },
         {
           text: 'Yes',
-          onPress: () => {
+          onPress: async () => {
+            // Show loading state
             setIsFetchingLocation(true);
-            Geolocation.getCurrentPosition(
-              position => {
-                const {latitude, longitude} = position.coords;
+            
+            try {
+              // Check and request permissions
+              const hasPermission = await requestLocationPermission();
+              setHasLocationPermission(hasPermission);
+              
+              if (!hasPermission) {
+                // Show helpful message if permission denied
+                ToastAndroid.show('Location permission is required', ToastAndroid.LONG);
+                
+                // Offer manual location entry option
+                Alert.alert(
+                  'Permission Required',
+                  'Location permission denied. Would you like to enter coordinates manually or open settings?',
+                  [
+                    {
+                      text: 'Enter Manually',
+                      onPress: () => setManualLocationEntryMode(true),
+                    },
+                    {
+                      text: 'Open Settings',
+                      onPress: openLocationSettings,
+                    },
+                  ]
+                );
+                return;
+              }
+              
+              // Attempt to fetch location
+              try {
+                const position = await fetchLocation();
+                const { latitude, longitude } = position.coords;
+                
+                // Update form with precise location
                 setForm(prev => ({
                   ...prev,
-                  branchLocation: `${latitude.toFixed(6)}, ${longitude.toFixed(
-                    6,
-                  )}`,
+                  branchLocation: `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`,
                 }));
+                
                 setIsLocationFetched(true);
-                setIsFetchingLocation(false);
-              },
-              error => {
-                console.error('Error getting location:', error);
+                ToastAndroid.show('Location fetched successfully', ToastAndroid.SHORT);
+              } catch (locationError: any) {
+                console.error('Location fetch error:', locationError);
+                
+                // Show helpful error with fallback options
                 Alert.alert(
-                  'Error',
-                  'Could not fetch your location. Please ensure location services are enabled and try again.',
+                  'Location Error',
+                  'Unable to get your precise location. What would you like to do?',
+                  [
+                    {
+                      text: 'Enter Manually',
+                      onPress: () => setManualLocationEntryMode(true),
+                    },
+                    {
+                      text: 'Try Again',
+                      onPress: () => handleLocationFetching(),
+                    },
+                  ]
                 );
-                setIsFetchingLocation(false);
-              },
-              {
-                enableHighAccuracy: true,
-                timeout: 15000,
-                maximumAge: 10000,
-              },
-            );
+              }
+            } catch (error: any) {
+              console.error('General location error:', error);
+              Alert.alert('Error', error.message || 'An unexpected error occurred');
+            } finally {
+              setIsFetchingLocation(false);
+            }
           },
         },
       ],
       {cancelable: false},
     );
-  }, [hasLocationPermission, isLocationFetched]);
+  }, [hasLocationPermission, isLocationFetched, openLocationSettings]);
+
+  /**
+   * Check if location service is enabled before proceeding with location fetch
+   */
+  const checkLocationServiceBeforeFetch = useCallback(async () => {
+    // First check if location service is enabled
+    const serviceEnabled = await checkLocationServiceStatus();
+    
+    if (!serviceEnabled) {
+      // Show alert that location service is disabled with option to enable
+      Alert.alert(
+        'Location Service Disabled',
+        'Your device location/GPS service is turned off. Please enable it to fetch your branch location.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { 
+            text: 'Enable Location', 
+            onPress: openLocationSettings
+          },
+          {
+            text: 'Enter Manually',
+            onPress: () => setManualLocationEntryMode(true)
+          }
+        ]
+      );
+      return false;
+    }
+    
+    // If location service is enabled, proceed with network check
+    return true;
+  }, [checkLocationServiceStatus, openLocationSettings]);
+
+  /**
+   * Main entry point for location fetching - first checks service status, then network, then proceeds
+   */
+  const fetchCurrentLocation = useCallback(async () => {
+    const serviceEnabled = await checkLocationServiceBeforeFetch();
+    if (serviceEnabled) {
+      checkNetworkAndFetchLocation();
+    }
+  }, [checkLocationServiceBeforeFetch, checkNetworkAndFetchLocation]);
 
   const validateEmail = (email: string): boolean => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -353,18 +766,18 @@ const BranchAuth: React.FC<BranchAuthProps> = ({navigation, route}) => {
                 setForm(prev => ({...prev, branchLocation: text}))
               }
               style={[styles.input, isLocationFetched && styles.inputDisabled]}
-              editable={!isLocationFetched}
+              editable={!isLocationFetched && !manualLocationEntryMode}
             />
           </View>
           <TouchableOpacity
             style={[
               styles.fetchButton,
-              (!hasLocationPermission || isLocationFetched) &&
+              (isFetchingLocation || isLocationFetched || manualLocationEntryMode) &&
                 styles.fetchButtonDisabled,
             ]}
             onPress={fetchCurrentLocation}
             disabled={
-              isFetchingLocation || !hasLocationPermission || isLocationFetched
+              isFetchingLocation || isLocationFetched || manualLocationEntryMode
             }>
             {isFetchingLocation ? (
               <ActivityIndicator color="#2ecc71" />
@@ -373,12 +786,94 @@ const BranchAuth: React.FC<BranchAuthProps> = ({navigation, route}) => {
             )}
           </TouchableOpacity>
         </View>
-        {!hasLocationPermission && (
-          <Text style={styles.permissionText}>
-            Location permission is required to fetch your current location.
-            Please enable it in your device settings.
-          </Text>
+        
+        {/* Manual location entry mode */}
+        {manualLocationEntryMode && (
+          <View style={styles.manualLocationContainer}>
+            <Text style={styles.manualLocationLabel}>Enter Coordinates Manually:</Text>
+            <View style={styles.coordInputContainer}>
+              <View style={styles.coordInputWrapper}>
+                <Text style={styles.coordLabel}>Latitude:</Text>
+                <TextInput
+                  placeholder="e.g., 12.9716"
+                  placeholderTextColor="#95a5a6"
+                  keyboardType="decimal-pad"
+                  value={manualLatitude}
+                  onChangeText={setManualLatitude}
+                  style={styles.coordInput}
+                />
+              </View>
+              <View style={styles.coordInputWrapper}>
+                <Text style={styles.coordLabel}>Longitude:</Text>
+                <TextInput
+                  placeholder="e.g., 77.5946"
+                  placeholderTextColor="#95a5a6"
+                  keyboardType="decimal-pad"
+                  value={manualLongitude}
+                  onChangeText={setManualLongitude}
+                  style={styles.coordInput}
+                />
+              </View>
+              <View style={styles.coordButtonsContainer}>
+                <TouchableOpacity 
+                  style={styles.applyButton}
+                  onPress={applyManualCoordinates}>
+                  <Text style={styles.applyButtonText}>Apply</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={styles.cancelButton}
+                  onPress={() => setManualLocationEntryMode(false)}>
+                  <Text style={styles.cancelButtonText}>Cancel</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
         )}
+        
+        {/* Show permission warnings if needed */}
+        {(!hasLocationPermission || isLocationServiceEnabled === false) && !manualLocationEntryMode && (
+          <View style={styles.permissionContainer}>
+            {!hasLocationPermission && (
+              <Text style={styles.permissionText}>
+                Location permission is required to fetch your current location.
+              </Text>
+            )}
+            {isLocationServiceEnabled === false && (
+              <Text style={styles.permissionText}>
+                Location service (GPS) is disabled on your device.
+              </Text>
+            )}
+            <TouchableOpacity onPress={openLocationSettings} style={styles.settingsButton}>
+              <Text style={styles.settingsButtonText}>Open Settings</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              onPress={() => setManualLocationEntryMode(true)} 
+              style={styles.manualEntryButton}>
+              <Text style={styles.manualEntryButtonText}>Enter Manually</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+        
+        {isLocationServiceEnabled === false && !manualLocationEntryMode && (
+          <View style={styles.permissionContainer}>
+            <Text style={styles.permissionText}>
+              Location service (GPS) is disabled on your device.
+            </Text>
+            <TouchableOpacity onPress={openLocationSettings} style={styles.settingsButton}>
+              <Text style={styles.settingsButtonText}>Open Settings</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              onPress={() => setManualLocationEntryMode(true)} 
+              style={styles.manualEntryButton}>
+              <Text style={styles.manualEntryButtonText}>Enter Manually</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+        
+        {locationError && !manualLocationEntryMode && (
+          <Text style={styles.errorText}>{locationError}</Text>
+        )}
+        
         {isLocationFetched && (
           <Text style={styles.infoText}>
             Location has been fetched and is now locked.
@@ -621,41 +1116,29 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#2c3e50',
     marginBottom: 8,
-    textAlign: 'center',
   },
   subheader: {
     fontSize: 16,
+    marginBottom: 20,
     color: '#7f8c8d',
-    marginBottom: 30,
-    textAlign: 'center',
   },
   formGroup: {
     marginBottom: 20,
   },
   label: {
-    fontSize: 14,
-    color: '#34495e',
+    fontSize: 16,
     marginBottom: 8,
-    fontWeight: '500',
-  },
-  addressFieldContainer: {
-    marginBottom: 10,
-  },
-  addressLabel: {
-    fontSize: 12,
-    color: '#34495e',
-    marginBottom: 4,
-    fontWeight: '500',
-    marginLeft: 4,
+    color: '#2c3e50',
+    fontWeight: '600',
   },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'white',
-    borderRadius: 8,
-    paddingHorizontal: 12,
     borderWidth: 1,
-    borderColor: '#ecf0f1',
+    borderColor: '#bdc3c7',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    backgroundColor: '#f9f9f9',
   },
   icon: {
     marginRight: 10,
@@ -663,84 +1146,192 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
     height: 50,
-    color: '#2c3e50',
     fontSize: 16,
+    color: '#2c3e50',
   },
-  inputDisabled: {
-    backgroundColor: '#f0f0f0',
-    color: '#7f8c8d',
+  inputText: {
+    color: '#2c3e50',
   },
   placeholderText: {
     color: '#95a5a6',
   },
-  inputText: {
+  inputDisabled: {
+    backgroundColor: '#ecf0f1',
+    color: '#7f8c8d',
+  },
+  locationContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  inputWrapper: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#bdc3c7',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    backgroundColor: '#f9f9f9',
+  },
+  fetchButton: {
+    width: 50,
+    height: 50,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#f9f9f9',
+    borderWidth: 1,
+    borderColor: '#bdc3c7',
+    borderRadius: 8,
+    marginLeft: 10,
+  },
+  fetchButtonDisabled: {
+    opacity: 0.5,
+  },
+  // Manual location entry styles
+  manualLocationContainer: {
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    padding: 10,
+    backgroundColor: '#f5f5f5',
+  },
+  manualLocationLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 8,
     color: '#2c3e50',
+  },
+  coordInputContainer: {
+    width: '100%',
+  },
+  coordInputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  coordLabel: {
+    width: 80,
+    fontSize: 14,
+    color: '#7f8c8d',
+  },
+  coordInput: {
+    flex: 1,
+    height: 40,
+    borderWidth: 1,
+    borderColor: '#bdc3c7',
+    borderRadius: 6,
+    paddingHorizontal: 10,
+    backgroundColor: '#fff',
+  },
+  coordButtonsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginTop: 8,
+  },
+  applyButton: {
+    backgroundColor: '#2ecc71',
+    paddingVertical: 8,
+    paddingHorizontal: 15,
+    borderRadius: 6,
+    marginRight: 10,
+  },
+  applyButtonText: {
+    color: 'white',
+    fontWeight: 'bold',
+  },
+  cancelButton: {
+    backgroundColor: '#e74c3c',
+    paddingVertical: 8,
+    paddingHorizontal: 15,
+    borderRadius: 6,
+  },
+  cancelButtonText: {
+    color: 'white',
+    fontWeight: 'bold',
+  },
+  // Permission container styles
+  permissionContainer: {
+    marginTop: 8,
+    padding: 10,
+    backgroundColor: '#f8f9fa',
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#e74c3c',
+  },
+  permissionText: {
+    color: '#e74c3c',
+    fontSize: 14,
+    marginBottom: 8,
+  },
+  settingsButton: {
+    backgroundColor: '#3498db',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+    alignSelf: 'flex-start',
+    marginBottom: 8,
+  },
+  settingsButtonText: {
+    color: 'white',
+    fontWeight: 'bold',
+    fontSize: 13,
+  },
+  manualEntryButton: {
+    backgroundColor: '#f39c12',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+    alignSelf: 'flex-start',
+  },
+  manualEntryButtonText: {
+    color: 'white',
+    fontWeight: 'bold',
+    fontSize: 13,
+  },
+  errorText: {
+    marginTop: 8,
+    color: '#e74c3c',
+    fontSize: 14,
+  },
+  infoText: {
+    marginTop: 8,
+    color: '#2ecc71',
+    fontSize: 14,
+  },
+  addressFieldContainer: {
+    marginTop: 10,
+  },
+  addressLabel: {
+    fontSize: 14,
+    marginBottom: 5,
+    color: '#7f8c8d',
+  },
+  pickerContainer: {
+    borderWidth: 1,
+    borderColor: '#bdc3c7',
+    borderRadius: 8,
+    backgroundColor: '#f9f9f9',
+    marginTop: 10,
   },
   timePickerButton: {
     flex: 1,
     height: 50,
     justifyContent: 'center',
   },
-  pickerContainer: {
-    height: 50,
-    justifyContent: 'center',
+  buttonContainer: {
+    marginTop: 30,
   },
-  picker: {
-    flex: 1,
-    color: '#2c3e50',
-  },
-  button: {
-    flexDirection: 'row',
+  nextButton: {
     backgroundColor: '#2ecc71',
+    paddingVertical: 15,
     borderRadius: 8,
-    padding: 16,
     alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 20,
-    gap: 10,
   },
   buttonText: {
     color: 'white',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  locationContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  inputWrapper: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'white',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#ecf0f1',
-    paddingHorizontal: 12,
-  },
-  fetchButton: {
-    width: 50,
-    height: 50,
-    borderRadius: 8,
-    backgroundColor: 'white',
-    borderWidth: 1,
-    borderColor: '#ecf0f1',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  fetchButtonDisabled: {
-    opacity: 0.5,
-  },
-  permissionText: {
-    fontSize: 12,
-    color: '#e74c3c',
-    marginTop: 5,
-  },
-  infoText: {
-    fontSize: 12,
-    color: '#2c3e50',
-    marginTop: 5,
+    fontSize: 18,
+    fontWeight: 'bold',
   },
 });
 

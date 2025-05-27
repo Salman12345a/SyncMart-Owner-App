@@ -19,13 +19,15 @@ interface PaymentGatewayScreenProps {
   route: {
     params: {
       paymentAmount: number;
-      branchId: string;
     };
   };
 }
 
 const PaymentGatewayScreen = ({ route }: PaymentGatewayScreenProps) => {
-  const { paymentAmount, branchId } = route.params;
+  const { paymentAmount } = route.params;
+  
+  // Get branchId directly from storage instead of route params
+  const branchId = storage.getString('userId');
   const navigation = useNavigation();
   const { setWalletBalance } = useStore();
   const [loading, setLoading] = useState(true);
@@ -38,8 +40,21 @@ const PaymentGatewayScreen = ({ route }: PaymentGatewayScreenProps) => {
   // Get access token from storage
   const token = storage.getString('accessToken') || '';
 
+  // Validate branchId before constructing the payment URL
+  const [validationError, setValidationError] = useState<string | null>(null);
+  
   // Construct the payment URL with parameters according to required format
-  const paymentUrl = `${serverBaseUrl}/public/payment.html?branchId=${branchId}&token=${token}&balance=${paymentAmount}`;
+  const paymentUrl = branchId 
+    ? `${serverBaseUrl}/public/payment.html?branchId=${branchId}&token=${token}&balance=${paymentAmount}`
+    : '';
+
+  // Validate required parameters on component mount
+  useEffect(() => {
+    if (!branchId) {
+      setValidationError('Branch ID is required for payment processing');
+      setError('Branch ID is required for payment processing');
+    }
+  }, [branchId]);
 
   useEffect(() => {
     // Handle back button press to show confirmation alert
@@ -127,9 +142,9 @@ const PaymentGatewayScreen = ({ route }: PaymentGatewayScreenProps) => {
       </View>
 
       {/* WebView */}
-      {error ? (
+      {error || validationError ? (
         <View style={styles.centerContent}>
-          <Text style={styles.errorText}>{error}</Text>
+          <Text style={styles.errorText}>{error || validationError}</Text>
           <TouchableOpacity
             style={styles.retryButton}
             onPress={() => {
@@ -231,5 +246,5 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
 });
-
+ 
 export default PaymentGatewayScreen;

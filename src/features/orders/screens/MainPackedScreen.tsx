@@ -14,6 +14,7 @@ const MainPackedScreen: React.FC<OrderPackedScreenProps> = ({navigation}) => {
   const {orders} = useStore();
   const [activeTab, setActiveTab] = useState<'delivery' | 'pickup'>('delivery');
   const [isLoading, setIsLoading] = useState(true);
+  const [isPickupLoading, setIsPickupLoading] = useState(true);
 
   // Filter orders based on deliveryEnabled instead of deliveryServiceAvailable
   const deliveryOrders = orders.filter(
@@ -34,6 +35,18 @@ const MainPackedScreen: React.FC<OrderPackedScreenProps> = ({navigation}) => {
     
     return () => clearTimeout(timer);
   }, []); // Run once when component mounts
+
+  // Add separate loading effect for pickup tab
+  useEffect(() => {
+    if (activeTab === 'pickup') {
+      setIsPickupLoading(true);
+      const timer = setTimeout(() => {
+        setIsPickupLoading(false);
+      }, 800); // Short delay for visual feedback
+      
+      return () => clearTimeout(timer);
+    }
+  }, [activeTab]); // Run when tab changes to pickup
 
   const handleNavigation = (item: any) => {
     if (item.deliveryEnabled) {
@@ -89,8 +102,8 @@ const MainPackedScreen: React.FC<OrderPackedScreenProps> = ({navigation}) => {
         contentContainerStyle={styles.list}
       />
       
-      {/* Loading Overlay */}
-      {isLoading && (
+      {/* Loading Overlay - Show when initial loading or pickup tab is loading */}
+      {(isLoading || (activeTab === 'pickup' && isPickupLoading)) && (
         <View style={styles.loadingOverlay}>
           <ActivityIndicator size="large" color="#340e5c" />
         </View>
