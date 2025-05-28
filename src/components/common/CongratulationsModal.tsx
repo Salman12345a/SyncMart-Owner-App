@@ -34,7 +34,7 @@ const CongratulationsModal: React.FC<CongratulationsModalProps> = ({
           <Text style={styles.branchNameText}>{branchName}</Text>
 
           <Text style={styles.message}>
-            Your branch has been successfully registered with SyncMart. You're
+            Your branch has been successfully registered with DKbranch. You're
             now ready to start managing your digital kirana efficiently.
           </Text>
 

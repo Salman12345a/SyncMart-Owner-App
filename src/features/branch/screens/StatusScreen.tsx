@@ -278,7 +278,7 @@ const StatusScreen: React.FC<StatusScreenProps> = ({route, navigation}) => {
       case 'pending':
         return 'Please wait while our team reviews your application. This process usually takes 24-48 hours.';
       case 'approved':
-        return 'You can now access all SyncMart features and start managing your business.';
+        return 'You can now access all DKbranch features and start managing your business.';
       case 'rejected':
         return 'Please check the whatsapp we sent the rejection reason and resubmit your application with the necessary corrections.';
       default:

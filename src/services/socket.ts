@@ -160,7 +160,7 @@ class SocketService {
 
     // Listen for store status updates
     this.socket.on(
-      'syncmart:status',
+      'dkbranch:status',
       (data: {
         storeStatus: 'open' | 'closed';
         balance?: number;

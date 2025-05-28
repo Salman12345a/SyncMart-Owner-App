@@ -80,7 +80,7 @@ const EditProductDetails: React.FC<EditProductDetailsProps> = () => {
       }
 
       try {
-        const response = await api.get(`/branch/products/${productId}`);
+        const response = await api.get(`/branch/${branchId}/categories/${categoryId}/products/${productId}`);
         const product = response.data;
 
         setName(product.name || '');

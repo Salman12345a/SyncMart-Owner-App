@@ -1,7 +1,7 @@
 // src/config.ts
 export const config = {
-  BASE_URL: 'http://dokirana.ap-south-1.elasticbeanstalk.com/api', // API base URL for axios
-  SOCKET_URL: 'http://dokirana.ap-south-1.elasticbeanstalk.com/', // WebSocket URL for socket.io - removed /api for socket connection
+  BASE_URL: 'https://dokirana.el.r.appspot.com/api', // API base URL for axios
+  SOCKET_URL: 'https://dokirana.el.r.appspot.com/', // WebSocket URL for socket.io - removed /api for socket connection
   
   // Testing configuration
   TESTING: {

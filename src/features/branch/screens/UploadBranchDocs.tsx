@@ -8,10 +8,13 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Image,
+  Platform,
+  ToastAndroid,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import {launchImageLibrary} from 'react-native-image-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import ImageResizer from 'react-native-image-resizer';
 import {StackNavigationProp} from '@react-navigation/stack';
 import {RouteProp} from '@react-navigation/native';
 import {RootStackParamList} from '../../../navigation/AppNavigator';
@@ -116,22 +119,68 @@ const UploadBranchDocs: React.FC<UploadBranchDocsProps> = ({
     }
   }, [isResubmit, branch]);
 
+  const compressAndResizeImage = async (imageUri: string, type: string): Promise<Asset> => {
+    try {
+      // Resize image to reasonable dimensions (1024px max width or height)
+      const resizedImage = await ImageResizer.createResizedImage(
+        imageUri,
+        1024,
+        1024,
+        'JPEG',
+        50, // Compress heavily to reduce size
+        0,
+        undefined,
+        false,
+        { mode: 'contain', onlyScaleDown: true }
+      );
+
+      if (Platform.OS === 'android') {
+        ToastAndroid.show('Image compressed successfully', ToastAndroid.SHORT);
+      }
+
+      return {
+        uri: resizedImage.uri,
+        type: 'image/jpeg',
+        fileName: resizedImage.name,
+        size: resizedImage.size,
+      };
+    } catch (error) {
+      console.error('Error compressing image:', error);
+      throw error;
+    }
+  };
+
   const pickImage = useCallback(async (type: keyof typeof files) => {
     try {
       const result = await launchImageLibrary({
         mediaType: 'photo',
-        quality: 0.7,
+        quality: 0.5, // Lower initial quality
+        maxWidth: 1200,
+        maxHeight: 1200,
       });
 
       if (!result.didCancel && result.assets && result.assets.length > 0) {
+        const originalAsset = result.assets[0];
+        
+        // Show loading or processing indicator
+        if (Platform.OS === 'android') {
+          ToastAndroid.show('Processing image...', ToastAndroid.SHORT);
+        }
+        
+        // Further compress the image
+        const compressedAsset = await compressAndResizeImage(
+          originalAsset.uri || '',
+          originalAsset.type || 'image/jpeg'
+        );
+
         setFiles(prev => ({
           ...prev,
-          [type]: result.assets![0],
+          [type]: compressedAsset,
         }));
       }
     } catch (error) {
-      Alert.alert('Error', `Failed to pick ${type}`);
-      console.error(`Error picking ${type}:`, error);
+      Alert.alert('Error', `Failed to pick or process ${type}`);
+      console.error(`Error picking/processing ${type}:`, error);
     }
   }, []);
 
@@ -269,11 +318,40 @@ const UploadBranchDocs: React.FC<UploadBranchDocsProps> = ({
         };
 
         try {
-          // Step 1: First call initiateBranchRegistration
+          // Prepare data for initiateBranchRegistration (using the format it expects)
           console.log('Step 1: Initiating branch registration');
-          const initiationResponse = await initiateBranchRegistration(
-            initiationData,
-          );
+          const initiationResponse = await initiateBranchRegistration({
+            branchName: data.name,
+            branchLocation: JSON.stringify({
+              latitude: data.location.coordinates[1],
+              longitude: data.location.coordinates[0],
+            }),
+            branchAddress: JSON.stringify(data.address),
+            branchEmail: data.branchEmail || '',
+            openingTime: data.openingTime,
+            closingTime: data.closingTime,
+            ownerName: data.ownerName,
+            govId: data.govId,
+            phone: data.phone,
+            homeDelivery: data.deliveryServiceAvailable.toString(),
+            selfPickup: data.selfPickup.toString(),
+            // These images are already compressed by our pickImage function
+            branchfrontImage: files.branchfrontImage ? {
+              uri: files.branchfrontImage.uri,
+              type: 'image/jpeg',
+              name: 'branchfrontImage.jpg',
+            } : undefined,
+            ownerIdProof: files.ownerIdProof ? {
+              uri: files.ownerIdProof.uri,
+              type: 'image/jpeg',
+              name: 'ownerIdProof.jpg',
+            } : undefined,
+            ownerPhoto: files.ownerPhoto ? {
+              uri: files.ownerPhoto.uri,
+              type: 'image/jpeg',
+              name: 'ownerPhoto.jpg',
+            } : undefined,
+          });
 
           if (!initiationResponse) {
             throw new Error('Branch registration initiation failed');

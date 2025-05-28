@@ -903,11 +903,14 @@ export const initiateBranchRegistration = async (data: {
 
     console.log('Sending branch registration with FormData');
 
-    // Use FormData with the appropriate content-type header
+    // Use FormData with the appropriate content-type header and extended timeout
     const response = await api.post('/register/branch/initiate', formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
+      timeout: 60000, // Extend timeout to 60 seconds for large uploads
+      maxContentLength: 10 * 1024 * 1024, // 10MB max size
+      maxBodyLength: 10 * 1024 * 1024, // 10MB max size
     });
 
     console.log('Branch Registration Initiation Success:', response.data);

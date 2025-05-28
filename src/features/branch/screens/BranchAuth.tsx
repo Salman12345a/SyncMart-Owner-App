@@ -204,7 +204,7 @@ const BranchAuth: React.FC<BranchAuthProps> = ({navigation, route}) => {
           PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
           {
             title: 'Location Permission',
-            message: 'SyncMart needs access to your location to fetch branch coordinates.',
+            message: 'DKbranch needs access to your location to fetch branch coordinates.',
             buttonPositive: 'OK',
             buttonNegative: 'Cancel',
           },
@@ -1066,9 +1066,12 @@ const BranchAuth: React.FC<BranchAuthProps> = ({navigation, route}) => {
               setForm(prev => ({...prev, deliveryServiceAvailable: value}))
             }
             style={styles.picker}
-            dropdownIconColor="#7f8c8d">
-            <Picker.Item label="Yes" value="yes" />
-            <Picker.Item label="No" value="no" />
+            mode="dropdown"
+            dropdownIconColor="#7f8c8d"
+            enabled={true}
+            itemStyle={styles.pickerItemStyle}>
+            <Picker.Item label="Yes" value="yes" color="#2c3e50" />
+            <Picker.Item label="No" value="no" color="#2c3e50" />
           </Picker>
         </View>
       </View>
@@ -1088,9 +1091,12 @@ const BranchAuth: React.FC<BranchAuthProps> = ({navigation, route}) => {
               setForm(prev => ({...prev, selfPickup: value}))
             }
             style={styles.picker}
-            dropdownIconColor="#7f8c8d">
-            <Picker.Item label="Yes" value="yes" />
-            <Picker.Item label="No" value="no" />
+            mode="dropdown"
+            dropdownIconColor="#7f8c8d"
+            enabled={true}
+            itemStyle={styles.pickerItemStyle}>
+            <Picker.Item label="Yes" value="yes" color="#2c3e50" />
+            <Picker.Item label="No" value="no" color="#2c3e50" />
           </Picker>
         </View>
       </View>
@@ -1313,6 +1319,17 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     backgroundColor: '#f9f9f9',
     marginTop: 10,
+    height: 50,
+  },
+  picker: {
+    flex: 1,
+    height: 50,
+    color: '#2c3e50',
+    marginLeft: Platform.OS === 'android' ? -10 : 0, // Fix alignment on Android
+  },
+  pickerItemStyle: {
+    fontSize: 16,
+    height: 120,
   },
   timePickerButton: {
     flex: 1,
@@ -1332,6 +1349,17 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 18,
     fontWeight: 'bold',
+  },
+  button: {
+    flexDirection: 'row',
+    backgroundColor: '#2ecc71',
+    borderRadius: 8,
+    padding: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 25,
+    marginBottom: 15,
+    gap: 10,
   },
 });
 
