@@ -30,6 +30,7 @@ import {
   OrderSocketEvents,
 } from '../../../native/OrderSocket';
 import {FloatingOverlay} from '../../../native/FloatingOverlay';
+import {BackHandler, Platform, NativeModules} from 'react-native';
 
 type HomeScreenNavigationProp = StackNavigationProp<
   RootStackParamList,
@@ -793,11 +794,59 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
     }
   }, [isLoading, fadeAnim, showPrepOverlay]);
 
-  // Add new useEffect for floating overlay
+  // Add new useEffect for floating overlay and back button handling
   useEffect(() => {
     // Request overlay permission when component mounts
     FloatingOverlay.requestOverlayPermission().catch(error => {
       console.error('Failed to request overlay permission:', error);
+    });
+    
+    // Handle back button press to show overlay instead of closing app
+    const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
+      // Only handle back press when on the main screen and not handling other navigation
+      const canShowOverlay = storeStatus === 'open';
+      const activeOrderCount = filteredOrders.length;
+      
+      console.log(
+        'Back button pressed, store status:',
+        storeStatus,
+        'order count:',
+        activeOrderCount,
+      );
+      
+      if (canShowOverlay) {
+        console.log('Showing overlay due to back button press');
+        // Show the overlay
+        FloatingOverlay.showOverlay(true, activeOrderCount);
+        
+        // Use available native methods to minimize app instead of closing it
+        if (Platform.OS === 'android') {
+          try {
+            // Check if we have access to a custom native module for minimizing
+            if (NativeModules.AppModule && NativeModules.AppModule.minimizeApp) {
+              // Use our custom module if available
+              NativeModules.AppModule.minimizeApp();
+            } else if (NativeModules.ReactNativeAndroidBackgroundActivity && 
+                      NativeModules.ReactNativeAndroidBackgroundActivity.moveTaskToBack) {
+              // Some React Native configurations have this method available
+              NativeModules.ReactNativeAndroidBackgroundActivity.moveTaskToBack(true);
+            } else {
+              // Fallback - this simulates a HOME button press
+              console.log('Using BackHandler.exitApp() as fallback for minimizing');
+              // Note: this doesn't actually exit the app, just minimizes it on most Android devices
+              setTimeout(() => BackHandler.exitApp(), 100);
+            }
+          } catch (err) {
+            console.error('Failed to minimize app:', err);
+          }
+        }
+        
+        // Return true to indicate we've handled the back press
+        return true;
+      }
+      
+      // Return false to allow default back behavior for navigation
+      return false;
     });
 
     // Set up app state change listener
@@ -805,7 +854,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
       console.log('App state changed:', nextAppState);
       setAppState(nextAppState);
 
-      // Show overlay when app goes to background and store is open
+      // Show overlay ONLY when app goes to background AND store is open
       if (nextAppState === 'background') {
         const activeOrderCount = filteredOrders.length;
         if (storeStatus === 'open') {
@@ -814,15 +863,11 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
           );
           FloatingOverlay.showOverlay(true, activeOrderCount);
         } else {
-          // Even when store is closed, show overlay if there are orders
-          if (activeOrderCount > 0) {
-            console.log(
-              'App went to background with store closed but has active orders, showing floating overlay',
-            );
-            FloatingOverlay.showOverlay(false, activeOrderCount);
-          } else {
-            FloatingOverlay.hideOverlay();
-          }
+          // Always hide overlay when store is closed, regardless of order count
+          console.log(
+            'App went to background with store closed, hiding floating overlay',
+          );
+          FloatingOverlay.hideOverlay();
         }
       } else if (nextAppState === 'active') {
         // Hide overlay when app comes to foreground
@@ -834,20 +879,40 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
     // Clean up on unmount
     return () => {
       subscription.remove();
+      backHandler.remove(); // Remove back button handler
       FloatingOverlay.hideOverlay();
+      console.log('HomeScreen unmounted, cleanup complete');
     };
   }, [storeStatus, filteredOrders.length]);
 
-  // Add another useEffect to update the overlay when orders change
+  // Add another useEffect to update the overlay when orders change (ONLY when store is open)
   useEffect(() => {
     if (appState === 'background') {
       const activeOrderCount = filteredOrders.length;
-      if (storeStatus === 'open' || activeOrderCount > 0) {
+      if (storeStatus === 'open') {
         console.log('Updating overlay with new order count:', activeOrderCount);
-        FloatingOverlay.updateOverlay(storeStatus === 'open', activeOrderCount);
+        FloatingOverlay.updateOverlay(true, activeOrderCount);
       }
     }
   }, [filteredOrders.length, appState, storeStatus]);
+
+  // Add dedicated useEffect to handle store status changes
+  useEffect(() => {
+    // Only handle status changes when app is in background
+    if (appState === 'background') {
+      const activeOrderCount = filteredOrders.length;
+      
+      if (storeStatus === 'open') {
+        // Show overlay immediately when store status changes to open
+        console.log('Store status changed to open while in background, showing overlay');
+        FloatingOverlay.showOverlay(true, activeOrderCount);
+      } else {
+        // Hide overlay immediately when store status changes to closed
+        console.log('Store status changed to closed while in background, hiding overlay');
+        FloatingOverlay.hideOverlay();
+      }
+    }
+  }, [storeStatus, appState, filteredOrders.length]);
 
   // Show only authentication loading internally, but keep the prep overlay visible
   // This allows components to load in the background while animation is showing
