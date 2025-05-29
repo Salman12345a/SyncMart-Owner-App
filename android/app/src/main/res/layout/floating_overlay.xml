@@ -1,76 +1,56 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.cardview.widget.CardView
+<FrameLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="wrap_content"
     android:layout_height="wrap_content"
-    android:layout_margin="8dp"
-    app:cardCornerRadius="16dp"
-    app:cardElevation="8dp"
-    app:cardBackgroundColor="#CC000000"
-    app:contentPadding="2dp">
+    android:layout_margin="4dp">
 
-    <!-- Border wrapper -->
+    <!-- Logo as app icon in circular shape -->
     <androidx.cardview.widget.CardView
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:layout_margin="1dp"
-        app:cardBackgroundColor="#FFFFFF"
-        app:cardCornerRadius="14dp"
-        app:cardElevation="0dp">
-
-        <androidx.cardview.widget.CardView
+        android:layout_width="44dp"
+        android:layout_height="44dp"
+        app:cardCornerRadius="22dp"
+        app:cardElevation="0dp"
+        app:cardBackgroundColor="@android:color/transparent">
+        
+        <ImageView
+            android:id="@+id/statusDot"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:layout_margin="1dp"
-            app:cardBackgroundColor="#CC000000"
-            app:cardCornerRadius="13dp"
-            app:cardElevation="0dp">
-
-            <LinearLayout
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="16dp">
-
-                <LinearLayout
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:gravity="center_vertical">
-
-                    <View
-                        android:id="@+id/statusDot"
-                        android:layout_width="12dp"
-                        android:layout_height="12dp"
-                        android:background="@drawable/circle_shape"
-                        android:backgroundTint="#4CAF50"
-                        android:layout_marginEnd="8dp"/>
-
-                    <TextView
-                        android:id="@+id/statusTextView"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="OPEN"
-                        android:textColor="#4CAF50"
-                        android:textSize="18sp"
-                        android:textStyle="bold"/>
-                </LinearLayout>
-
-                <TextView
-                    android:id="@+id/orderCountTextView"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Orders: 0"
-                    android:textColor="#FFFFFF"
-                    android:textSize="16sp"
-                    android:layout_marginTop="8dp"
-                    android:shadowColor="#000000"
-                    android:shadowDx="1"
-                    android:shadowDy="1"
-                    android:shadowRadius="2"/>
-
-            </LinearLayout>
-        </androidx.cardview.widget.CardView>
+            android:src="@drawable/logo"
+            android:scaleType="centerCrop"
+            android:adjustViewBounds="true"/>
     </androidx.cardview.widget.CardView>
-</androidx.cardview.widget.CardView> 
+
+    <!-- Hidden status text (will be used for accessibility but not shown) -->
+    <TextView
+        android:id="@+id/statusTextView"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:text="OPEN"
+        android:visibility="gone"/>
+        
+    <!-- Order count badge in top-right corner with circular shape -->
+    <androidx.cardview.widget.CardView
+        android:layout_width="18dp"
+        android:layout_height="18dp"
+        android:layout_gravity="top|end"
+        android:layout_marginTop="0dp"
+        android:layout_marginEnd="0dp"
+        app:cardCornerRadius="9dp"
+        app:cardElevation="2dp"
+        app:cardBackgroundColor="#FFEB3B">
+        
+        <TextView
+            android:id="@+id/orderCountTextView"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:text="0"
+            android:textColor="#FFFFFF"
+            android:textSize="10sp"
+            android:textStyle="bold"
+            android:gravity="center"/>
+    </androidx.cardview.widget.CardView>
+
+</FrameLayout>

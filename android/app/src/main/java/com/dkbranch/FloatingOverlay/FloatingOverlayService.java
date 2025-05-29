@@ -58,7 +58,7 @@ public class FloatingOverlayService extends Service {
         // Find the TextViews and other views
         statusTextView = floatingView.findViewById(R.id.statusTextView);
         orderCountTextView = floatingView.findViewById(R.id.orderCountTextView);
-        statusDot = floatingView.findViewById(R.id.statusDot);
+        statusDot = floatingView.findViewById(R.id.statusDot); // Now this is inside a CardView wrapper
 
         // Set up window parameters
         int layoutFlag;
@@ -214,30 +214,58 @@ public class FloatingOverlayService extends Service {
 
     private void updateOverlayContent(boolean isStoreOpen, int orderCount) {
         try {
-            if (statusTextView != null) {
-                statusTextView.setText(isStoreOpen ? "OPEN" : "CLOSED");
-                int textColor = isStoreOpen ? Color.GREEN : Color.RED;
-                statusTextView.setTextColor(textColor);
+            // Apply colored overlay to the logo image to indicate status
+            if (statusDot != null && statusDot instanceof ImageView) {
+                ImageView logoImage = (ImageView) statusDot;
                 
-                if (statusDot != null) {
-                    statusDot.setBackgroundTintList(android.content.res.ColorStateList.valueOf(textColor));
+                if (isStoreOpen) {
+                    // When open: show logo in full color with a slight green tint
+                    logoImage.setColorFilter(null); // Clear any existing filter
+                    // Apply a very subtle green tint
+                    logoImage.setColorFilter(Color.argb(40, 0, 255, 0), android.graphics.PorterDuff.Mode.OVERLAY);
+                } else {
+                    // When closed: show logo with a red tint
+                    logoImage.setColorFilter(Color.argb(90, 255, 0, 0), android.graphics.PorterDuff.Mode.MULTIPLY);
                 }
             }
             
+            // Update hidden text for accessibility (screen readers)
+            if (statusTextView != null) {
+                statusTextView.setText(isStoreOpen ? "OPEN" : "CLOSED");
+            }
+            
+            // Update order count badge
             if (orderCountTextView != null) {
-                // Highlight if there are orders
+                // Get the parent CardView of the orderCountTextView
+                View badgeContainer = (View) orderCountTextView.getParent();
+                
+                // Only show badge if there are orders
                 if (orderCount > 0) {
-                    orderCountTextView.setTextColor(Color.YELLOW);
-                    orderCountTextView.setTextSize(16);
-                    orderCountTextView.setText("📋 Orders: " + orderCount + " ⚠️");
+                    // Show the badge container
+                    badgeContainer.setVisibility(View.VISIBLE);
+                    orderCountTextView.setText(String.valueOf(orderCount));
                     
-                    // Make the overlay attention-grabbing for important notifications
-                    final int pulseCount = 3;
+                    // For larger numbers, adjust text size to fit
+                    if (orderCount > 9) {
+                        orderCountTextView.setTextSize(8); // Smaller text for double digits
+                    } else {
+                        orderCountTextView.setTextSize(10); // Regular size for single digit
+                    }
+                    
+                    // Red background for higher order counts
+                    int badgeColor = orderCount > 5 ? Color.RED : Color.parseColor("#FFEB3B");
+                    
+                    // Apply background color to the CardView container
+                    if (badgeContainer instanceof androidx.cardview.widget.CardView) {
+                        ((androidx.cardview.widget.CardView) badgeContainer).setCardBackgroundColor(badgeColor);
+                    }
+                    
+                    // Subtle notification for new orders
+                    final int pulseCount = 2;
                     pulseOverlay(pulseCount);
                 } else {
-                    orderCountTextView.setTextColor(Color.WHITE);
-                    orderCountTextView.setTextSize(14);
-                    orderCountTextView.setText("Orders: " + orderCount);
+                    // Hide badge when no orders
+                    badgeContainer.setVisibility(View.GONE);
                 }
             }
         } catch (Exception e) {
@@ -248,19 +276,18 @@ public class FloatingOverlayService extends Service {
     private void pulseOverlay(final int remainingPulses) {
         if (remainingPulses <= 0 || floatingView == null) return;
         
+        // Use alpha (transparency) pulse instead of scaling to save space
         floatingView.animate()
-            .scaleX(1.2f)
-            .scaleY(1.2f)
-            .setDuration(200)
+            .alpha(0.5f)  // Fade out slightly
+            .setDuration(150)
             .withEndAction(new Runnable() {
                 @Override
                 public void run() {
                     if (floatingView == null) return;
                     
                     floatingView.animate()
-                        .scaleX(1.0f)
-                        .scaleY(1.0f)
-                        .setDuration(200)
+                        .alpha(1.0f)  // Fade back in
+                        .setDuration(150)
                         .withEndAction(new Runnable() {
                             @Override
                             public void run() {
@@ -273,7 +300,7 @@ public class FloatingOverlayService extends Service {
                                         public void run() {
                                             pulseOverlay(remainingPulses - 1);
                                         }
-                                    }, 300);
+                                    }, 200);  // Shorter delay between pulses
                                 }
                             }
                         })
