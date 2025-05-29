@@ -94,10 +94,24 @@ const RegisteredBranchDetails: React.FC<RegisteredBranchDetailsProps> = ({
       }
     } catch (error: any) {
       console.error('Complete Registration Error:', error);
-      Alert.alert(
-        'Registration Failed',
-        error.message || 'Failed to complete registration. Please try again.',
-      );
+      
+      // Check for duplicate phone number error (MongoDB E11000 error)
+      const errorDetails = error.details || error.message || '';
+      const isDuplicatePhoneError = 
+        (typeof errorDetails === 'string' && errorDetails.includes('E11000 duplicate key error')) ||
+        (typeof errorDetails === 'object' && errorDetails.error?.includes('E11000 duplicate key error'));
+      
+      if (isDuplicatePhoneError) {
+        Alert.alert(
+          'Duplicate Phone Number',
+          'This phone number is already registered with another branch. Please use a different phone number.',
+        );
+      } else {
+        Alert.alert(
+          'Registration Failed',
+          error.message || 'Failed to complete registration. Please try again.',
+        );
+      }
     } finally {
       setIsLoading(false);
     }
