@@ -1,4 +1,5 @@
 import React, {useEffect, useCallback, useState, useMemo, useRef} from 'react';
+import {useFocusEffect} from '@react-navigation/native';
 import {
   View,
   StyleSheet,
@@ -793,68 +794,103 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
       }, 1000); // Wait 1 second after loading before starting fade out
     }
   }, [isLoading, fadeAnim, showPrepOverlay]);
+  
+  // Track screen focus state to handle back button correctly
+  const isFocusedRef = useRef(false);
+  const hasJustNavigatedRef = useRef(false);
 
-  // Add new useEffect for floating overlay and back button handling
+  // Handle back button press using useFocusEffect to properly handle screen focus changes
+  useFocusEffect(
+    useCallback(() => {
+      console.log('HomeScreen gained focus');
+      isFocusedRef.current = true;
+      
+      // Set a flag to indicate we've just navigated to this screen
+      // This prevents the back handler from triggering immediately after navigation
+      hasJustNavigatedRef.current = true;
+      const navigationTimer = setTimeout(() => {
+        hasJustNavigatedRef.current = false;
+      }, 500); // 500ms delay before enabling back handler after navigation
+
+      // Create the back button handler function
+      const handleBackPress = () => {
+        // Skip back press handling if we just navigated to this screen
+        if (hasJustNavigatedRef.current) {
+          console.log('Ignoring back press - just navigated to HomeScreen');
+          return false;
+        }
+
+        // Only handle back press when on the main screen with store open
+        const canShowOverlay = storeStatus === 'open';
+        const activeOrderCount = filteredOrders.length;
+        
+        console.log(
+          'Back button pressed, store status:',
+          storeStatus,
+          'order count:',
+          activeOrderCount,
+          'screen focused:',
+          isFocusedRef.current
+        );
+        
+        if (canShowOverlay && isFocusedRef.current) {
+          console.log('Showing overlay due to back button press');
+          // Show the overlay
+          FloatingOverlay.showOverlay(true, activeOrderCount);
+          
+          // Use available native methods to minimize app instead of closing it
+          if (Platform.OS === 'android') {
+            try {
+              // Check if we have access to a custom native module for minimizing
+              if (NativeModules.AppModule && NativeModules.AppModule.minimizeApp) {
+                // Use our custom module if available
+                NativeModules.AppModule.minimizeApp();
+              } else if (NativeModules.ReactNativeAndroidBackgroundActivity && 
+                        NativeModules.ReactNativeAndroidBackgroundActivity.moveTaskToBack) {
+                // Some React Native configurations have this method available
+                NativeModules.ReactNativeAndroidBackgroundActivity.moveTaskToBack(true);
+              } else {
+                // Fallback - this simulates a HOME button press
+                console.log('Using BackHandler.exitApp() as fallback for minimizing');
+                // Note: this doesn't actually exit the app, just minimizes it on most Android devices
+                setTimeout(() => BackHandler.exitApp(), 100);
+              }
+            } catch (err) {
+              console.error('Failed to minimize app:', err);
+            }
+          }
+          
+          // Return true to indicate we've handled the back press
+          return true;
+        }
+        
+        // Return false to allow default back behavior for navigation
+        return false;
+      };
+
+      // Add the back button handler
+      const backHandler = BackHandler.addEventListener('hardwareBackPress', handleBackPress);
+
+      // Clean up when screen loses focus
+      return () => {
+        console.log('HomeScreen lost focus');
+        isFocusedRef.current = false;
+        clearTimeout(navigationTimer);
+        backHandler.remove();
+      };
+    }, [storeStatus, filteredOrders.length])
+  );
+
+  // Request overlay permission when component mounts
   useEffect(() => {
-    // Request overlay permission when component mounts
     FloatingOverlay.requestOverlayPermission().catch(error => {
       console.error('Failed to request overlay permission:', error);
     });
-    
-    // Handle back button press to show overlay instead of closing app
-    const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
-      // Only handle back press when on the main screen and not handling other navigation
-      const canShowOverlay = storeStatus === 'open';
-      const activeOrderCount = filteredOrders.length;
-      
-      console.log(
-        'Back button pressed, store status:',
-        storeStatus,
-        'order count:',
-        activeOrderCount,
-      );
-      
-      if (canShowOverlay) {
-        console.log('Showing overlay due to back button press');
-        // Show the overlay
-        FloatingOverlay.showOverlay(true, activeOrderCount);
-        
-        // Use available native methods to minimize app instead of closing it
-        if (Platform.OS === 'android') {
-          try {
-            // Check if we have access to a custom native module for minimizing
-            if (NativeModules.AppModule && NativeModules.AppModule.minimizeApp) {
-              // Use our custom module if available
-              NativeModules.AppModule.minimizeApp();
-            } else if (NativeModules.ReactNativeAndroidBackgroundActivity && 
-                      NativeModules.ReactNativeAndroidBackgroundActivity.moveTaskToBack) {
-              // Some React Native configurations have this method available
-              NativeModules.ReactNativeAndroidBackgroundActivity.moveTaskToBack(true);
-            } else {
-              // Fallback - this simulates a HOME button press
-              console.log('Using BackHandler.exitApp() as fallback for minimizing');
-              // Note: this doesn't actually exit the app, just minimizes it on most Android devices
-              setTimeout(() => BackHandler.exitApp(), 100);
-            }
-          } catch (err) {
-            console.error('Failed to minimize app:', err);
-          }
-        }
-        
-        // Return true to indicate we've handled the back press
-        return true;
-      }
-      
-      // Return false to allow default back behavior for navigation
-      return false;
-    });
+  }, []);
 
-    // Set up app state change listener
+  // Set up app state change listener
+  useEffect(() => {
     const subscription = AppState.addEventListener('change', nextAppState => {
-      console.log('App state changed:', nextAppState);
-      setAppState(nextAppState);
-
-      // Show overlay ONLY when app goes to background AND store is open
       if (nextAppState === 'background') {
         const activeOrderCount = filteredOrders.length;
         if (storeStatus === 'open') {
@@ -879,7 +915,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
     // Clean up on unmount
     return () => {
       subscription.remove();
-      backHandler.remove(); // Remove back button handler
+      // Note: We don't need to remove backHandler here as it's handled by useFocusEffect
       FloatingOverlay.hideOverlay();
       console.log('HomeScreen unmounted, cleanup complete');
     };
