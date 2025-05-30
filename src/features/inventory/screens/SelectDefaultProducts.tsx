@@ -10,6 +10,7 @@ import CustomButton from '../../../components/ui/CustomButton';
 import { Product } from '../../../services/inventoryService';
 import api from '../../../services/api';
 import useInventoryStore from '../../../store/inventoryStore';
+import inventoryService from '../../../services/inventoryService';
 import { storage } from '../../../utils/storage';
 
 type SelectDefaultProductsProps = StackScreenProps<RootStackParamList, 'SelectDefaultProducts'>;
@@ -43,10 +44,28 @@ const SelectDefaultProducts = () => {
         setLoading(false);
         return;
       }
-      const response = await api.get(`/admin/default-categories/${defaultCategoryId}/products`);
-      setDefaultProducts(response.data);
+      
+      const branchId = storage.getString('userId');
+      if (!branchId) {
+        setError('Branch ID not found');
+        setLoading(false);
+        return;
+      }
+
+      // Use the new function to get only non-imported products
+      const products = await inventoryService.getNonImportedDefaultProducts(
+        branchId, 
+        categoryId, 
+        defaultCategoryId
+      );
+      setDefaultProducts(products);
+      
+      // If no products are available to import, show a helpful message
+      if (products.length === 0) {
+        setError('All products from this category have already been imported.');
+      }
     } catch (err: any) {
-      console.error('Error fetching default products:', err);
+      console.error('Error fetching non-imported default products:', err);
       setError(err?.message || 'Failed to fetch default products');
     } finally {
       setLoading(false);

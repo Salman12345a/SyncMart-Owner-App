@@ -227,7 +227,31 @@ export const inventoryService = {
       throw error;
     }
   },
-  
+
+  // Get default products that haven't been imported by the branch yet
+  getNonImportedDefaultProducts: async (branchId: string, categoryId: string, defaultCategoryId: string) => {
+    try {
+      // We'll use a query parameter to indicate we want only non-imported products
+      const response = await api.get(
+        `/admin/default-categories/${defaultCategoryId}/products`, 
+        {
+          params: {
+            branchId: branchId,
+            categoryId: categoryId,
+            nonImportedOnly: true
+          }
+        }
+      );
+      return response.data.map((product: Product) => ({
+        ...product,
+        createdFromTemplate: true
+      }));
+    } catch (error) {
+      console.error('Error fetching non-imported default products:', error);
+      throw error;
+    }
+  },
+
   // Custom Product APIs
   createCustomProduct: async (productData: CustomProductData) => {
     try {
