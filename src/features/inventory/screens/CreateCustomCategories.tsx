@@ -69,7 +69,21 @@ const CreateCustomCategories = () => {
         branchId,
       });
     } catch (err: any) {
-      setError(err?.message || 'Something went wrong');
+      console.error('Create category error:', err);
+      
+      // Check for duplicate category error
+      if (err?.response?.data?.message?.includes('already exists') || 
+          err?.response?.data?.error?.includes('already exists') ||
+          err?.message?.toLowerCase().includes('already exists')) {
+        setError('Category already exists');
+        Alert.alert(
+          'Duplicate Category',
+          'This category name already exists. Please use a different name.',
+          [{ text: 'OK' }]
+        );
+      } else {
+        setError(err?.response?.data?.message || err?.message || 'Something went wrong');
+      }
     } finally {
       setLoading(false);
     }

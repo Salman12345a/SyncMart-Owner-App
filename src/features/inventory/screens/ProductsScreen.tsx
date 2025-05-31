@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, FlatList, Image, Dimensions, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, FlatList, Image, Dimensions, Alert, Modal } from 'react-native';
 import { Tab, TabView } from '@rneui/themed';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import useInventoryStore from '../../../store/inventoryStore';
@@ -32,6 +32,8 @@ const ProductsScreen = () => {
   } = useInventoryStore();
 
   const [productIndex, setProductIndex] = React.useState(0);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadingMessage, setLoadingMessage] = useState('Loading products...');
   
   // Get branchId from MMKV storage (userId)
   const branchId = storage.getString('userId');
@@ -52,25 +54,34 @@ const ProductsScreen = () => {
     if (!categoryId || !branchId) return;
     
     try {
+      // Start loading state
+      setIsLoading(true);
       console.log('Fetching products for category:', categoryId);
       
       if (isCustomCategory) {
         // For custom categories, only fetch custom products
+        setLoadingMessage('Loading custom products...');
         console.log('Custom category - only fetching custom products');
         await fetchCustomProducts(branchId, categoryId);
         console.log('Custom products fetched successfully');
       } else {
         // For default categories, fetch both default and custom products
         // First fetch default products (from template)
+        setLoadingMessage('Loading default products...');
         await fetchBranchCategoryProducts(branchId, categoryId);
         console.log('Default products fetched successfully');
         
         // Then fetch custom products (created by branch)
+        setLoadingMessage('Loading custom products...');
         await fetchCustomProducts(branchId, categoryId);
         console.log('Custom products fetched successfully');
       }
     } catch (err) {
       console.error('Error fetching products:', err);
+      ToastAndroid.show('Error loading products', ToastAndroid.SHORT);
+    } finally {
+      // End loading state regardless of success or failure
+      setIsLoading(false);
     }
   };
 
@@ -395,6 +406,20 @@ const ProductsScreen = () => {
         onBackPress={() => navigation.goBack()} 
       />
       
+      {/* Full Screen Loading Overlay */}
+      <Modal
+        visible={isLoading}
+        transparent={true}
+        animationType='fade'
+      >
+        <View style={styles.loadingOverlay}>
+          <View style={styles.loadingModalContainer}>
+            <ActivityIndicator size='large' color='#007AFF' />
+            <Text style={styles.loadingModalText}>{loadingMessage}</Text>
+          </View>
+        </View>
+      </Modal>
+      
       <View style={styles.container}>
         {isCustomCategory ? (
           // For custom categories, only show custom products without tabs
@@ -582,6 +607,22 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     padding: 0, // Removed padding to use full width
+  },
+  loadingOverlay: {
+    flex: 1,
+    backgroundColor: 'rgb(255, 255, 255)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingModalContainer: {
+    backgroundColor: 'white',
+
+  },
+  loadingModalText: {
+    marginTop: 10,
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#007AFF',
   },
   tabIndicator: {
     backgroundColor: '#007AFF',

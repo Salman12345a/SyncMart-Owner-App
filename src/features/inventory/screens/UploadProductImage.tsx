@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   Alert,
   Platform,
+  PermissionsAndroid,
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
@@ -18,6 +19,7 @@ import CustomButton from '../../../components/ui/CustomButton';
 import { inventoryService } from '../../../services/inventoryService';
 import { launchImageLibrary, launchCamera } from 'react-native-image-picker';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import { PERMISSIONS, request, check, RESULTS } from 'react-native-permissions';
 
 type UploadProductImageRouteProp = RouteProp<RootStackParamList, 'UploadProductImage'>;
 
@@ -38,7 +40,7 @@ const UploadProductImage = () => {
       [
         {
           text: 'Camera',
-          onPress: () => openCamera(),
+          onPress: async () => await openCamera(),
         },
         {
           text: 'Gallery',
@@ -53,14 +55,57 @@ const UploadProductImage = () => {
     );
   };
   
+  // Request camera permission for Android
+  const requestCameraPermission = async () => {
+    if (Platform.OS !== 'android') return true;
+    
+    try {
+      // For Android 13+
+      if (Platform.Version >= 33) {
+        const cameraPermission = await request(PERMISSIONS.ANDROID.CAMERA);
+        return cameraPermission === RESULTS.GRANTED;
+      } 
+      // For older Android versions
+      else {
+        const granted = await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.CAMERA,
+          {
+            title: "Camera Permission",
+            message: "App needs camera permission to take product photos",
+            buttonNeutral: "Ask Me Later",
+            buttonNegative: "Cancel",
+            buttonPositive: "OK"
+          }
+        );
+        return granted === PermissionsAndroid.RESULTS.GRANTED;
+      }
+    } catch (err) {
+      console.error('Error requesting camera permission:', err);
+      return false;
+    }
+  };
+
   // Open camera
-  const openCamera = () => {
+  const openCamera = async () => {
+    // Request camera permission before proceeding
+    const hasPermission = await requestCameraPermission();
+    
+    if (!hasPermission) {
+      Alert.alert(
+        'Permission Required',
+        'Camera permission is required to take photos. Please enable it in your device settings.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+    
     launchCamera(
       {
         mediaType: 'photo',
         quality: 0.8,
         maxWidth: 1000,
         maxHeight: 1000,
+        includeBase64: false,
       },
       (response) => {
         if (response.didCancel) {

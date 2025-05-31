@@ -47,7 +47,8 @@ const CustomProducts = () => {
     { label: 'Kilogram (kg)', value: 'kg' },
     { label: 'Gram (g)', value: 'g' },
     { label: 'Liter (L)', value: 'L' },
-    { label: 'Milliliter (ml)', value: 'ml' }
+    { label: 'Milliliter (ml)', value: 'ml' },
+    { label: 'piece (pc)', value: 'pc' }
   ];
 
   // Unit options for non-packaged products (only kg and litre)

@@ -54,7 +54,8 @@ const EditProductDetails: React.FC<EditProductDetailsProps> = () => {
     { label: 'Kilogram (kg)', value: 'kg' },
     { label: 'Liter (L)', value: 'L' },
     { label: 'Gram (g)', value: 'g' },
-    { label: 'Milliliter (ml)', value: 'ml' }
+    { label: 'Milliliter (ml)', value: 'ml' },
+    { label: 'piece (pc)', value: 'pc' }
   ];
 
   // Unit options for non-packaged products (only kg and litre)
