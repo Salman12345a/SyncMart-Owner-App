@@ -30,6 +30,7 @@ export interface Product {
   createdAt: string;
   updatedAt: string;
   createdFromTemplate: boolean;
+  defaultProductId?: string; // ID of the original default product this was imported from
 }
 
 export interface CustomProductData {
@@ -231,21 +232,49 @@ export const inventoryService = {
   // Get default products that haven't been imported by the branch yet
   getNonImportedDefaultProducts: async (branchId: string, categoryId: string, defaultCategoryId: string) => {
     try {
-      // We'll use a query parameter to indicate we want only non-imported products
-      const response = await api.get(
-        `/admin/default-categories/${defaultCategoryId}/products`, 
-        {
-          params: {
-            branchId: branchId,
-            categoryId: categoryId,
-            nonImportedOnly: true
-          }
-        }
+      // First, get all default products for this category
+      const defaultResponse = await api.get(
+        `/admin/default-categories/${defaultCategoryId}/products`
       );
-      return response.data.map((product: Product) => ({
+      const defaultProducts = defaultResponse.data.map((product: Product) => ({
         ...product,
         createdFromTemplate: true
       }));
+      
+      // Then, get all products that have already been imported to this branch's category
+      const importedResponse = await api.get(`/branch/${branchId}/categories/${categoryId}/products`);
+      
+      // Extract the imported products depending on the response format
+      let importedProducts: Product[] = [];
+      if (importedResponse.data && importedResponse.data.status === 'SUCCESS' && 
+          importedResponse.data.data && importedResponse.data.data.products) {
+        // New API format with nested structure
+        importedProducts = importedResponse.data.data.products;
+      } else if (Array.isArray(importedResponse.data)) {
+        // Old API format with direct array
+        importedProducts = importedResponse.data;
+      } else if (importedResponse.data && importedResponse.data.products && 
+                Array.isArray(importedResponse.data.products)) {
+        // Alternative format with data.products
+        importedProducts = importedResponse.data.products;
+      }
+      
+      // Create a set of imported product IDs for faster lookup
+      const importedProductIds = new Set(
+        importedProducts
+          .filter((product: Product) => product.createdFromTemplate)
+          .map((product: Product) => product.defaultProductId || product._id)
+      );
+      
+      console.log(`Found ${defaultProducts.length} default products and ${importedProductIds.size} already imported products`);
+      
+      // Filter out the products that have already been imported
+      const nonImportedProducts = defaultProducts.filter(
+        (product: Product) => !importedProductIds.has(product._id)
+      );
+      
+      console.log(`Returning ${nonImportedProducts.length} non-imported products`);
+      return nonImportedProducts;
     } catch (error) {
       console.error('Error fetching non-imported default products:', error);
       throw error;

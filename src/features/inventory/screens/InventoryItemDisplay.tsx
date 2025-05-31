@@ -7,7 +7,7 @@ import useInventoryStore from '../../../store/inventoryStore';
 import { Category, Product, inventoryService } from '../../../services/inventoryService';
 import CustomHeader from '../../../components/ui/CustomHeader';
 import CustomButton from '../../../components/ui/CustomButton';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import { InventoryItemDisplayNavigationProp } from '../../../navigation/types';
 import { storage } from '../../../utils/storage';
 
@@ -46,32 +46,44 @@ const InventoryItemDisplay = () => {
   const branchId = storage.getString('userId');
   console.log('BranchId (userId) from MMKV storage:', branchId);
 
-  // Add a refresh effect that triggers when returning from upload
-  useEffect(() => {
-    const params = route.params as { refresh?: boolean; refreshTimestamp?: number } | undefined;
-    if (params?.refresh && branchId) {
-      console.log('Refreshing categories due to navigation parameter');
-      setIsLoading(true);
-      
-      (async () => {
-        try {
-          await fetchBranchCategories(branchId);
-          // After refresh, optionally set the tab to custom categories
-          setCategoryIndex(1); // Switch to custom tab
-          setActiveCategoryTab('custom');
-        } catch (error) {
-          console.error('Error refreshing categories:', error);
-        } finally {
-          // Small delay for smooth transition
-          setTimeout(() => {
-            setIsLoading(false);
-          }, 800);
+  // Effect to fetch categories when the screen comes into focus or when branchId changes.
+  useFocusEffect(
+    React.useCallback(() => {
+      let isActive = true;
+      const loadData = async () => {
+        if (branchId && isActive) {
+          console.log('InventoryItemDisplay focused, fetching categories...');
+          setIsLoading(true);
+          try {
+            await fetchBranchCategories(branchId);
+            // Check if we need to switch to the custom tab after import
+            const params = route.params as { refresh?: boolean; refreshTimestamp?: number } | undefined;
+            if (params?.refresh) {
+              // Clear the refresh param to prevent re-triggering on subsequent focuses without new navigation
+              navigation.setParams({ refresh: undefined, refreshTimestamp: undefined });
+            }
+          } catch (error) {
+            console.error('Error loading categories on focus:', error);
+          } finally {
+            if (isActive) {
+              setTimeout(() => {
+                setIsLoading(false);
+              }, 800); // Keep small delay for smoother UI
+            }
+          }
         }
-      })();
-    }
-  }, [route.params, branchId, fetchBranchCategories, setActiveCategoryTab]);
+      };
 
-  // Initial categories fetch
+      loadData();
+
+      return () => {
+        isActive = false;
+      };
+    }, [branchId, fetchBranchCategories, route.params, navigation, setActiveCategoryTab])
+  );
+
+  // Initial categories fetch (this might be redundant if useFocusEffect covers initial load, but kept for safety for now)
+  // Consider removing if useFocusEffect handles initial load reliably.
   useEffect(() => {
     const loadData = async () => {
       setIsLoading(true);

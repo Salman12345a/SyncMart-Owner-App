@@ -12,6 +12,7 @@ import {
   OrderSocketEventEmitter,
   OrderSocketEvents,
 } from './src/native/OrderSocket';
+import NetworkAlert from './src/components/common/NetworkAlert';
 
 export const navigationRef = React.createRef<NavigationContainerRef<any>>();
 
@@ -146,6 +147,8 @@ const App = () => {
   return (
     <NavigationContainer ref={navigationRef}>
       <AppNavigator />
+      {/* Add NetworkAlert component for internet connectivity monitoring */}
+      <NetworkAlert />
     </NavigationContainer>
   );
 };

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image } from 'react-native';
 import { Tab, TabView } from '@rneui/themed';
 import { inventoryService } from '../../../services/inventoryService';
 import CustomHeader from '../../../components/ui/CustomHeader';
@@ -14,22 +14,36 @@ const DefaultCategories = () => {
 
   // Local state for default categories
   const [defaultCategories, setDefaultCategories] = useState<Category[]>([]);
+  const [branchCategories, setBranchCategories] = useState<Category[]>([]); // State for branch's categories
   const [selected, setSelected] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [categoryIndex, setCategoryIndex] = useState(0);
 
   useEffect(() => {
-    setLoading(true);
-    inventoryService.getDefaultCategories()
-      .then((categories) => {
-        setDefaultCategories(categories);
+    const fetchData = async () => {
+      setLoading(true);
+      setError(null);
+      const branchId = storage.getString('userId');
+      if (!branchId) {
+        setError('Branch ID not found');
         setLoading(false);
-      })
-      .catch((err) => {
+        return;
+      }
+      try {
+        const [defaultCats, branchCats] = await Promise.all([
+          inventoryService.getDefaultCategories(),
+          inventoryService.getCustomCategories(branchId),
+        ]);
+        setDefaultCategories(defaultCats);
+        setBranchCategories(branchCats);
+      } catch (err: any) {
         setError(err?.message || 'Failed to fetch categories');
+      } finally {
         setLoading(false);
-      });
+      }
+    };
+    fetchData();
   }, []);
 
   const handleCategorySelect = (categoryId: string) => {
@@ -50,7 +64,10 @@ const DefaultCategories = () => {
     try {
       await inventoryService.importDefaultCategories(branchId, selected);
       setSelected([]);
-      navigation.goBack();
+      navigation.navigate('InventoryItemDisplay', { 
+        refresh: true, 
+        refreshTimestamp: Date.now() 
+      });
     } catch (err: any) {
       setError(err?.message || 'Failed to import categories');
     } finally {
@@ -66,8 +83,11 @@ const DefaultCategories = () => {
         style={[styles.itemContainer, isSelected && styles.selectedItem]}
         onPress={() => handleCategorySelect(category._id)}
       >
-        <Text style={styles.itemName}>{category.name}</Text>
-        <Text style={styles.itemDescription}>{category.description || 'No description'}</Text>
+        <Image source={{ uri: category.imageUrl }} style={styles.categoryImage} />
+        <View style={styles.itemTextContainer}>
+          <Text style={styles.itemName}>{category.name}</Text>
+          <Text style={styles.itemDescription}>{category.description || 'No description'}</Text>
+        </View>
       </TouchableOpacity>
     );
   };
@@ -95,7 +115,9 @@ const DefaultCategories = () => {
                 <Text style={styles.errorText}>{error}</Text>
               ) : (
                 <>
-                  {defaultCategories.map(renderCategoryItem)}
+                  {defaultCategories
+                    .filter(dc => !branchCategories.some(bc => bc.defaultCategoryId === dc._id))
+                    .map(renderCategoryItem)}
                   {selected.length > 0 && (
                     <View style={styles.importButtonContainer}>
                       <CustomButton
@@ -138,12 +160,23 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   itemContainer: {
+    flexDirection: 'row',
     padding: 16,
     backgroundColor: '#f8f9fa',
     borderRadius: 8,
     marginBottom: 12,
     borderWidth: 1,
     borderColor: '#e9ecef',
+    alignItems: 'center',
+  },
+  categoryImage: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    marginRight: 16,
+  },
+  itemTextContainer: {
+    flex: 1,
   },
   selectedItem: {
     backgroundColor: '#e3f2fd',
@@ -186,4 +219,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default DefaultCategories; 
+export default DefaultCategories;
