@@ -79,7 +79,7 @@ const OrderHasPacked: React.FC<OrderHasPackedProps> = ({route, navigation}) => {
   }, [orderState.totalPrice, orderState.deliveryEnabled]);
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
+    <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
       <View style={styles.header}>
         <Icon name="check-circle" size={32} color="#2ecc71" />
         <Text style={styles.title}>Order Ready for Pickup</Text>
@@ -103,11 +103,11 @@ const OrderHasPacked: React.FC<OrderHasPackedProps> = ({route, navigation}) => {
                   {item.item.name || 'Unknown Item'}
                 </Text>
                 <Text style={styles.itemMeta}>
-                  {item.count} x ₹{item.item.price || 0}
+                  {item.count} x ₹{(item.item.price || 0).toFixed(2)}
                 </Text>
               </View>
               <Text style={styles.itemTotal}>
-                ₹{(item.item.price || 0) * item.count}
+                ₹{((item.item.price || 0) * item.count).toFixed(2)}
               </Text>
             </View>
           )}
@@ -122,33 +122,33 @@ const OrderHasPacked: React.FC<OrderHasPackedProps> = ({route, navigation}) => {
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>Order Total</Text>
               <Text style={styles.summaryValue}>
-                ₹{orderCalculations.orderTotal}
+                ₹{orderCalculations.orderTotal.toFixed(2)}
               </Text>
             </View>
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>Customer Platform Fee</Text>
               <Text style={styles.summaryValue}>
-                +₹{orderCalculations.customerPlatformCharge}
+                +₹{orderCalculations.customerPlatformCharge.toFixed(2)}
               </Text>
             </View>
             <View style={styles.divider} />
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabelBold}>Customer Pays</Text>
               <Text style={styles.finalTotal}>
-                ₹{orderCalculations.finalCustomerTotal}
+                ₹{orderCalculations.finalCustomerTotal.toFixed(2)}
               </Text>
             </View>
             <View style={styles.divider} />
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>Branch Platform Fee</Text>
               <Text style={styles.summaryValue}>
-                -₹{orderCalculations.branchPlatformCharge}
+                -₹{orderCalculations.branchPlatformCharge.toFixed(2)}
               </Text>
             </View>
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabelBold}>Branch Receives</Text>
               <Text style={styles.branchTotal}>
-                ₹{orderCalculations.branchReceives}
+                ₹{orderCalculations.branchReceives.toFixed(2)}
               </Text>
             </View>
           </>

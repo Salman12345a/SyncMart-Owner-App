@@ -727,7 +727,7 @@ const BranchAuth: React.FC<BranchAuthProps> = ({navigation, route}) => {
   }, [formatData, navigation, form, branchId, isResubmit]);
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
+    <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
       <Text style={styles.header}>Branch Registration</Text>
       <Text style={styles.subheader}>Please fill in your branch details</Text>
 

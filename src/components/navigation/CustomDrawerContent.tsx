@@ -8,6 +8,7 @@ import {
   ScrollView,
   SafeAreaView,
   Platform,
+  Alert,
 } from 'react-native';
 import {
   DrawerContentScrollView,
@@ -72,19 +73,35 @@ const CustomDrawerContent = (props: DrawerContentComponentProps) => {
   });
 
   const handleLogout = () => {
-    // Clear storage
-    storage.delete('accessToken');
-    storage.delete('refreshToken');
-    storage.delete('userId');
+    Alert.alert(
+      'Confirm Logout',
+      'Are you sure you want to logout?',
+      [
+        {
+          text: 'No',
+          style: 'cancel',
+        },
+        {
+          text: 'Yes',
+          onPress: () => {
+            // Clear storage
+            storage.delete('accessToken');
+            storage.delete('refreshToken');
+            storage.delete('userId');
 
-    // Reset auth state in store if needed
-    useStore.getState().setUserId(null);
+            // Reset auth state in store if needed
+            useStore.getState().setUserId(null);
 
-    // Navigate to Authentication screen
-    navigation.reset({
-      index: 0,
-      routes: [{name: 'Authentication'}],
-    });
+            // Navigate to Authentication screen
+            navigation.reset({
+              index: 0,
+              routes: [{name: 'Authentication'}],
+            });
+          },
+        },
+      ],
+      {cancelable: false},
+    );
   };
 
   return (
@@ -103,7 +120,7 @@ const CustomDrawerContent = (props: DrawerContentComponentProps) => {
       </View>
 
       {/* Navigation section */}
-      <ScrollView style={styles.drawerItemsContainer}>
+      <ScrollView style={styles.drawerItemsContainer} showsVerticalScrollIndicator={false}>
         {filteredRoutes.map((route, index) => {
           const focused = index === props.state.index;
           const {title, drawerIcon} = props.descriptors[route.key].options;
