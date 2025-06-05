@@ -144,7 +144,7 @@ const DeliveryService: React.FC<DeliveryServiceProps> = ({navigation}) => {
   }
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
+    <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
       <View style={styles.header}>
         <Text style={styles.title}>Delivery Service Management</Text>
         <Text style={styles.subtitle}>Manage your delivery operations</Text>

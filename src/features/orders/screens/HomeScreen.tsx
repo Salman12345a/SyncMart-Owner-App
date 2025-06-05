@@ -55,6 +55,16 @@ Sound.setCategory('Playback');
 let orderSound: Sound | null = null;
 let soundInitialized = false;
 
+// Interface for orders coming from the native module
+export interface NativeOrder {
+  orderId: string;
+  branchId: string;
+  orderData: string; // JSON string
+  status: string;
+  createdAt: number; // Timestamp
+  updatedAt: number; // Timestamp
+}
+
 const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
   const {
     storeStatus,
@@ -69,14 +79,13 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showLowBalanceModal, setShowLowBalanceModal] = useState(false);
-  const [appState, setAppState] = useState<AppStateStatus>(
-    AppState.currentState,
-  );
+
   
   // Animation prep overlay state
   const [showPrepOverlay, setShowPrepOverlay] = useState(true);
   const fadeAnim = useRef(new Animated.Value(1)).current;
   const lottieRef = useRef<LottieView>(null);
+  const appState = useRef(AppState.currentState);
 
   // Initialize order ring sound
   useEffect(() => {
@@ -134,6 +143,78 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
       }
     };
   }, []);
+
+  useEffect(() => {
+    // Function to fetch persisted orders and update store
+    const fetchPersistedOrdersAndUpdateStore = async () => {
+      console.log('[HomeScreen] Attempting to fetch persisted orders.');
+      if (storeStatus !== 'open') {
+        console.log('[HomeScreen] Store is not open, skipping fetch persisted orders.');
+        return;
+      }
+      try {
+        const nativeOrders: NativeOrder[] = await OrderSocket.getPersistedOrders();
+        console.log(`[HomeScreen] Fetched ${nativeOrders.length} persisted orders.`);
+
+        if (nativeOrders && nativeOrders.length > 0) {
+          const transformedOrders: Order[] = nativeOrders.map(nativeOrder => {
+            let parsedOrderData: any = {};
+            try {
+              parsedOrderData = JSON.parse(nativeOrder.orderData);
+            } catch (e) {
+              console.error('Failed to parse orderData for orderId:', nativeOrder.orderId, e);
+            }
+            return {
+              _id: nativeOrder.orderId, // Use native orderId as store's _id
+              orderId: nativeOrder.orderId,
+              items: parsedOrderData.items || [], // Extract items from parsed orderData
+              status: nativeOrder.status,
+              createdAt: new Date(nativeOrder.createdAt).toISOString(),
+              // Add other fields from your store's Order type if needed
+              // e.g., branchId: nativeOrder.branchId,
+              // updatedAt: new Date(nativeOrder.updatedAt).toISOString(),
+            };
+          });
+
+          setOrders(prevOrders => {
+            const ordersMap = new Map(prevOrders.map(o => [o._id, o]));
+            transformedOrders.forEach(fetchedOrder => {
+              // If order exists, update it. Otherwise, add it.
+              // Consider more sophisticated merging if needed (e.g., based on updatedAt)
+              ordersMap.set(fetchedOrder._id, fetchedOrder);
+            });
+            const mergedOrders = Array.from(ordersMap.values());
+            console.log(`[HomeScreen] Merged orders. Total in store: ${mergedOrders.length}`);
+            return mergedOrders;
+          });
+        }
+      } catch (error) {
+        console.error('[HomeScreen] Failed to fetch or process persisted orders:', error);
+      }
+    };
+
+    // Initial fetch and AppState listener setup
+    if (storeStatus === 'open') {
+      fetchPersistedOrdersAndUpdateStore();
+    }
+
+    const subscription = AppState.addEventListener('change', nextAppState => {
+      if (
+        (appState.current === 'inactive' || appState.current === 'background') &&
+        nextAppState === 'active'
+      ) {
+        console.log('[HomeScreen] App has come to the foreground!');
+        if (storeStatus === 'open') {
+          fetchPersistedOrdersAndUpdateStore();
+        }
+      }
+      appState.current = nextAppState;
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [storeStatus, setOrders, appState]);
 
   // Function to play order sound with retry mechanism
   const playOrderSound = useCallback(() => {
@@ -923,7 +1004,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
 
   // Add another useEffect to update the overlay when orders change (ONLY when store is open)
   useEffect(() => {
-    if (appState === 'background') {
+    if (appState.current === 'background') {
       const activeOrderCount = filteredOrders.length;
       if (storeStatus === 'open') {
         console.log('Updating overlay with new order count:', activeOrderCount);
@@ -935,7 +1016,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
   // Add dedicated useEffect to handle store status changes
   useEffect(() => {
     // Only handle status changes when app is in background
-    if (appState === 'background') {
+    if (appState.current === 'background') {
       const activeOrderCount = filteredOrders.length;
       
       if (storeStatus === 'open') {
@@ -1042,6 +1123,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
               contentContainerStyle={styles.orderList}
               onRefresh={handleRefresh}
               refreshing={isRefreshing}
+              showsVerticalScrollIndicator={false}
             />
           )}
         </View>

@@ -96,6 +96,7 @@ const OrderHistory: React.FC<OrderHistoryProps> = ({navigation}) => {
           </Text>
         }
         contentContainerStyle={styles.listContainer}
+        showsVerticalScrollIndicator={false}
       />
     </View>
   );

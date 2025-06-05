@@ -74,6 +74,3 @@ node_modules/react-native-switch-selector/
 !.yarn/releases
 !.yarn/sdks
 !.yarn/versions
-
-#congig
-config.ts

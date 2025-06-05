@@ -299,6 +299,7 @@ const WalletScreen = () => {
             )
           }
           contentContainerStyle={styles.listContentContainer}
+          showsVerticalScrollIndicator={false}
         />
       )}
     </View>

@@ -13,6 +13,10 @@ import {
   OrderSocketEvents,
 } from './src/native/OrderSocket';
 import NetworkAlert from './src/components/common/NetworkAlert';
+import {config} from './src/config';
+import FCMService from './src/services/FCMService';
+import messaging from '@react-native-firebase/messaging';
+import NotificationPermission from './src/components/common/NotificationPermission';
 
 export const navigationRef = React.createRef<NavigationContainerRef<any>>();
 
@@ -74,6 +78,35 @@ const App = () => {
     [setWalletBalance, addWalletTransaction],
   );
 
+  // Initialize FCM
+  useEffect(() => {
+    FCMService.init().catch(error => {
+      console.error('Failed to initialize FCM:', error);
+    });
+    
+    // Handle notification click when app is in background or terminated
+    messaging().onNotificationOpenedApp(remoteMessage => {
+      console.log('Notification opened app:', remoteMessage);
+      // Handle navigation if needed
+      if (navigationRef.current && remoteMessage.data?.orderId) {
+        // Navigate to order details
+        navigationRef.current.navigate('OrderDetails', {
+          orderId: remoteMessage.data.orderId,
+        });
+      }
+    });
+    
+    // Check if app was opened from a notification (app in quit state)
+    messaging().getInitialNotification().then(remoteMessage => {
+      if (remoteMessage) {
+        console.log('App opened from quit state by notification:', remoteMessage);
+        // We will navigate once the app is fully loaded
+        // Store the notification data to use after login
+        AsyncStorage.setItem('initialNotification', JSON.stringify(remoteMessage));
+      }
+    });
+  }, []);
+
   useEffect(() => {
     let isInitialConnection = true;
 
@@ -88,6 +121,11 @@ const App = () => {
           // Only connect socket and fetch orders on initial mount
           if (isInitialConnection) {
             try {
+              // First set the API base URL from config before connecting
+              console.log('[Socket] Setting API base URL:', config.BASE_URL);
+              await OrderSocket.setApiBaseUrl(config.BASE_URL);
+              
+              // Then connect to socket
               await OrderSocket.connect(storedBranchId, token);
               const recentOrders = await OrderSocket.getRecentOrders(
                 storedBranchId,
@@ -110,6 +148,29 @@ const App = () => {
             isInitialConnection = false;
           }
         }
+        
+        // Check if app was opened from notification and handle navigation
+        const handleInitialNotification = async () => {
+          try {
+            const initialNotificationStr = await AsyncStorage.getItem('initialNotification');
+            if (initialNotificationStr) {
+              const initialNotification = JSON.parse(initialNotificationStr);
+              if (initialNotification.data?.orderId) {
+                setTimeout(() => {
+                  navigationRef.current?.navigate('OrderDetails', {
+                    orderId: initialNotification.data.orderId,
+                  });
+                }, 1000); // Small delay to ensure navigation is ready
+              }
+              // Clear the stored notification
+              await AsyncStorage.removeItem('initialNotification');
+            }
+          } catch (error) {
+            console.error('Error handling initial notification:', error);
+          }
+        };
+        
+        handleInitialNotification();
       } catch (error) {
         console.error('[Socket] Failed to restore userId:', error);
       }
@@ -144,11 +205,23 @@ const App = () => {
     };
   }, [userId, handleNewOrder, handleOrderUpdate, handleWalletUpdate]);
 
+  // Cleanup FCM when component unmounts
+  useEffect(() => {
+    return () => {
+      // If user logs out, unregister FCM token
+      if (!userId) {
+        FCMService.unregisterToken().catch(console.error);
+      }
+    };
+  }, [userId]);
+
   return (
     <NavigationContainer ref={navigationRef}>
       <AppNavigator />
       {/* Add NetworkAlert component for internet connectivity monitoring */}
       <NetworkAlert />
+      {/* Add NotificationPermission component to handle permission requests */}
+      <NotificationPermission />
     </NavigationContainer>
   );
 };

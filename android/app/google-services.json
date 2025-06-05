@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "990750721571",
+    "project_id": "dkbranch-a0534",
+    "storage_bucket": "dkbranch-a0534.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:990750721571:android:55e5efe1f03c4b8f479396",
+        "android_client_info": {
+          "package_name": "com.dkbranch"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBkQwVdvInmUhoRsDzQtFeXhjlgBU4K2wI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

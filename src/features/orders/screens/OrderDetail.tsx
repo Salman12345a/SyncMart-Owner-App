@@ -637,6 +637,7 @@ const OrderDetail: React.FC<OrderDetailProps> = ({route, navigation}) => {
           )}
           keyExtractor={item => item._id}
           contentContainerStyle={styles.list}
+            showsVerticalScrollIndicator={false}
           />
         )}
 

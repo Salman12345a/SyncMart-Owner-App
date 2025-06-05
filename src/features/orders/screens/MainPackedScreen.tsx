@@ -100,6 +100,7 @@ const MainPackedScreen: React.FC<OrderPackedScreenProps> = ({navigation}) => {
           <Text style={styles.emptyText}>No packed orders</Text>
         }
         contentContainerStyle={styles.list}
+        showsVerticalScrollIndicator={false}
       />
       
       {/* Loading Overlay - Show when initial loading or pickup tab is loading */}

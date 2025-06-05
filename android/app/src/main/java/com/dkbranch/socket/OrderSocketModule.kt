@@ -4,14 +4,17 @@ import android.content.Intent
 import com.facebook.react.bridge.*
 import com.facebook.react.modules.core.DeviceEventManagerModule
 import com.dkbranch.socket.data.AppDatabase
+import com.dkbranch.socket.data.EncryptedSharedPreferencesManager
 import com.dkbranch.socket.service.OrderSocketService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 class OrderSocketModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaModule(reactContext) {
     private val database = AppDatabase.getInstance(reactContext)
-    private val socketManager = OrderSocketManager(database)
+    private val encryptedPrefsManager = EncryptedSharedPreferencesManager(reactContext)
+    private val socketManager = OrderSocketManager(database, encryptedPrefsManager)
     private val scope = CoroutineScope(Dispatchers.IO)
 
     init {
@@ -20,75 +23,155 @@ class OrderSocketModule(reactContext: ReactApplicationContext) : ReactContextBas
         }
     }
 
-    override fun getName(): String = "OrderSocketModule"
+    override fun getName() = "OrderSocketModule"
+
+    @ReactMethod
+    fun setApiBaseUrl(apiBaseUrl: String, promise: Promise) {
+        try {
+            // Store the API base URL in the encrypted preferences
+            encryptedPrefsManager.saveApiBaseUrl(reactApplicationContext, apiBaseUrl)
+            socketManager.setApiBaseUrl(apiBaseUrl)
+            promise.resolve(true)
+        } catch (e: Exception) {
+            promise.reject("SET_API_URL_ERROR", e.message, e)
+        }
+    }
 
     @ReactMethod
     fun connect(branchId: String, token: String, promise: Promise) {
         try {
-            // Set the token first
-            socketManager.setToken(token)
+            encryptedPrefsManager.saveCredentials(reactApplicationContext, branchId, token)
+            // When connecting, assume store should be open by default or respect last known state.
+            // For simplicity now, let's ensure it's marked as open for service start.
+            encryptedPrefsManager.saveStoreStatus(reactApplicationContext, true)
+
+            // Configure socket manager first
+            socketManager.setContext(reactApplicationContext)
             
-            // Start the background service
+            // Get socket URL from preferences or use default production URL
+            val socketUrl = "https://dokirana.el.r.appspot.com/"
+            socketManager.setSocketServerUrl(socketUrl)
+            
+            // Start the service with all required parameters
             val serviceIntent = Intent(reactApplicationContext, OrderSocketService::class.java).apply {
-                putExtra(OrderSocketService.EXTRA_BRANCH_ID, branchId)
-                putExtra(OrderSocketService.EXTRA_TOKEN, token)
+                putExtra("branchId", branchId)
+                putExtra("token", token)
+                putExtra("socketUrl", socketUrl)
+                // Flag indicating service was started by user action, not boot
+                putExtra("started_from_boot", false)
             }
+            
+            // Start or restart service
+            reactApplicationContext.stopService(serviceIntent) // Stop if already running
             reactApplicationContext.startService(serviceIntent)
             
-            // Also connect in the module for immediate response
-            scope.launch {
-                try {
-                    socketManager.connect(branchId)
-                    promise.resolve(null)
-                } catch (e: Exception) {
-                    promise.reject("SOCKET_ERROR", e.message)
-                }
+            // Also connect manager if needed (it will be connected by the service)
+            if (!socketManager.isConnected()) {
+                socketManager.connect(branchId, token)
             }
+            
+            promise.resolve(null)
         } catch (e: Exception) {
-            promise.reject("SOCKET_ERROR", e.message)
+            promise.reject("CONNECT_ERROR", e.message, e)
         }
     }
 
     @ReactMethod
     fun disconnect(promise: Promise) {
         try {
-            // Stop the background service
+            encryptedPrefsManager.clearCredentials(reactApplicationContext) // This will also clear store status
+            // Explicitly mark store as closed for service control
+            encryptedPrefsManager.saveStoreStatus(reactApplicationContext, false)
+
             val serviceIntent = Intent(reactApplicationContext, OrderSocketService::class.java)
             reactApplicationContext.stopService(serviceIntent)
-            
-            scope.launch {
-                try {
-                    socketManager.disconnect()
-                    promise.resolve(null)
-                } catch (e: Exception) {
-                    promise.reject("SOCKET_ERROR", e.message)
-                }
-            }
+            socketManager.disconnect()
+            promise.resolve(null)
         } catch (e: Exception) {
-            promise.reject("SOCKET_ERROR", e.message)
+            promise.reject("DISCONNECT_ERROR", e.message, e)
         }
     }
 
     @ReactMethod
-    fun getRecentOrders(branchId: String, promise: Promise) {
+    fun setStoreStatus(isOpen: Boolean, promise: Promise) {
+        try {
+            encryptedPrefsManager.saveStoreStatus(reactApplicationContext, isOpen)
+            val branchId = encryptedPrefsManager.getBranchId(reactApplicationContext)
+            val token = encryptedPrefsManager.getToken(reactApplicationContext)
+
+            if (branchId != null && token != null) {
+                if (isOpen) {
+                    // Configure socket manager context
+                    socketManager.setContext(reactApplicationContext)
+                    
+                    // Get socket URL (could be stored in preferences in a real implementation)
+                    val socketUrl = "https://syncmart-ws.fly.dev"
+                    socketManager.setSocketServerUrl(socketUrl)
+                    
+                    // Start the service with all required parameters
+                    val serviceIntent = Intent(reactApplicationContext, OrderSocketService::class.java).apply {
+                        putExtra("branchId", branchId)
+                        putExtra("token", token)
+                        putExtra("socketUrl", socketUrl)
+                        // Flag indicating service was explicitly opened by user
+                        putExtra("started_from_user", true)
+                    }
+                    
+                    // Start or restart service
+                    reactApplicationContext.stopService(serviceIntent) // Stop if already running
+                    reactApplicationContext.startService(serviceIntent)
+                    
+                    // Ensure socket manager is also connected
+                    if (!socketManager.isConnected()) {
+                         socketManager.connect(branchId, token)
+                    }
+                } else {
+                    // Stop service and disconnect socket when store is closed
+                    val serviceIntent = Intent(reactApplicationContext, OrderSocketService::class.java)
+                    reactApplicationContext.stopService(serviceIntent)
+                    socketManager.disconnect()
+                }
+            } else {
+                // If no credentials, we can't start the service, but still save the desired status
+                if (!isOpen) { // If trying to close and no creds, ensure service is stopped if it was somehow running
+                     val serviceIntent = Intent(reactApplicationContext, OrderSocketService::class.java)
+                     reactApplicationContext.stopService(serviceIntent)
+                     socketManager.disconnect()
+                }
+            }
+            promise.resolve(null)
+        } catch (e: Exception) {
+            promise.reject("SET_STORE_STATUS_ERROR", e.message, e)
+        }
+    }
+
+    @ReactMethod
+    fun getPersistedOrders(promise: Promise) {
         scope.launch {
             try {
-                val orders = database.orderDao().getOrdersForBranch(branchId)
+                val branchId = encryptedPrefsManager.getBranchId(reactApplicationContext)
+                if (branchId == null) {
+                    promise.resolve(Arguments.createArray()) // No branchId, return empty array
+                    return@launch
+                }
+
+                val orderList = database.orderDao().getOrdersForBranch(branchId).first() // Get the current list once
                 val result = Arguments.createArray()
                 
-                orders.collect { orderList ->
-                    orderList.forEach { order ->
-                        val orderMap = Arguments.createMap().apply {
-                            putString("orderId", order.orderId)
-                            putString("status", order.status)
-                            putString("orderData", order.orderData)
-                        }
-                        result.pushMap(orderMap)
+                orderList.forEach { order ->
+                    val orderMap = Arguments.createMap().apply {
+                        putString("orderId", order.orderId)
+                        putString("branchId", order.branchId)
+                        putString("orderData", order.orderData) // This is a JSON string
+                        putString("status", order.status)
+                        putDouble("createdAt", order.createdAt.toDouble()) // WritableMap uses double for numbers
+                        putDouble("updatedAt", order.updatedAt.toDouble())
                     }
-                    promise.resolve(result)
+                    result.pushMap(orderMap)
                 }
+                promise.resolve(result)
             } catch (e: Exception) {
-                promise.reject("DATABASE_ERROR", e.message)
+                promise.reject("GET_PERSISTED_ORDERS_ERROR", "Error fetching persisted orders: ${e.message}", e)
             }
         }
     }
@@ -101,11 +184,11 @@ class OrderSocketModule(reactContext: ReactApplicationContext) : ReactContextBas
 
     @ReactMethod
     fun addListener(eventName: String) {
-        // Required for RN event emitter
+        // Keep: Required for RN built in Event Emitter Calls.
     }
 
     @ReactMethod
     fun removeListeners(count: Int) {
-        // Required for RN event emitter
+        // Keep: Required for RN built in Event Emitter Calls.
     }
-} 
+}

@@ -362,7 +362,7 @@ const InventoryItemDisplay = () => {
         <TabView value={categoryIndex} onChange={setCategoryIndex} animationType="spring">
           {/* Default Tab */}
           <TabView.Item style={styles.tabContent}>
-            <ScrollView style={styles.scrollView}>
+            <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
               {activeCategories.loading ? (
                 <Text style={styles.loadingText}>Loading categories...</Text>
               ) : activeCategories.error ? (
@@ -418,7 +418,7 @@ const InventoryItemDisplay = () => {
           </TabView.Item>
           {/* Custom Tab */}
           <TabView.Item style={styles.tabContent}>
-            <ScrollView style={styles.scrollView}>
+            <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
               {activeCategories.loading ? (
                 <ActivityIndicator size="large" color="#007AFF" style={{ marginTop: 20 }} />
               ) : activeCategories.error ? (

@@ -452,6 +452,7 @@ const ProductsScreen = () => {
                       numColumns={2}
                       columnWrapperStyle={styles.gridRow}
                       contentContainerStyle={styles.gridContainer}
+                      showsVerticalScrollIndicator={false}
                     />
                     <View style={styles.buttonContainer}>
                       <CustomButton
@@ -526,6 +527,7 @@ const ProductsScreen = () => {
                               numColumns={2}
                               columnWrapperStyle={styles.gridRow}
                               contentContainerStyle={styles.gridContainer}
+                              showsVerticalScrollIndicator={false}
                             />
                             <View style={styles.fixedButtonContainer}>
                               <CustomButton
@@ -573,6 +575,7 @@ const ProductsScreen = () => {
                               numColumns={2}
                               columnWrapperStyle={styles.gridRow}
                               contentContainerStyle={styles.gridContainer}
+                              showsVerticalScrollIndicator={false}
                             />
                             <View style={styles.fixedButtonContainer}>
                               <CustomButton

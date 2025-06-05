@@ -156,8 +156,7 @@ public class FloatingOverlayService extends Service {
         
         // Create foreground notification
         Notification notification = new NotificationCompat.Builder(this, CHANNEL_ID)
-                .setContentTitle("SyncMart Store Status")
-                .setContentText("Your store status is being monitored")
+                .setContentTitle("Listening for orders")
                 .setSmallIcon(R.mipmap.ic_launcher)
                 .setPriority(NotificationCompat.PRIORITY_LOW)
                 .build();

@@ -13,10 +13,16 @@ interface OrderDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     fun insertOrder(order: OrderEntity)
+    
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    fun insert(order: OrderEntity)
 
     @Update
     fun updateOrder(order: OrderEntity)
 
     @Query("DELETE FROM orders WHERE createdAt < :timestamp")
     fun deleteOldOrders(timestamp: Long): Int
-} 
+
+    @Query("SELECT COUNT(*) FROM orders WHERE status = 'Pending' OR status = 'Confirmed'")
+    fun getPendingOrderCount(): Int
+}

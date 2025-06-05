@@ -4,6 +4,7 @@ import SwitchSelector from 'react-native-switch-selector';
 import {useStore} from '../../store/ordersStore';
 import {getStoreStatus, updateStoreStatus} from '../../services/api';
 import socketService from '../../services/socket';
+import {OrderSocket} from '../../native/OrderSocket'; // Import OrderSocket
 
 const MINIMUM_BALANCE = -100;
 
@@ -26,6 +27,7 @@ const StoreStatusToggle: React.FC<StoreStatusToggleProps> = ({
       try {
         const response = await getStoreStatus();
         setStoreStatus(response.storeStatus);
+        OrderSocket.setStoreStatus(response.storeStatus === 'open'); // Sync with native module
 
         // Check wallet balance
         if (response.balance < MINIMUM_BALANCE) {
@@ -57,6 +59,7 @@ const StoreStatusToggle: React.FC<StoreStatusToggleProps> = ({
 
       if (data.storeStatus !== storeStatus) {
         setStoreStatus(data.storeStatus);
+        OrderSocket.setStoreStatus(data.storeStatus === 'open'); // Sync with native module
         // Force update switch position without triggering onPress
         if (switchRef.current) {
           switchRef.current.setValue(data.storeStatus === 'open' ? 0 : 1);
@@ -114,6 +117,7 @@ const StoreStatusToggle: React.FC<StoreStatusToggleProps> = ({
       try {
         const response = await updateStoreStatus(newStatus);
         setStoreStatus(response.storeStatus);
+        OrderSocket.setStoreStatus(response.storeStatus === 'open'); // Sync with native module
 
         if (response.reason) {
           setErrorMessage(response.reason);

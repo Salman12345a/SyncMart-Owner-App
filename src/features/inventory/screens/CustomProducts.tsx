@@ -198,7 +198,7 @@ const CustomProducts = () => {
     >
       <CustomHeader title={`Create Custom Product`} />
       
-      <ScrollView style={styles.scrollView}>
+      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         <View style={styles.formContainer}>
           <Text style={styles.categoryName}>Category: {categoryName}</Text>
           
