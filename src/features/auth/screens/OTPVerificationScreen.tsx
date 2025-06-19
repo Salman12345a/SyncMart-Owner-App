@@ -14,7 +14,7 @@ import {
 import {StackScreenProps} from '@react-navigation/stack';
 import {RootStackParamList} from '../../../navigation/types';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import {completeBranchRegistration, initiateBranchRegistration, completeLogin} from '../../../services/api';
+import {completeBranchRegistration, initiateBranchRegistration, initiateLogin, completeLogin} from '../../../services/api';
 import {config} from '../../../config';
 import {storage} from '../../../utils/storage';
 import {useStore} from '../../../store/ordersStore';
@@ -175,13 +175,22 @@ const OTPVerificationScreen: React.FC<OTPVerificationScreenProps> = ({
 
     setIsLoading(true);
     try {
-      const resendResp = await initiateBranchRegistration(
-        JSON.parse(formData),
-      );
+      let resendResp: any;
+      if (isLogin) {
+        // For login flow simply re-initiate login with phone number
+        resendResp = await initiateLogin(phone);
+      } else {
+        // Registration flow expects formData
+        if (!formData) {
+          throw new Error('Missing registration data.');
+        }
+        const parsed = typeof formData === 'string' ? JSON.parse(formData) : formData;
+        resendResp = await initiateBranchRegistration(parsed);
+      }
 
       // Extract nested fields (backend returns them under data.data)
       const {sessionId: newSessionId, validityPeriod, retryAfter} =
-        resendResp?.data?.data ?? resendResp?.data ?? {};
+        resendResp?.data?.data ?? resendResp?.data ?? resendResp ?? {};
 
       if (newSessionId) {
         setSessionId(newSessionId);
@@ -502,10 +511,9 @@ const styles = StyleSheet.create({
   },
   otpContainer: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
     width: '100%',
     marginBottom: 40,
-    paddingHorizontal: 24,
   },
   otpInput: {
     width: 60,
@@ -518,6 +526,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     color: '#333333',
     backgroundColor: '#F9F9F9',
+    marginHorizontal: 2,
   },
   timerContainer: {
     marginBottom: 40,
