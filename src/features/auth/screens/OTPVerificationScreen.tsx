@@ -14,7 +14,7 @@ import {
 import {StackScreenProps} from '@react-navigation/stack';
 import {RootStackParamList} from '../../../navigation/types';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import {verifyOTP, sendOTP, completeLogin} from '../../../services/api';
+import {completeBranchRegistration, initiateBranchRegistration, completeLogin} from '../../../services/api';
 import {config} from '../../../config';
 import {storage} from '../../../utils/storage';
 import {useStore} from '../../../store/ordersStore';
@@ -39,10 +39,14 @@ const OTPVerificationScreen: React.FC<OTPVerificationScreenProps> = ({
   navigation,
 }) => {
   const {phone, formData, branchId, isResubmit, isLogin} = route.params || {};
+  const { sessionId: paramSessionId, validityPeriod, retryAfter } = route.params || {} as any;
+  const initialSessionId = paramSessionId;
+  const [sessionId, setSessionId] = useState<string | undefined>(initialSessionId);
   const {setUserId} = useStore();
 
+  const OTP_LENGTH = 6;
   // OTP inputs
-  const [otpValues, setOtpValues] = useState(['', '', '', '']);
+  const [otpValues, setOtpValues] = useState(Array(OTP_LENGTH).fill(''));
   const otpInputRefs = useRef<Array<TextInput | null>>([]);
 
   const [isLoading, setIsLoading] = useState(false);
@@ -130,7 +134,7 @@ const OTPVerificationScreen: React.FC<OTPVerificationScreenProps> = ({
       const pastedText = value;
       const newOtpValues = [...otpValues];
 
-      for (let i = 0; i < Math.min(pastedText.length, 4); i++) {
+      for (let i = 0; i < Math.min(pastedText.length, OTP_LENGTH); i++) {
         if (/^\d+$/.test(pastedText[i])) {
           newOtpValues[i] = pastedText[i];
         }
@@ -141,7 +145,7 @@ const OTPVerificationScreen: React.FC<OTPVerificationScreenProps> = ({
       // Focus on the last filled input or the next empty one
       const lastFilledIndex = newOtpValues.findIndex(v => v === '') - 1;
       const focusIndex =
-        lastFilledIndex >= 0 && lastFilledIndex < 3 ? lastFilledIndex + 1 : 3;
+        lastFilledIndex >= 0 && lastFilledIndex < OTP_LENGTH - 1 ? lastFilledIndex + 1 : OTP_LENGTH - 1;
       otpInputRefs.current[focusIndex]?.focus();
     } else if (/^\d*$/.test(value)) {
       // Handle single digit input
@@ -150,7 +154,7 @@ const OTPVerificationScreen: React.FC<OTPVerificationScreenProps> = ({
       setOtpValues(newOtpValues);
 
       // Auto focus to next input
-      if (value !== '' && index < 3) {
+      if (value !== '' && index < OTP_LENGTH - 1) {
         otpInputRefs.current[index + 1]?.focus();
       }
     }
@@ -171,27 +175,35 @@ const OTPVerificationScreen: React.FC<OTPVerificationScreenProps> = ({
 
     setIsLoading(true);
     try {
-      const response = await sendOTP(phone);
+      const resendResp = await initiateBranchRegistration(
+        JSON.parse(formData),
+      );
 
-      if (response && response.data) {
-        // Reset timers with values from the server response or use defaults
-        const validityPeriod = parseInt(response.data.validityPeriod) || 600;
-        const retryAfter = parseInt(response.data.retryAfter) || 60;
+      // Extract nested fields (backend returns them under data.data)
+      const {sessionId: newSessionId, validityPeriod, retryAfter} =
+        resendResp?.data?.data ?? resendResp?.data ?? {};
 
-        // Store the values for potential future use
-        storage.set('otpValidityPeriod', validityPeriod);
-        storage.set('otpRetryAfter', retryAfter);
-
-        // Reset timer states
-        setTimeLeft(validityPeriod);
-        setResendCountdown(retryAfter);
-        setResendDisabled(true);
-
-        // Restart the timers
-        startTimers();
-
-        Alert.alert('Success', 'OTP has been resent to your phone number.');
+      if (newSessionId) {
+        setSessionId(newSessionId);
       }
+
+      // Reset timers with values from the server response or fallback defaults
+      const validPeriodSec = parseInt(String(validityPeriod)) || 600;
+      const retryAfterSec = parseInt(String(retryAfter)) || 60;
+
+      // Store the values for potential future use
+      storage.set('otpValidityPeriod', validPeriodSec);
+      storage.set('otpRetryAfter', retryAfterSec);
+
+      // Reset timer states
+      setTimeLeft(validPeriodSec);
+      setResendCountdown(retryAfterSec);
+      setResendDisabled(true);
+
+      // Restart the timers
+      startTimers();
+
+      Alert.alert('Success', 'OTP has been resent to your phone number.');
     } catch (error: any) {
       console.error('Resend OTP Error:', error);
       Alert.alert(
@@ -205,14 +217,22 @@ const OTPVerificationScreen: React.FC<OTPVerificationScreenProps> = ({
 
   const handleLoginVerification = async () => {
     const otpCode = otpValues.join('');
-    if (!otpCode || otpCode.length < 4) {
-      Alert.alert('Error', 'Please enter a valid 4-digit OTP.');
+    if (!otpCode || otpCode.length < OTP_LENGTH) {
+      Alert.alert('Error', 'Please enter a valid 6-digit OTP.');
       return;
     }
 
     setIsLoading(true);
     try {
-      const response = await completeLogin(phone, otpCode);
+            // Use sessionId from state or fallback to storage
+      const activeSessionId = sessionId || storage.getString('sessionId');
+      if (!activeSessionId) {
+        Alert.alert('Error', 'Session expired. Please resend OTP.');
+        setIsLoading(false);
+        return;
+      }
+
+      const response = await completeLogin(phone, otpCode, activeSessionId);
 
       if (response && response.token) {
         // Decode the JWT token
@@ -295,22 +315,28 @@ const OTPVerificationScreen: React.FC<OTPVerificationScreenProps> = ({
 
   const handleRegistrationVerification = async () => {
     const otpCode = otpValues.join('');
-    if (!otpCode || otpCode.length < 4) {
-      Alert.alert('Error', 'Please enter a valid 4-digit OTP.');
+    if (!otpCode || otpCode.length < OTP_LENGTH) {
+      Alert.alert('Error', 'Please enter a valid 6-digit OTP.');
       return;
     }
 
     setIsLoading(true);
     try {
-      const response = await verifyOTP(phone, otpCode);
+      if (!sessionId){
+      Alert.alert('Error','Session expired. Please resend OTP.');
+      return;
+    }
+    console.log('Verifying registration with', { phone, otpCode, sessionId });
+    const response = await completeBranchRegistration(phone, otpCode, sessionId);
 
-      if (response && response.data && response.data.verified) {
+      // Backend now returns success data at the root level (not nested under `data`)
+      if (response) {
         // Store verification status
         storage.set('phoneVerified', true);
 
-        // Store OTP validation period for later use if needed
-        if (response.data.validFor) {
-          storage.set('otpValidFor', response.data.validFor);
+        // Store OTP validation period for later use if backend provides it
+        if ((response as any)?.validFor) {
+          storage.set('otpValidFor', (response as any).validFor);
         }
 
         // Store form data for the next screen
@@ -375,7 +401,7 @@ const OTPVerificationScreen: React.FC<OTPVerificationScreenProps> = ({
         <View style={styles.headerContainer}>
           <Text style={styles.header}>Verification Code</Text>
           <Text style={styles.subheader}>
-            We've sent a 4-digit code to {phone}
+            We've sent a 6-digit code to {phone}
           </Text>
         </View>
 
@@ -391,7 +417,7 @@ const OTPVerificationScreen: React.FC<OTPVerificationScreenProps> = ({
                 handleOtpKeyPress(index, nativeEvent.key)
               }
               keyboardType="numeric"
-              maxLength={index === 0 ? 4 : 1} // First input can accept paste
+              maxLength={index === 0 ? OTP_LENGTH : 1} // First input can accept paste
               autoFocus={index === 0}
               selectionColor="#007AFF"
             />

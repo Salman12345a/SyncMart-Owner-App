@@ -622,6 +622,7 @@ export const validateToken = async () => {
 };
 
 // Step 1: Initiate branch login (send OTP)
+// Step 1: Initiate branch login (send OTP)
 export const initiateLogin = async (phone: string) => {
   try {
     console.log('Initiating login with phone:', phone);
@@ -659,7 +660,7 @@ export const initiateLogin = async (phone: string) => {
 
     console.log('Login initiation successful:', response.data);
 
-    // Store timing information for OTP if available
+    // Store sessionId and timing information for OTP if available
     if (response.data && response.data.data) {
       storage.set(
         'otpValidityPeriod',
@@ -669,6 +670,7 @@ export const initiateLogin = async (phone: string) => {
         'otpRetryAfter',
         parseInt(response.data.data.retryAfter) || 60,
       );
+      storage.set('sessionId', response.data.data.sessionId);
     }
 
     return response.data;
@@ -682,7 +684,8 @@ export const initiateLogin = async (phone: string) => {
 };
 
 // Step 2: Complete branch login (verify OTP)
-export const completeLogin = async (phone: string, otp: string) => {
+// Step 2: Complete branch login (verify OTP)
+export const completeLogin = async (phone: string, otp: string, sessionId: string) => {
   try {
     console.log('Completing login with phone and OTP:', phone);
     // Ensure phone number has country code
@@ -752,9 +755,10 @@ export const completeLogin = async (phone: string, otp: string) => {
     }
 
     // For real phone numbers, proceed with the actual API call
-    const response = await api.post('/auth/branch/login/complete', {
+        const response = await api.post('/auth/branch/login/complete', {
       phoneNumber: phoneNumber,
       otp: otp,
+      sessionId: sessionId,
     });
 
     console.log('Login completion successful:', response.data);
@@ -914,6 +918,18 @@ export const initiateBranchRegistration = async (data: {
     });
 
     console.log('Branch Registration Initiation Success:', response.data);
+
+    // Persist session details for subsequent OTP verification
+    const { sessionId, validityPeriod, retryAfter } = response.data?.data || {};
+    if (sessionId) {
+      storage.set('registrationSessionId', sessionId);
+      if (validityPeriod) {
+        storage.set('otpValidityPeriod', parseInt(validityPeriod));
+      }
+      if (retryAfter) {
+        storage.set('otpRetryAfter', parseInt(retryAfter));
+      }
+    }
     return response.data;
   } catch (error: any) {
     console.error(
@@ -948,8 +964,19 @@ export const sendOTP = async (phoneNumber: string) => {
     }
 
     // For real phone numbers, proceed with the actual API call
-    const response = await api.post('/auth/branch/send-otp', {phoneNumber});
+    const response = await api.post('/register/branch/initiate', { phone: phoneNumber });
     console.log('Send OTP Success:', response.data);
+
+    const { sessionId, validityPeriod, retryAfter } = response.data?.data || {};
+    if (sessionId) {
+      storage.set('registrationSessionId', sessionId);
+      if (validityPeriod) {
+        storage.set('otpValidityPeriod', parseInt(validityPeriod));
+      }
+      if (retryAfter) {
+        storage.set('otpRetryAfter', parseInt(retryAfter));
+      }
+    }
     return response.data;
   } catch (error: any) {
     console.error('Send OTP Error:', error.response?.data || error.message);
@@ -995,11 +1022,26 @@ export const verifyOTP = async (phoneNumber: string, otp: string) => {
     }
 
     // For real phone numbers, proceed with the actual API call
-    const response = await api.post('/auth/branch/verify-otp', {
-      phoneNumber,
+    const sessionId = storage.getString('registrationSessionId');
+    const response = await api.post('/register/branch/complete', {
+      phone: phoneNumber,
       otp,
+      sessionId,
     });
     console.log('Verify OTP Success:', response.data);
+
+    // Persist tokens and branch info returned by the backend so that subsequent
+    // API requests are already authenticated and have immediate context.
+    if (response.data?.accessToken) {
+      storage.set('accessToken', response.data.accessToken);
+    }
+    if (response.data?.refreshToken) {
+      storage.set('refreshToken', response.data.refreshToken);
+    }
+    if (response.data?.branch?._id) {
+      storage.set('userId', response.data.branch._id);
+      storage.set('branchPhone', response.data.branch.phone);
+    }
     return response.data;
   } catch (error: any) {
     console.error('Verify OTP Error:', error.response?.data || error.message);
@@ -1007,25 +1049,36 @@ export const verifyOTP = async (phoneNumber: string, otp: string) => {
   }
 };
 
-// Step 3: Complete branch registration
-export const completeBranchRegistration = async (phoneNumber: string) => {
+
+
+
+// New two-step flow: complete registration with OTP + sessionId
+export const completeBranchRegistration = async (
+  phone: string,
+  otp: string,
+  sessionId: string,
+) => {
   try {
-    console.log('Completing branch registration for phone:', phoneNumber);
-    // Ensure phone number has country code
-    if (!phoneNumber.startsWith('+')) {
-      console.warn('Phone number does not start with +, adding default +91');
-      phoneNumber = '+91' + phoneNumber;
+    if (!phone.startsWith('+')) {
+      phone = '+91' + phone;
     }
     const response = await api.post('/register/branch/complete', {
-      phone: phoneNumber,
+      phone,
+      otp,
+      sessionId,
     });
-    console.log('Complete Registration Success:', response.data);
+
+    // Save tokens & branch
+    const { accessToken, refreshToken, branch } = response.data || {};
+    if (accessToken) storage.set('accessToken', accessToken);
+    if (refreshToken) storage.set('refreshToken', refreshToken);
+    if (branch?._id) {
+      storage.set('userId', branch._id);
+      storage.set('branchPhone', branch.phone);
+    }
     return response.data;
   } catch (error: any) {
-    console.error(
-      'Complete Registration Error:',
-      error.response?.data || error.message,
-    );
+    console.error('Complete Registration Error:', error.response?.data || error.message);
     throw error.response?.data || error;
   }
 };

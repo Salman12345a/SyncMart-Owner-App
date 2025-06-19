@@ -12,7 +12,7 @@ import {
 import {StackScreenProps} from '@react-navigation/stack';
 import {RootStackParamList} from '../../../navigation/types';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import {completeBranchRegistration} from '../../../services/api';
+// No need for completeBranchRegistration since verification is already done
 import {storage} from '../../../utils/storage';
 import {useStore} from '../../../store/ordersStore';
 
@@ -29,92 +29,16 @@ const RegisteredBranchDetails: React.FC<RegisteredBranchDetailsProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const {addBranch, setUserId} = useStore();
 
-  const handleCompleteRegistration = async () => {
-    setIsLoading(true);
-    try {
-      const response = await completeBranchRegistration(phone);
-
-      if (response && response.branch) {
-        const branchData = response.branch;
-
-        // Store data in MMKV
-        storage.set('isRegistered', true);
-        storage.set('branchId', branchData._id);
-        storage.set('branchPhone', phone);
-
-        if (branchData.status === 'approved') {
-          storage.set('isApproved', true);
-        } else {
-          storage.set('isApproved', false);
-        }
-
-        // Store branch name and owner name
-        if (branchData.name) {
-          storage.set('branchName', branchData.name);
-        }
-
-        if (branchData.ownerName) {
-          storage.set('ownerName', branchData.ownerName);
-        }
-
-        // Store token if available
-        if (response.accessToken) {
-          storage.set('accessToken', response.accessToken);
-        }
-
-        // Add branch to store
-        addBranch({
-          id: branchData._id,
-          status: branchData.status || 'pending',
-          name: branchData.name,
-          phone: phone,
-          address: branchData.address,
-          location: branchData.location,
-          branchEmail: branchData.branchEmail,
-          openingTime: branchData.openingTime,
-          closingTime: branchData.closingTime,
-          ownerName: branchData.ownerName,
-          govId: branchData.govId,
-          deliveryServiceAvailable: branchData.deliveryServiceAvailable,
-          selfPickup: branchData.selfPickup,
-          branchfrontImage: branchData.branchfrontImage,
-          ownerIdProof: branchData.ownerIdProof,
-          ownerPhoto: branchData.ownerPhoto,
-        });
-
-        // Set user ID
-        if (branchData._id) {
-          setUserId(branchData._id);
-        }
-
-        // Navigate to status screen
-        navigation.navigate('StatusScreen', {branchId: branchData._id});
-      } else {
-        throw new Error('Registration failed. Please try again.');
-      }
-    } catch (error: any) {
-      console.error('Complete Registration Error:', error);
-      
-      // Check for duplicate phone number error (MongoDB E11000 error)
-      const errorDetails = error.details || error.message || '';
-      const isDuplicatePhoneError = 
-        (typeof errorDetails === 'string' && errorDetails.includes('E11000 duplicate key error')) ||
-        (typeof errorDetails === 'object' && errorDetails.error?.includes('E11000 duplicate key error'));
-      
-      if (isDuplicatePhoneError) {
-        Alert.alert(
-          'Duplicate Phone Number',
-          'This phone number is already registered with another branch. Please use a different phone number.',
-        );
-      } else {
-        Alert.alert(
-          'Registration Failed',
-          error.message || 'Failed to complete registration. Please try again.',
-        );
-      }
-    } finally {
-      setIsLoading(false);
+  const handleCompleteRegistration = () => {
+    // Get the branch ID from the response data stored in MMKV
+    const storedBranchId = storage.getString('userId');
+    if (!storedBranchId) {
+      Alert.alert('Error', 'Branch ID not found. Please try registering again.');
+      return;
     }
+
+    // Navigate to status screen with the stored branch ID
+    navigation.navigate('StatusScreen', {branchId: storedBranchId});
   };
 
   // Format address for display

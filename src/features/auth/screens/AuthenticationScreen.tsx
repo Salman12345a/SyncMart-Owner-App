@@ -104,6 +104,29 @@ const AuthenticationScreen: React.FC = () => {
       console.log('Initiating login with phone:', fullPhoneNumber);
       const response = await initiateLogin(fullPhoneNumber);
 
+      // Extract session and timer details from server response (supports nested structures)
+      let sessionId: string | undefined;
+      let validityPeriod: number | undefined;
+      let retryAfter: number | undefined;
+
+      if ((response as any)?.data?.data) {
+        sessionId = (response as any).data.data.sessionId;
+        validityPeriod = parseInt(String((response as any).data.data.validityPeriod));
+        retryAfter = parseInt(String((response as any).data.data.retryAfter));
+      } else if ((response as any)?.data) {
+        sessionId = (response as any).data.sessionId;
+        validityPeriod = parseInt(String((response as any).data.validityPeriod));
+        retryAfter = parseInt(String((response as any).data.retryAfter));
+      } else {
+        sessionId = (response as any).sessionId;
+        validityPeriod = parseInt(String((response as any).validityPeriod));
+        retryAfter = parseInt(String((response as any).retryAfter));
+      }
+
+      if (sessionId) {
+        storage.set('sessionId', sessionId);
+      }
+
       if (response && response.status === 'success') {
         // Store the complete phone number for future use
         storage.set('branchPhone', fullPhoneNumber);
@@ -114,6 +137,9 @@ const AuthenticationScreen: React.FC = () => {
         );
         navigation.navigate('OTPVerification', {
           phone: fullPhoneNumber,
+          sessionId: sessionId,
+          validityPeriod: validityPeriod,
+          retryAfter: retryAfter,
           isLogin: true,
           formData: null,
           branchId: undefined,

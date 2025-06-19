@@ -21,7 +21,6 @@ import {RootStackParamList} from '../../../navigation/AppNavigator';
 import {
   registerBranch,
   initiateBranchRegistration,
-  sendOTP,
 } from '../../../services/api';
 import api from '../../../services/api';
 import {useStore} from '../../../store/ordersStore';
@@ -359,26 +358,25 @@ const UploadBranchDocs: React.FC<UploadBranchDocsProps> = ({
 
           console.log('Branch initiation successful:', initiationResponse);
 
-          // Step 2: Only if Step 1 succeeds, proceed with OTP
-          console.log('Step 2: Sending OTP');
-          const otpResponse = await sendOTP(data.phone);
+          // Use initiation response session & timing values
+          
+          // The API returns these fields nested under a second `data` object.
+      // Fallback to `initiationResponse.data` in case backend shape changes.
+      const { sessionId, validityPeriod, retryAfter } =
+        initiationResponse?.data?.data ?? initiationResponse?.data ?? {};
 
-          if (!otpResponse) {
-            throw new Error('OTP sending failed');
+          
+
+          
+
+          if (validityPeriod) {
+            storage.set('otpValidityPeriod', parseInt(validityPeriod) || 600);
           }
-
-          console.log('OTP sent successfully:', otpResponse);
-
-          // Store timing information for OTP
-          if (otpResponse.data) {
-            storage.set(
-              'otpValidityPeriod',
-              parseInt(otpResponse.data.validityPeriod) || 600,
-            );
-            storage.set(
-              'otpRetryAfter',
-              parseInt(otpResponse.data.retryAfter) || 60,
-            );
+          if (retryAfter) {
+            storage.set('otpRetryAfter', parseInt(retryAfter) || 60);
+          }
+          if (sessionId) {
+            storage.set('registrationSessionId', sessionId);
           }
 
           // Store form data for later use
@@ -388,10 +386,13 @@ const UploadBranchDocs: React.FC<UploadBranchDocsProps> = ({
           // Navigate to OTP verification screen
           navigation.navigate('OTPVerification', {
             phone: data.phone,
-            formData: data,
+            formData: JSON.stringify(data),
+            sessionId,
+            validityPeriod,
+            retryAfter,
             branchId: undefined,
             isResubmit: false,
-          });
+          } as any);
         } catch (apiError: any) {
           console.error('API Error:', apiError);
           const errorMessage =

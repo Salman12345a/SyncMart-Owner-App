@@ -7,6 +7,16 @@ export type RootStackParamList = {
   SplashScreen: undefined;
   EntryScreen: undefined;
   Authentication: undefined;
+  OTPVerification: {
+    phone: string;
+    sessionId?: string;
+    validityPeriod?: number;
+    retryAfter?: number;
+    formData?: any;
+    branchId?: string;
+    isResubmit?: boolean;
+    isLogin: boolean;
+  };
   UserDetails: undefined;
   PhoneNumberScreen: {
     formData?: any;
@@ -43,13 +53,7 @@ export type RootStackParamList = {
   Order: undefined;
   Wallet: undefined;
   OrderHistory: undefined;
-  OTPVerification: {
-    phone: string;
-    formData: any;
-    branchId?: string;
-    isResubmit?: boolean;
-    isLogin?: boolean;
-  };
+
   RegisteredBranchDetails: {
     phone: string;
     formData: any;
